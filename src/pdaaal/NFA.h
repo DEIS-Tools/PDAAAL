@@ -37,6 +37,7 @@
 #include <ostream>
 #include <functional>
 #include <iostream>
+#include <stdexcept>
 
 
 namespace pdaaal {
@@ -314,10 +315,10 @@ namespace pdaaal {
             question_extend();
         }
 
-/*        void and_extend(NFA&& other) {
+        void and_extend(NFA&& other) {
             // prune? Powerset?
-            throw base_error("conjunction for NFAs are not yet implemented");
-        }*/
+            throw std::logic_error("conjunction for NFAs are not yet implemented");
+        }
 
         void or_extend(NFA&& other) 
         {
