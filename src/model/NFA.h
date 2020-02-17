@@ -314,7 +314,7 @@ namespace pdaaal {
             question_extend();
         }
 
-*/        void and_extend(NFA&& other) {
+/*        void and_extend(NFA&& other) {
             // prune? Powerset?
             throw base_error("conjunction for NFAs are not yet implemented");
         }*/
