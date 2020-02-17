@@ -27,8 +27,8 @@
 #ifndef SOLVER_H
 #define SOLVER_H
 
-#include "model/PAutomaton.h"
-#include "model/TypedPDA.h"
+#include "PAutomaton.h"
+#include "TypedPDA.h"
 
 namespace pdaaal {
 
