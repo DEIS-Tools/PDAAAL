@@ -4,6 +4,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 add_library(pdaaal model/PDA.h engine/PAutomaton.h engine/PAutomaton.cpp model/PDA.cpp ${HEADER_FILES})
+add_dependencies(pdaaal ptrie-ext)
 target_include_directories (pdaaal PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 install(TARGETS pdaaal

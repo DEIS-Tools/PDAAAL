@@ -29,7 +29,7 @@
 
 #include "PDA.h"
 
-#include "utils/errors.h"
+// #include "utils/errors.h"
 
 #include <vector>
 #include <queue>
@@ -125,7 +125,7 @@ namespace pdaaal {
                 }
                 else
                 {
-                    throw base_error("Couldnt find label during construction");
+                    throw; // base_error("Couldnt find label during construction");
                 }
             }    
             return std::numeric_limits<uint32_t>::max();

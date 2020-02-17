@@ -28,7 +28,7 @@
 #include <boost/test/unit_test.hpp>
 
 #include "TestPDAFactory.h"
-#include "pdaaal/engine/PAutomaton.h"
+#include "engine/PAutomaton.h"
 
 using namespace pdaaal;
 

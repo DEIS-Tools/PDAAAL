@@ -27,7 +27,7 @@
 #ifndef PDAAAL_TESTPDAFACTORY_H
 #define PDAAAL_TESTPDAFACTORY_H
 
-#include "pdaaal/model/SimplePDAFactory.h"
+#include "model/SimplePDAFactory.h"
 
 namespace pdaaal {
 
