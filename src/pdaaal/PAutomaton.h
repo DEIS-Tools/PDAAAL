@@ -27,7 +27,7 @@
 #ifndef PDAAAL_PAUTOMATON_H
 #define PDAAAL_PAUTOMATON_H
 
-#include "../model/PDA.h"
+#include "PDA.h"
 
 #include <memory>
 #include <functional>
