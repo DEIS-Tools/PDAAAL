@@ -29,8 +29,6 @@
 
 #include "PDA.h"
 
-// #include "utils/errors.h"
-
 #include <vector>
 #include <queue>
 #include <unordered_set>
@@ -125,7 +123,7 @@ namespace pdaaal {
                 }
                 else
                 {
-                    throw; // base_error("Couldnt find label during construction");
+                    throw std::logic_error("Couldnt find label during construction");
                 }
             }    
             return std::numeric_limits<uint32_t>::max();

@@ -27,8 +27,6 @@
 #ifndef NFA_H
 #define NFA_H
 
-// #include "utils/errors.h"
-
 #include <inttypes.h>
 #include <vector>
 #include <unordered_set>
@@ -37,7 +35,6 @@
 #include <ostream>
 #include <functional>
 #include <iostream>
-#include <stdexcept>
 
 
 namespace pdaaal {
