@@ -28,7 +28,7 @@
 #define SOLVER_H
 
 #include "PAutomaton.h"
-#include "pdaaal/model/TypedPDA.h"
+#include "model/TypedPDA.h"
 
 namespace pdaaal {
 
