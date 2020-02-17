@@ -26,7 +26,7 @@
 
 #include "PDA.h"
 
-#include "utils/errors.h"
+// #include "utils/errors.h"
 
 #include <queue>
 #include <cassert>
@@ -286,7 +286,7 @@ namespace pdaaal
                     change = to.merge_swap(ss, *fit, ds, number_of_labels());
                     break;
                 default:
-                    throw base_error("Unknown PDA operation");
+//                    throw base_error("Unknown PDA operation");
                     break;
                 }
                 if (to.update_state(change)) {

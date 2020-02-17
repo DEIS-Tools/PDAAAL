@@ -23,7 +23,7 @@
  *
  * Created on 03-01-2020.
  */
-#define BOOST_TEST_MODULE BinaryWrapper
+#define BOOST_TEST_MODULE Test1
 
 #include <boost/test/unit_test.hpp>
 

@@ -27,7 +27,7 @@
 #ifndef NFA_H
 #define NFA_H
 
-#include "utils/errors.h"
+// #include "utils/errors.h"
 
 #include <inttypes.h>
 #include <vector>
@@ -314,10 +314,10 @@ namespace pdaaal {
             question_extend();
         }
 
-        void and_extend(NFA&& other) {
+*/        void and_extend(NFA&& other) {
             // prune? Powerset?
             throw base_error("conjunction for NFAs are not yet implemented");
-        }
+        }*/
 
         void or_extend(NFA&& other) 
         {
