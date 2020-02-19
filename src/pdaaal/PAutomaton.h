@@ -276,14 +276,14 @@ namespace pdaaal {
                 for (size_t rule_id = 0; rule_id < rules.size(); ++rule_id) {
                     auto &rule = rules[rule_id];
                     if (rule._operation == POP) {
-                        insert_edge_bulk(state, rule._precondition, rule._to, this->new_pre_trace(rule_id));
+                        insert_edge_bulk(state, rule._labels, rule._to, this->new_pre_trace(rule_id));
                     }
                 }
             }
 
-            // delta_prime[q] = [p,rule_id]    where states[p]._rules[rule_id]._precondition.contains(y)    for each p, rule_id
+            // delta_prime[q] = [p,rule_id]    where states[p]._rules[rule_id]._labels.contains(y)    for each p, rule_id
             // corresponds to <p, y> --> <q, y>   (the y is the same, since we only have PUSH and not arbitrary <p, y> --> <q, y1 y2>, i.e. y==y2)
-            std::vector<std::vector<std::pair<size_t, size_t>>> delta_prime(n_pda_states);
+            std::vector<std::vector<std::pair<size_t, size_t>>> delta_prime(states().size());
 
             while (!trans.empty()) { // (line 3)
                 // pop t = (q, y, q') from trans (line 4)
@@ -296,13 +296,13 @@ namespace pdaaal {
                 for (auto pair : delta_prime[t._from]) { // Loop over delta_prime (that match with t->from)
                     auto state = pair.first;
                     auto rule_id = pair.second;
-                    if (pda_states[state]._rules[rule_id]._precondition.contains(t._label)) {
+                    if (pda_states[state]._rules[rule_id]._labels.contains(t._label)) {
                         insert_edge(state, t._label, t._to, this->new_pre_trace(rule_id, t._from));
                     }
                 }
                 // Loop over \Delta (filter rules going into q) (line 7 and 9)
                 if (t._from >= n_pda_states) { continue; }
-                for (auto pre_state : pda_states[t._from]._pre) {
+                for (auto pre_state : pda_states[t._from]._pre_states) {
                     const auto &rules = pda_states[pre_state]._rules;
                     rule_t<W,C> dummy_rule{t._from, PUSH, 0}; // PUSH and 0 are the smallest w.r.t. PDA::rule_t::operator<
                     auto lb = std::lower_bound(rules.begin(), rules.end(), dummy_rule);
@@ -315,11 +315,11 @@ namespace pdaaal {
                                 break;
                             case SWAP: // (line 7-8 for \Delta)
                                 if (rule._op_label == t._label) {
-                                    insert_edge_bulk(pre_state, rule._precondition, t._to, this->new_pre_trace(rule_id));
+                                    insert_edge_bulk(pre_state, rule._labels, t._to, this->new_pre_trace(rule_id));
                                 }
                                 break;
                             case NOOP: // (line 7-8 for \Delta)
-                                if (rule._precondition.contains(t._label)) {
+                                if (rule._labels.contains(t._label)) {
                                     insert_edge(pre_state, t._label, t._to, this->new_pre_trace(rule_id));
                                 }
                                 break;
@@ -328,7 +328,7 @@ namespace pdaaal {
                                     // (line 10)
                                     delta_prime[t._to].emplace_back(pre_state, rule_id);
                                     for (auto rel_rule : rel[t._to]) { // (line 11-12)
-                                        if (rule._precondition.contains(rel_rule.second)) {
+                                        if (rule._labels.contains(rel_rule.second)) {
                                             insert_edge(pre_state, rel_rule.second, rel_rule.first, this->new_pre_trace(rule_id, t._to));
                                         }
                                     }
@@ -418,7 +418,7 @@ namespace pdaaal {
                     const auto &rules = pda_states[t._from]._rules;
                     for (size_t rule_id = 0; rule_id < rules.size(); ++rule_id) {
                         auto &rule = rules[rule_id];
-                        if (!rule._precondition.contains(t._label)) { continue; }
+                        if (!rule._labels.contains(t._label)) { continue; }
                         auto trace = this->new_post_trace(t._from, rule_id, t._label);
                         switch (rule._operation) {
                             case POP: // (line 10-11)
@@ -452,9 +452,7 @@ namespace pdaaal {
         
         [[nodiscard]] const WPDA<W,C> &pda() const { return _pda; }
 
-        void to_dot(std::ostream &out,
-                    const std::function<void(std::ostream &, const label_with_trace_t &)> &printer = [](auto &s,
-                                                                                                        auto &e) {
+        void to_dot(std::ostream &out, const std::function<void(std::ostream &, const label_with_trace_t &)> &printer = [](auto &s, auto &e) {
                         s << e._label;
                     }) const {
             out << "digraph NFA {\n";
@@ -589,7 +587,7 @@ namespace pdaaal {
             }
             return id;
         }
-        size_t next_state_id() const {
+        [[nodiscard]] size_t next_state_id() const {
             return _states.size();
         }
 

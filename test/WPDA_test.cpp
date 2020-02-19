@@ -12,7 +12,7 @@ using namespace pdaaal;
 BOOST_AUTO_TEST_CASE(VoidWeight)
 {
     std::unordered_set<char> labels{'a', 'b'};
-    //TypedPDA<char> pda(labels); // Check if it compiles
+    TypedPDA<char> pda(labels); // Check if it compiles
     BOOST_CHECK_EQUAL(true, true);
 }
 

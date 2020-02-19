@@ -161,7 +161,7 @@ namespace pdaaal {
             if (lb == std::end(rules) || *lb != r) {
                 lb = rules.insert(lb, r); // TODO this is expensive. Use lists?
             }
-            lb->_precondition.merge(negated, pre, number_of_labels());
+            lb->_labels.merge(negated, pre, number_of_labels());
             auto& prestates = _states[r._to]._pre_states;
             auto lpre = std::lower_bound(prestates.begin(), prestates.end(), from);
             if (lpre == std::end(prestates) || *lpre != from) {
