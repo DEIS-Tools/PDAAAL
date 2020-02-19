@@ -59,5 +59,6 @@ if(BUILD_TESTING AND PDAAAL_BuildTests)
     #testing
     add_subdirectory(test)
     enable_testing()
-    add_test(NAME Test1     COMMAND Test1)
+    add_test(NAME WPDA       COMMAND WPDA)
+    add_test(NAME PAutomaton COMMAND PAutomaton)
 endif()
