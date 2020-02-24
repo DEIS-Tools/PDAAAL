@@ -431,6 +431,7 @@ namespace pdaaal {
                                 insert_edge(rule._to, t._label, t._to, trace);
                                 break;
                             case PUSH: // (line 14)
+                                assert(q_prime.find(std::make_pair(rule._to, rule._op_label)) != std::end(q_prime));
                                 size_t q_new = q_prime[std::make_pair(rule._to, rule._op_label)];
                                 insert_edge(rule._to, rule._op_label, q_new, trace); // (line 15)
                                 insert_edge(q_new, t._label, t._to, trace, true); // (line 16)
