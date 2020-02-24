@@ -145,7 +145,7 @@ namespace pdaaal {
 
     protected:
 
-        // Handle both weights or not appropriately rules.
+        // Handle both weighted and unweighted rules appropriately.
         template <typename... Args>
         void add_untyped_rule(Args&&... args) {
             add_untyped_rule_<W>(std::forward<Args>(args)...);
