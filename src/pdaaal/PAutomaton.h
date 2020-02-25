@@ -33,6 +33,7 @@
 #include <functional>
 #include <vector>
 #include <stack>
+#include <queue>
 #include <iostream>
 #include <cassert>
 #include <boost/functional/hash.hpp>
@@ -99,6 +100,12 @@ namespace pdaaal {
         }
     };
 
+    enum class Trace_Type {
+        None,
+        Any,
+        Shortest
+    };
+
     template <typename W = void, typename C = std::less<W>>
     class PAutomaton {
     private:
@@ -134,6 +141,14 @@ namespace pdaaal {
                 boost::hash_combine(seed, e._to);
                 boost::hash_combine(seed, e._label);
                 return seed;
+            }
+        };
+
+        using weight_edge_pair = std::pair<W, temp_edge_t>;
+        struct weight_edge_pair_comp{
+            bool operator()(const weight_edge_pair &lhs, const weight_edge_pair &rhs){
+                C comp;
+                return comp(lhs.first, rhs.first);
             }
         };
 
@@ -236,13 +251,13 @@ namespace pdaaal {
             const size_t n_pda_states = pda_states.size();
 
             std::unordered_set<temp_edge_t, temp_edge_hasher> edges;
-            std::stack<temp_edge_t> trans;
+            std::stack<temp_edge_t> workset;
             std::vector<std::vector<std::pair<size_t,uint32_t>>> rel(_states.size());
 
-            auto insert_edge = [&edges, &trans, this](size_t from, uint32_t label, size_t to, const trace_t *trace) {
+            auto insert_edge = [&edges, &workset, this](size_t from, uint32_t label, size_t to, const trace_t *trace) {
                 auto res = edges.emplace(from, label, to);
-                if (res.second) { // New edge is not already in edges (rel U trans).
-                    trans.emplace(from, label, to);
+                if (res.second) { // New edge is not already in edges (rel U workset).
+                    workset.emplace(from, label, to);
                     if (trace != nullptr) { // Don't add existing edges
                         this->add_edge(from, to, label, trace);
                     }
@@ -261,7 +276,7 @@ namespace pdaaal {
                 }
             };
 
-            // trans := ->_0  (line 1)
+            // workset := ->_0  (line 1)
             for (auto &from : this->states()) {
                 for (auto &edge : from->_edges) {
                     for (auto &label : edge._labels) {
@@ -270,7 +285,7 @@ namespace pdaaal {
                 }
             }
 
-            // for all <p, y> --> <p', epsilon> : trans U= (p, y, p') (line 2)
+            // for all <p, y> --> <p', epsilon> : workset U= (p, y, p') (line 2)
             for (size_t state = 0; state < n_pda_states; ++state) {
                 const auto &rules = pda_states[state]._rules;
                 for (size_t rule_id = 0; rule_id < rules.size(); ++rule_id) {
@@ -285,10 +300,10 @@ namespace pdaaal {
             // corresponds to <p, y> --> <q, y>   (the y is the same, since we only have PUSH and not arbitrary <p, y> --> <q, y1 y2>, i.e. y==y2)
             std::vector<std::vector<std::pair<size_t, size_t>>> delta_prime(states().size());
 
-            while (!trans.empty()) { // (line 3)
-                // pop t = (q, y, q') from trans (line 4)
-                auto t = trans.top();
-                trans.pop();
+            while (!workset.empty()) { // (line 3)
+                // pop t = (q, y, q') from workset (line 4)
+                auto t = workset.top();
+                workset.pop();
                 // rel = rel U {t} (line 6)   (membership test on line 5 is done in insert_edge).
                 rel[t._from].emplace_back(t._to, t._label);
 
@@ -342,15 +357,16 @@ namespace pdaaal {
             }
         }
 
+        template <Trace_Type trace_type = Trace_Type::Any>
         void post_star() {
+            static_assert(is_weighted<W> ||  trace_type != Trace_Type::Shortest, "Cannot find shortest trace for un-weighted PDA."); // TODO: Well, weight==1 would be a good default.
+            constexpr bool shortest_trace = is_weighted<W> && trace_type == Trace_Type::Shortest;
+
             // This is an implementation of Algorithm 2 (figure 3.4) in:
             // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.
             // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 48)
             auto & pda_states = pda().states();
             auto n_pda_states = pda_states.size();
-
-            std::unordered_set<temp_edge_t, temp_edge_hasher> edges;
-            std::stack<temp_edge_t> trans;
 
             // for <p, y> -> <p', y1 y2> do  (line 3)
             //   Q' U= {q_p'y1}              (line 4)
@@ -366,21 +382,41 @@ namespace pdaaal {
                 }
             }
 
+            std::unordered_set<temp_edge_t, temp_edge_hasher> edges;
+            using workset_type = std::conditional_t<shortest_trace,
+                    std::priority_queue<weight_edge_pair, std::vector<weight_edge_pair>, weight_edge_pair_comp>,
+                    std::stack<temp_edge_t>>;
+            using workset_elem_t = typename workset_type::value_type;
+            workset_type workset;
             std::vector<std::vector<std::pair<size_t,uint32_t>>> rel1(_states.size()); // faster access for lookup _from -> (_to, _label)
             std::vector<std::vector<size_t>> rel2(_states.size()); // faster access for lookup _to -> _from  (when _label is uint32_t::max)
 
-            auto insert_edge = [&edges, &trans, &rel1, &rel2, this](size_t from, uint32_t label, size_t to,
-                                                                    const trace_t *trace,
-                                                                    bool direct_to_rel = false) {
+            //using insert_edge_type = std::conditional_t<!shortest_trace,
+                //    std::function<void(workset_elem_t, const trace_t *, bool)>,
+              //      std::function<void(size_t, uint32_t, size_t, W, const trace_t *, bool)>>;
+                            //std::conditional_t<trace_type == Trace_Type::None,
+                            //std::function<void(size_t from, uint32_t label, size_t to, const trace_t *trace, bool direct_to_rel)>, // TODO: Implement no-trace version.
+                            //std::function<void(size_t from, uint32_t label, size_t to, const trace_t *trace, bool direct_to_rel)>>>;
+            std::function<void(workset_elem_t&&, const trace_t *, bool)> insert_edge = [&edges, &workset, &rel1, &rel2, this](workset_elem_t&& edge, const trace_t *trace, bool direct_to_rel = false) {
+                size_t from, to; uint32_t label;
+                if constexpr (shortest_trace) {
+                    from = edge.second._from;
+                    label = edge.second._label;
+                    to = edge.second._to;
+                } else {
+                    from = edge._from;
+                    label = edge._label;
+                    to = edge._to;
+                }
                 auto res = edges.emplace(from, label, to);
-                if (res.second) { // New edge is not already in edges (rel U trans).
+                if (res.second) { // New edge is not already in edges (rel U workset).
                     if (direct_to_rel) {
                         rel1[from].emplace_back(to, label);
                         if (label == std::numeric_limits<uint32_t>::max()) {
                             rel2[to].push_back(from);
                         }
                     } else {
-                        trans.emplace(from, label, to);
+                        workset.push(std::move(edge));
                     }
                     if (trace != nullptr) { // Don't add existing edges
                         if (label == std::numeric_limits<uint32_t>::max()) {
@@ -392,21 +428,32 @@ namespace pdaaal {
                 }
             };
 
-            // trans := ->_0 intersect (P x Gamma x Q)  (line 1)
-            // rel := ->_0 \ trans (line 2)
+            // workset := ->_0 intersect (P x Gamma x Q)  (line 1)
+            // rel := ->_0 \ workset (line 2)
             for (auto &from : this->states()) {
                 for (auto &edge : from->_edges) {
                     assert(!edge.has_epsilon()); // PostStar algorithm assumes no epsilon transitions in the NFA.
                     for (auto &label : edge._labels) {
-                        insert_edge(from->_id, label._label, edge._to->_id, nullptr, from->_id >= n_pda_states);
+                        temp_edge_t e{from->_id, label._label, edge._to->_id};
+                        if constexpr (shortest_trace) {
+                            W w; // TODO: Implement generic zero-weight.
+                            insert_edge(std::make_pair(w, std::move(e)), nullptr, from->_id >= n_pda_states);
+                        } else {
+                            insert_edge(std::move(e), nullptr, from->_id >= n_pda_states);
+                        }
                     }
                 }
             }
 
-            while (!trans.empty()) { // (line 5)
-                // pop t = (q, y, q') from trans (line 6)
-                auto t = trans.top();
-                trans.pop();
+            while (!workset.empty()) { // (line 5)
+                // pop t = (q, y, q') from workset (line 6)
+                temp_edge_t t;
+                if constexpr (shortest_trace) {
+                    t = workset.top().second;
+                } else {
+                    t = workset.top();
+                }
+                workset.pop();
                 // rel = rel U {t} (line 8)   (membership test on line 7 is done in insert_edge).
                 rel1[t._from].emplace_back(t._to, t._label);
                 if (t._label == std::numeric_limits<uint32_t>::max()) {
@@ -422,32 +469,32 @@ namespace pdaaal {
                         auto trace = this->new_post_trace(t._from, rule_id, t._label);
                         switch (rule._operation) {
                             case POP: // (line 10-11)
-                                insert_edge(rule._to, std::numeric_limits<uint32_t>::max(), t._to, trace);
+                                insert_edge(temp_edge_t{rule._to, std::numeric_limits<uint32_t>::max(), t._to}, trace, false);
                                 break;
                             case SWAP: // (line 12-13)
-                                insert_edge(rule._to, rule._op_label, t._to, trace);
+                                insert_edge(temp_edge_t{rule._to, rule._op_label, t._to}, trace, false);
                                 break;
                             case NOOP:
-                                insert_edge(rule._to, t._label, t._to, trace);
+                                insert_edge(temp_edge_t{rule._to, t._label, t._to}, trace, false);
                                 break;
                             case PUSH: // (line 14)
                                 assert(q_prime.find(std::make_pair(rule._to, rule._op_label)) != std::end(q_prime));
                                 size_t q_new = q_prime[std::make_pair(rule._to, rule._op_label)];
-                                insert_edge(rule._to, rule._op_label, q_new, trace); // (line 15)
-                                insert_edge(q_new, t._label, t._to, trace, true); // (line 16)
+                                insert_edge(temp_edge_t{rule._to, rule._op_label, q_new}, trace, false); // (line 15)
+                                insert_edge(temp_edge_t{q_new, t._label, t._to}, trace, true); // (line 16)
                                 for (auto f : rel2[q_new]) { // (line 17)
-                                    insert_edge(f, t._label, t._to, this->new_post_trace(q_new)); // (line 18)
+                                    insert_edge(temp_edge_t{f, t._label, t._to}, this->new_post_trace(q_new), false); // (line 18)
                                 }
                                 break;
                         }
                     }
                 } else {
                     for (auto e : rel1[t._to]) { // (line 20)
-                        insert_edge(t._from, e.second, e.first, this->new_post_trace(t._to)); // (line 21)
+                        insert_edge(temp_edge_t{t._from, e.second, e.first}, this->new_post_trace(t._to), false); // (line 21)
                     }
                 }
             }
-        };
+        }
 
         [[nodiscard]] const std::vector<std::unique_ptr<state_t>> &states() const { return _states; }
         
