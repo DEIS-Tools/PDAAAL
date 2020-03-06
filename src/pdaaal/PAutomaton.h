@@ -138,8 +138,8 @@ namespace pdaaal {
         }
 
         void update(const trace_t * trace, W weight) {
-            C comp;
-            if (comp(weight, _weight)) {
+            C less;
+            if (less(weight, _weight)) {
                 _trace = trace;
                 _weight = weight;
             }
@@ -196,8 +196,8 @@ namespace pdaaal {
         using weight_edge_pair = std::pair<W, temp_edge_t>;
         struct weight_edge_pair_comp{
             bool operator()(const weight_edge_pair &lhs, const weight_edge_pair &rhs){
-                C comp;
-                return comp(rhs.first, lhs.first); // Used in a max-heap, so swap arguments to make it a min-heap.
+                C less;
+                return less(rhs.first, lhs.first); // Used in a max-heap, so swap arguments to make it a min-heap.
             }
         };
         struct weight_edge_trace {
@@ -209,8 +209,8 @@ namespace pdaaal {
         };
         struct weight_edge_trace_comp{
             bool operator()(const weight_edge_trace &lhs, const weight_edge_trace &rhs){
-                C comp;
-                return comp(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
+                C less;
+                return less(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
             }
         };
 
@@ -452,8 +452,8 @@ namespace pdaaal {
             auto n_pda_states = pda_states.size();
             auto n_Q = _states.size();
 
-            // for <p, y> -> <p', y1 y2> do  (line 3)
-            //   Q' U= {q_p'y1}              (line 4)
+            // for <p, y> -> <p', y1 y2> do
+            //   Q' U= {q_p'y1}
             std::unordered_map<std::pair<size_t, uint32_t>, size_t, boost::hash<std::pair<size_t, uint32_t>>> q_prime{};
             for (auto &state : pda_states) {
                 for (auto &rule : state._rules) {
@@ -473,19 +473,37 @@ namespace pdaaal {
 
             std::unordered_map<temp_edge_t, std::pair<W,W>, temp_edge_hasher> edge_weights;
             std::priority_queue<weight_edge_trace, std::vector<weight_edge_trace>, weight_edge_trace_comp> workset;
-            std::vector<std::vector<std::pair<size_t,uint32_t>>> rel1(n_automata_states); // faster access for lookup _from -> (_to, _label)
-            std::vector<std::vector<size_t>> rel2(n_automata_states); // faster access for lookup _to -> _from  (when _label is uint32_t::max)
+            std::vector<std::vector<std::pair<size_t,uint32_t>>> rel1(n_Q); // faster access for lookup _from -> (_to, _label)
+            std::vector<std::vector<size_t>> rel2(n_automata_states - n_Q); // faster access for lookup _to -> _from  (when _label is uint32_t::max)
+            struct rel3_elem {
+                uint32_t _label;
+                size_t _to;
+                const trace_t *_trace;
+                W _weight;
+
+                bool operator<(const rel3_elem &other) const {
+                    if (_label != other._label) return _label < other._label;
+                    return _to < other._to;
+                }
+                bool operator==(const rel3_elem &other) const {
+                    return _to == other._to && _label == other._label;
+                }
+                bool operator!=(const rel3_elem &other) const {
+                    return !(*this == other);
+                }
+            };
+            std::vector<std::vector<rel3_elem>> rel3(n_automata_states - n_Q);
 
             auto update_edge = [&edge_weights](size_t from, uint32_t label, size_t to, W edge_weight, W workset_weight) -> std::pair<bool,bool> {
                 auto res = edge_weights.emplace(temp_edge_t{from, label, to}, std::make_pair(edge_weight, workset_weight));
                 if (!res.second) {
-                    C comp;
+                    C less;
                     auto result = std::make_pair(false, false);
-                    if (comp(edge_weight, (*res.first).second.first)) {
+                    if (less(edge_weight, (*res.first).second.first)) {
                         (*res.first).second.first = edge_weight;
                         result.first = true;
                     }
-                    if (comp(workset_weight, (*res.first).second.second)) {
+                    if (less(workset_weight, (*res.first).second.second)) {
                         (*res.first).second.second = workset_weight;
                         result.second = true;
                     }
@@ -496,16 +514,16 @@ namespace pdaaal {
             auto get_weight = [&edge_weights](size_t from, uint32_t label, size_t to) -> W {
                 return (*edge_weights.find(temp_edge_t{from, label, to})).second.first;
             };
-            // Adds to rel and insterts into the PAutomaton including the trace.
-            auto insert_rel = [&rel1, &rel2, this](size_t from, uint32_t label, size_t to){
+            // Adds to rel and inserts into the PAutomaton including the trace.
+            auto insert_rel = [&rel1, &rel2, this, n_Q](size_t from, uint32_t label, size_t to){
                 rel1[from].emplace_back(to, label);
-                if (label == epsilon) {
-                    rel2[to].push_back(from);
+                if (label == epsilon && to >= n_Q) {
+                    rel2[to - n_Q].push_back(from);
                 }
             };
 
-            // workset := ->_0 intersect (P x Gamma x Q)  (line 1)
-            // rel := ->_0 \ workset (line 2)
+            // workset := ->_0 intersect (P x Gamma x Q)
+            // rel := ->_0 \ workset
             for (auto &from : this->states()) {
                 for (auto &edge : from->_edges) {
                     assert(!edge.has_epsilon()); // PostStar algorithm assumes no epsilon transitions in the NFA.
@@ -521,22 +539,17 @@ namespace pdaaal {
                 }
             }
 
-            while (!workset.empty()) { // (line 5)
-                // pop t = (q, y, q') from workset (line 6)
-                weight_edge_trace elem;
-                bool already_processed;
-                do {
-                    elem = workset.top();
-                    workset.pop();
-                    C comp;
-                    already_processed = comp((*edge_weights.find(elem.edge)).second.second, elem.weight);
-                } while (already_processed && !workset.empty());
-                if (already_processed) {
-                    break; // workset was emptied.
+            while (!workset.empty()) {
+                // pop t = (q, y, q') from workset
+                auto elem = workset.top();
+                workset.pop();
+                C less;
+                if (less((*edge_weights.find(elem.edge)).second.second, elem.weight)) {
+                    continue; // Same edge with a smaller weight was already processed.
                 }
                 auto t = elem.edge;
 
-                // rel = rel U {t} (line 8)
+                // rel = rel U {t}
                 insert_rel(t._from, t._label, t._to);
                 if (t._label == epsilon) {
                     this->add_epsilon_edge(t._from, t._to, elem.trace, elem.weight);
@@ -544,7 +557,7 @@ namespace pdaaal {
                     this->add_edge(t._from, t._to, t._label, elem.trace, elem.weight);
                 }
 
-                // if y != epsilon (line 9)
+                // if y != epsilon
                 if (t._label != epsilon) {
                     const auto &rules = pda_states[t._from]._rules;
                     for (size_t rule_id = 0; rule_id < rules.size(); ++rule_id) {
@@ -576,23 +589,23 @@ namespace pdaaal {
                             size_t q_new = q_prime[std::make_pair(rule._to, rule._op_label)];
                             auto update_t = update_edge(rule._to, rule._op_label, q_new, zero<W>()(), wd).second;
                             auto was_updated = update_edge(q_new, t._label, t._to, wb, zero<W>()()).first;
-                            if (was_updated) { // TODO:
-                                // if (!rel1[q_new].contains(t._to, t._label)) {
-                                //     rel1[q_new].emplace_back(t._to, t._label);
-                                //     this->add_edge(q_new, t._label, t._to, wb, trace);
-                                // } else {
-                                //     this->update_edge(q_new, t._label, t._to, wb, trace);
-                                // }
-                                insert_rel(q_new, t._label, t._to); //, wb, trace);
+                            if (was_updated) {
+                                rel3_elem new_elem{t._label, t._to, trace, wb};
+                                auto relq = rel3[q_new - n_Q];
+                                auto lb = std::lower_bound(relq.begin(), relq.end(), new_elem);
+                                if (lb == std::end(relq) || *lb != new_elem) {
+                                    relq.insert(lb, new_elem);
+                                } else if (less(wb, lb->_weight)) {
+                                    *lb = new_elem;
+                                }
                             }
-                            C comp;
-                            if (comp(wd, minpath[q_new - n_pda_states])) {
+                            if (less(wd, minpath[q_new - n_pda_states])) {
                                 minpath[q_new - n_pda_states] = wd;
                                 if (update_t) {
                                     workset.emplace(wd, temp_edge_t{rule._to, rule._op_label, q_new}, trace);
                                 }
                             } else if (was_updated) {
-                                for (auto f : rel2[q_new]) {
+                                for (auto f : rel2[q_new - n_Q]) {
                                     auto wt = add(get_weight(f, epsilon, q_new), wb);
                                     auto dt = add(minpath[t._to - n_pda_states], wt);
                                     if (update_edge(f, t._label, t._to, wt, dt).second) {
@@ -603,27 +616,32 @@ namespace pdaaal {
                         }
                     }
                 } else {
-                    for (auto e : rel1[t._to]) { // (line 20)
-                        assert(e.first >= n_pda_states);
-                        auto w = add(get_weight(t._to, e.second, e.first), get_weight(t._from, t._label, t._to));
-                        auto dd = add(minpath[e.first - n_pda_states], w);
-                        if(update_edge(t._from, e.second, e.first, w, dd).second) {
-                            workset.emplace(dd, temp_edge_t{t._from, e.second, e.first}, this->new_post_trace(t._to));
+                    if (t._to < n_Q) {
+                        for (auto e : rel1[t._to]) {
+                            assert(e.first >= n_pda_states);
+                            auto w = add(get_weight(t._to, e.second, e.first), get_weight(t._from, t._label, t._to));
+                            auto dd = add(minpath[e.first - n_pda_states], w);
+                            if(update_edge(t._from, e.second, e.first, w, dd).second) {
+                                workset.emplace(dd, temp_edge_t{t._from, e.second, e.first}, this->new_post_trace(t._to));
+                            }
+                        }
+                    } else {
+                        for (auto &e : rel3[t._to - n_Q]) {
+                            auto w = add(get_weight(t._to, e._label, e._to), get_weight(t._from, t._label, t._to));
+                            auto dd = add(minpath[e._to - n_pda_states], w);
+                            if(update_edge(t._from, e._label, e._to, w, dd).second) {
+                                workset.emplace(dd, temp_edge_t{t._from, e._label, e._to}, this->new_post_trace(t._to));
+                            }
                         }
                     }
                 }
             }
 
-            /*for (int i = n_Q; i < n_automata_states; ++i) {
-                for (auto e : rel1[i]) {
-                    //auto trace = ...;
-                    if (e.second == epsilon) {
-                        this->add_epsilon_edge(i, e.first, get_weight(i, e.second, e.first), trace);
-                    } else {
-                        this->add_edge(i, e.second, e.first, get_weight(i, e.second, e.first), trace);
-                    }
+            for (size_t i = n_Q; i < n_automata_states; ++i) {
+                for (auto &e : rel3[i - n_Q]) {
+                    this->add_edge(i, e._label, e._to, e._trace, e._weight);
                 }
-            }*/
+            }
         }
 
         template <Trace_Type trace_type = Trace_Type::Any>
@@ -911,8 +929,8 @@ namespace pdaaal {
             };
             struct queue_elem_comp {
                 bool operator()(const queue_elem &lhs, const queue_elem &rhs){
-                    C comp;
-                    return comp(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
+                    C less;
+                    return less(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
                 }
             };
             add<W> add;
@@ -938,7 +956,7 @@ namespace pdaaal {
                 pointers.push_back(std::move(u_pointer));
                 for (auto &edge : _states[current.state]->_edges) {
                     auto label = edge.find(stack[current.stack_index]);
-                    if (label) { // TODO: Handle epsilon labels!
+                    if (label) {
                         auto to = edge._to->_id;
                         if (current.stack_index + 1 < stack.size()) {
                             search_queue.emplace(add(current.priority, label->_weight), to, current.stack_index + 1, pointer);
@@ -1019,7 +1037,7 @@ namespace pdaaal {
             edges.emplace_back(_states[to].get(), label, weight, trace);
         }
 
-        void update_edge(size_t from, size_t to, uint32_t label, W weight, const trace_t *trace) {
+        void update_edge(size_t from, size_t to, uint32_t label, const trace_t *trace, W weight) {
             assert(label < std::numeric_limits<uint32_t>::max() - 1);
             auto &edges = _states[from]->_edges;
             for (auto &e : edges) {
