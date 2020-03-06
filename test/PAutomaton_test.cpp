@@ -131,8 +131,6 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar)
 
 BOOST_AUTO_TEST_CASE(WeightedPostStar2)
 {
-    // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
-    // However r_2 requires a swap and a push, which is done through auxiliary state 3.
     std::unordered_set<char> labels{'A', 'B'};
     TypedPDA<char, int> pda(labels);
 
@@ -151,15 +149,10 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar2)
 
     std::vector<char> test_stack_reachable{'A'};
     BOOST_CHECK_EQUAL(automaton.accepts(1, pda.encode_pre(test_stack_reachable)), true);
-
-    //std::vector<char> test_stack_unreachable{'A', 'A', 'B', 'A'};
-    //BOOST_CHECK_EQUAL(automaton.accepts(0, pda.encode_pre(test_stack_unreachable)), false);
 }
 
 BOOST_AUTO_TEST_CASE(WeightedPostStar3)
 {
-    // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
-    // However r_2 requires a swap and a push, which is done through auxiliary state 3.
     std::unordered_set<char> labels{'A'};
     TypedPDA<char, int> pda(labels);
     std::vector<char> pre{'A'};
@@ -176,18 +169,12 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar3)
 
     std::vector<char> test_stack_reachable{'A','A'};
     BOOST_CHECK_EQUAL(automaton.accepts(2, pda.encode_pre(test_stack_reachable)), true);
-
-    //std::vector<char> test_stack_unreachable{'A', 'A', 'B', 'A'};
-    //BOOST_CHECK_EQUAL(automaton.accepts(0, pda.encode_pre(test_stack_unreachable)), false);
 }
 
 BOOST_AUTO_TEST_CASE(WeightedPostStar4)
 {
-    // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
-    // However r_2 requires a swap and a push, which is done through auxiliary state 3.
     std::unordered_set<char> labels{'A'};
     TypedPDA<char, int> pda(labels);
-    std::vector<char> pre{'A'};
 
     pda.add_rule(0, 3, PUSH, 'A', 4, false, 'A');
     pda.add_rule(0, 1, PUSH , 'A', 1, false, 'A');
@@ -202,8 +189,33 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar4)
 
     std::vector<char> test_stack_reachable{'A'};
     BOOST_CHECK_EQUAL(automaton.accepts(4, pda.encode_pre(test_stack_reachable)), true);
-
-    //std::vector<char> test_stack_unreachable{'A', 'A', 'B', 'A'};
-    //BOOST_CHECK_EQUAL(automaton.accepts(0, pda.encode_pre(test_stack_unreachable)), false);
 }
 
+BOOST_AUTO_TEST_CASE(WeightedPostStarPerformance)
+{
+    std::unordered_set<int> labels;
+    int alphabet_size = 5;
+
+    //Insert labels alphabet
+    for(int i = 0; i < alphabet_size; i++){
+        labels.insert(i);
+    }
+
+    TypedPDA<int, int> pda(labels);
+
+    for(int i = 0; i < alphabet_size; i++){
+        pda.add_rule(0, 1, SWAP, i, 1, false, 0);
+        pda.add_rule(1, 2, SWAP, 0, i, false, i);
+        pda.add_rule(2, 3, PUSH, i, 1, false, 0);
+    }
+    std::vector<int> init_stack;
+    init_stack.push_back(0);
+    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+
+    automaton.post_star_weighted();
+
+    std::vector<int> test_stack_reachable;
+    test_stack_reachable.push_back(0);
+    test_stack_reachable.push_back(0);
+    BOOST_CHECK_EQUAL(automaton.accepts(3, pda.encode_pre(test_stack_reachable)), true);
+}
