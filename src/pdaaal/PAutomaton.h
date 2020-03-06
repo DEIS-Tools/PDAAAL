@@ -642,7 +642,7 @@ namespace pdaaal {
             for (size_t i = n_Q; i < n_automata_states; ++i) {
                 for (auto &e : rel3[i - n_Q]) {
                     assert(e._label != epsilon);
-                    this->add_edge(i, e._label, e._to, e._trace, e._weight);
+                    this->add_edge(i, e._to, e._label, e._trace, e._weight);
                 }
             }
         }
