@@ -27,6 +27,8 @@
 #ifndef PDAAAL_WPDA_H
 #define PDAAAL_WPDA_H
 
+#include "Weight.h"
+
 #include <cinttypes>
 #include <vector>
 #include <unordered_set>
@@ -80,7 +82,6 @@ namespace pdaaal {
         NOOP = 8
     };
 
-    template <typename W> constexpr auto is_weighted = !std::is_void_v<W>;
 
     // Define rules with and without weights.
     template<typename W, typename C, typename = void> struct rule_t;
