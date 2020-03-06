@@ -443,7 +443,8 @@ namespace pdaaal {
             constexpr bool shortest_trace = is_weighted<W> && trace_type == Trace_Type::Shortest;
             static_assert(shortest_trace);
             //static_assert(std::is_same_v<W, decltype(std::declval<W>() + std::declval<W>())>, "The weight type must implement operator+");
-            adder add;
+            const adder add;
+            const C less;
 
             // This is an implementation of Algorithm 2 (figure 3.4) in:
             // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.
@@ -543,18 +544,19 @@ namespace pdaaal {
                 // pop t = (q, y, q') from workset
                 auto elem = workset.top();
                 workset.pop();
-                C less;
-                if (less((*edge_weights.find(elem.edge)).second.second, elem.weight)) {
+                auto t = elem.edge;
+                auto weights = (*edge_weights.find(t)).second;
+                if (less(weights.second, elem.weight)) {
                     continue; // Same edge with a smaller weight was already processed.
                 }
-                auto t = elem.edge;
+                auto b = weights.first;
 
                 // rel = rel U {t}
                 insert_rel(t._from, t._label, t._to);
                 if (t._label == epsilon) {
-                    this->add_epsilon_edge(t._from, t._to, elem.trace, elem.weight);
+                    this->add_epsilon_edge(t._from, t._to, elem.trace, b);
                 } else {
-                    this->add_edge(t._from, t._to, t._label, elem.trace, elem.weight);
+                    this->add_edge(t._from, t._to, t._label, elem.trace, b);
                 }
 
                 // if y != epsilon
@@ -565,7 +567,7 @@ namespace pdaaal {
                         if (!rule._labels.contains(t._label)) { continue; }
                         auto trace = this->new_post_trace(t._from, rule_id, t._label);
                         auto wd = add(elem.weight, rule._weight);
-                        auto wb = add(get_weight(t._from, t._label, t._to), rule._weight);
+                        auto wb = add(b, rule._weight);
                         if (rule._operation != PUSH) {
                             uint32_t label;
                             switch(rule._operation) {
@@ -591,7 +593,7 @@ namespace pdaaal {
                             auto was_updated = update_edge(q_new, t._label, t._to, wb, zero<W>()()).first;
                             if (was_updated) {
                                 rel3_elem new_elem{t._label, t._to, trace, wb};
-                                auto relq = rel3[q_new - n_Q];
+                                auto &relq = rel3[q_new - n_Q];
                                 auto lb = std::lower_bound(relq.begin(), relq.end(), new_elem);
                                 if (lb == std::end(relq) || *lb != new_elem) {
                                     relq.insert(lb, new_elem);
@@ -639,6 +641,7 @@ namespace pdaaal {
 
             for (size_t i = n_Q; i < n_automata_states; ++i) {
                 for (auto &e : rel3[i - n_Q]) {
+                    assert(e._label != epsilon);
                     this->add_edge(i, e._label, e._to, e._trace, e._weight);
                 }
             }
