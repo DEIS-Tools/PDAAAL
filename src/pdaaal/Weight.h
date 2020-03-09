@@ -36,10 +36,16 @@ namespace pdaaal {
     template<typename W, typename = void> struct zero;
     template<typename W, typename = void> struct max;
     template<typename W, typename = void> struct add;
-    template<typename W> constexpr auto has_zero = std::is_same_v<W, decltype(std::declval<zero<W>>()())>;
-    template<typename W> constexpr auto has_max = std::is_same_v<W, decltype(std::declval<max<W>>()())>;
-    template<typename W> constexpr auto has_add = std::is_same_v<W, decltype(std::declval<add<W>>()(std::declval<W>(), std::declval<W>()))>;
-    template<typename W> constexpr auto is_weighted = !std::is_void_v<W> && has_zero<W> && has_max<W> && has_add<W>;
+    template <typename T, typename = void> struct has_zero : std::false_type {};
+    template <typename T> struct has_zero<T, std::void_t<decltype(std::declval<zero<T>>()())>> : std::true_type {};
+    template <typename T> constexpr auto has_zero_v = has_zero<T>::value;
+    template <typename T, typename = void> struct has_max : std::false_type {};
+    template <typename T> struct has_max<T, std::void_t<decltype(std::declval<max<T>>()())>> : std::true_type {};
+    template <typename T> constexpr auto has_max_v = has_max<T>::value;
+    template <typename T, typename = void> struct has_add : std::false_type {};
+    template <typename T> struct has_add<T, std::void_t<decltype(std::declval<add<T>>()(std::declval<T>(), std::declval<T>()))>> : std::true_type {};
+    template <typename T> constexpr auto has_add_v = has_add<T>::value;
+    template<typename W> constexpr auto is_weighted = !std::is_void_v<W> && has_zero_v<W> && has_max_v<W> && has_add_v<W>;
 
     template<typename W>
     struct zero<W, std::enable_if_t<std::is_arithmetic_v<W>>> {
@@ -63,7 +69,7 @@ namespace pdaaal {
     };
 
     template<typename Inner, std::size_t N>
-    struct zero<std::array<Inner, N>, std::enable_if_t<has_zero<Inner>>> {
+    struct zero<std::array<Inner, N>, std::enable_if_t<has_zero_v<Inner>>> {
         constexpr std::array<Inner, N> operator()() const {
             std::array<Inner, N> arr{};
             arr.fill(zero<Inner>()());
@@ -72,7 +78,7 @@ namespace pdaaal {
     };
 
     template<typename Inner, std::size_t N>
-    struct max<std::array<Inner, N>, std::enable_if_t<has_max<Inner>>> {
+    struct max<std::array<Inner, N>, std::enable_if_t<has_max_v<Inner>>> {
         constexpr std::array<Inner, N> operator()() const {
             std::array<Inner, N> arr{};
             arr.fill(max<Inner>()());
@@ -81,7 +87,7 @@ namespace pdaaal {
     };
 
     template<typename Inner, std::size_t N>
-    struct add<std::array<Inner, N>, std::enable_if_t<has_add<Inner>>> {
+    struct add<std::array<Inner, N>, std::enable_if_t<has_add_v<Inner>>> {
         constexpr std::array<Inner, N> operator()(std::array<Inner, N> lhs, std::array<Inner, N> rhs) const {
             std::array<Inner, N> res{};
             for (size_t i = 0; i < N; ++i) {
