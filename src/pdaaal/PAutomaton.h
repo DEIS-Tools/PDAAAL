@@ -109,6 +109,14 @@ namespace pdaaal {
             return nullptr;
         }
     }
+    template<typename W> constexpr trace_ptr<W> trace_ptr_from(const trace_t *trace) {
+        if constexpr (is_weighted<W>) {
+            return std::make_pair(trace, zero<W>()());
+        } else {
+            return trace;
+        }
+    }
+
 
     template <typename W = void, typename C = std::less<W>, typename adder = add<W>>
     class PAutomaton {
@@ -397,80 +405,6 @@ namespace pdaaal {
             }
         }
 
-/*        [[nodiscard]] typename std::enable_if_t<is_weighted<W>, std::pair<std::vector<size_t>, W>> shortest_accept_path(size_t state, const std::vector<uint32_t> &stack) const {
-                if (stack.empty()) {
-                    if (_states[state]->_accepting) {
-                        return std::make_pair(std::vector<size_t>{state}, zero<W>()());
-                    } else {
-                        return std::make_pair(std::vector<size_t>(), max<W>()());
-                    }
-                }
-                // Dijkstra.
-                struct queue_elem {
-                    W weight;
-                    size_t state;
-                    size_t stack_index;
-                    const queue_elem *back_pointer;
-                    bool operator<(const queue_elem &other) const {
-                        if (state != other.state) {
-                            return state < other.state;
-                        }
-                        return stack_index < other.stack_index;
-                    }
-                    bool operator==(const queue_elem &other) const {
-                        return state == other.state && stack_index == other.stack_index;
-                    }
-                    bool operator!=(const queue_elem &other) const {
-                        return !(*this == other);
-                    }
-                };
-                struct queue_elem_comp {
-                    bool operator()(const queue_elem &lhs, const queue_elem &rhs){
-                        C less;
-                        return less(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
-                    }
-                };
-                adder add;
-                std::priority_queue<queue_elem, std::vector<queue_elem>, queue_elem_comp> search_queue;
-                std::vector<queue_elem> visited;
-                std::vector<std::unique_ptr<queue_elem>> pointers;
-                search_queue.emplace(zero<W>()(), state, 0, nullptr);
-                while(!search_queue.empty()) {
-                    auto current = search_queue.top();
-                    search_queue.pop();
-                    auto lb = std::lower_bound(visited.begin(), visited.end(), current);
-                    if (lb != std::end(visited) && *lb == current) {
-                        if (queue_elem_comp(*lb, current)) {
-                            *lb = current;
-                        } else {
-                            break;
-                        }
-                    } else {
-                        lb = visited.insert(lb, current);
-                    }
-                    auto u_pointer = std::make_unique(*lb);
-                    auto pointer = u_pointer.get();
-                    pointers.push_back(std::move(u_pointer));
-                    for (auto &edge : _states[current.state]->_edges) {
-                        auto label = edge.find(stack[current.stack_index]);
-                        if (label) {
-                            auto to = edge._to->_id;
-                            if (current.stack_index + 1 < stack.size()) {
-                                search_queue.emplace(add(current.priority, label->_weight), to, current.stack_index + 1, pointer);
-                            } else if (edge._to->_accepting) {
-                                std::vector<size_t> path(stack.size() + 1);
-                                path[current.stack_index + 1] = to;
-                                for (auto p = current.back_pointer; p != nullptr; p = p->back_pointer) {
-                                    path[p->stack_index] = p->state;
-                                }
-                                return std::make_pair(path, current.weight);
-                            }
-                        }
-                    }
-                }
-                return std::make_pair(std::vector<size_t>(), max<W>()());
-        }*/
-
         [[nodiscard]] const trace_t *get_trace_label(const std::tuple<size_t, uint32_t, size_t> &edge) const {
             return get_trace_label(std::get<0>(edge), std::get<1>(edge), std::get<2>(edge));
         }
@@ -487,11 +421,6 @@ namespace pdaaal {
             return nullptr;
         }
 
-        // TODO: Implement early termination versions.
-        // bool _pre_star_accepts(size_t state, const std::vector<uint32_t> &stack);
-        // bool _post_star_accepts(size_t state, const std::vector<uint32_t> &stack);
-
-    protected:
         [[nodiscard]] size_t number_of_labels() const { return _pda.number_of_labels(); }
 
         size_t add_state(bool initial, bool accepting) {
@@ -560,7 +489,6 @@ namespace pdaaal {
             edges.emplace_back(_states[to].get(), number_of_labels());
         }
 
-    private:
         const trace_t *new_pre_trace(size_t rule_id) {
             _trace_info.emplace_back(std::make_unique<trace_t>(rule_id, std::numeric_limits<size_t>::max()));
             return _trace_info.back().get();
@@ -577,7 +505,7 @@ namespace pdaaal {
             _trace_info.emplace_back(std::make_unique<trace_t>(epsilon_state));
             return _trace_info.back().get();
         }
-
+    private:
         std::vector<std::unique_ptr<state_t>> _states;
         std::vector<state_t *> _initial;
         std::vector<state_t *> _accepting;
