@@ -27,7 +27,7 @@
 #define BOOST_TEST_MODULE Solver
 
 #include <boost/test/unit_test.hpp>
-#include <pdaaal/Solver_Adapter.h>
+#include <pdaaal/Solver.h>
 
 using namespace pdaaal;
 
@@ -44,18 +44,12 @@ BOOST_AUTO_TEST_CASE(SolverTest1)
     pda.add_rule(2, 0, SWAP, 'B', w, false, 'C');
     pda.add_rule(3, 2, PUSH, 'C', w, false, 'A');
 
-    //std::vector<char> init_stack{'A', 'A'};
-    //PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    std::vector<char> init_stack{'A', 'A'};
+    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
-    Solver_Adapter solver;
+    Solver::post_star<Trace_Type::Shortest>(automaton);
 
-//    solver.post_star(pda); // Does not work yet. The new WPDA is not compatible was the initial/terminal PDA design from AalWiNes. Refactoring needed.
-
-    //PostStar::post_star<Trace_Type::Shortest>(automaton);
-
-    /*std::vector<char> test_stack_reachable{'B', 'A', 'A', 'A'};
-    BOOST_CHECK_EQUAL(automaton.accepts(1, pda.encode_pre(test_stack_reachable)), true);
-
-    std::vector<char> test_stack_unreachable{'A', 'A', 'B', 'A'};
-    BOOST_CHECK_EQUAL(automaton.accepts(0, pda.encode_pre(test_stack_unreachable)), false);*/
+    std::vector<char> test_stack_reachable{'B', 'A', 'A', 'A'};
+    auto trace = Solver::get_trace<Trace_Type::Shortest>(pda, automaton, 1, test_stack_reachable);
+    BOOST_CHECK_EQUAL(trace.size(), 7);
 }

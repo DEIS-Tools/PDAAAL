@@ -28,6 +28,7 @@
 #define PDAAAL_SOLVER_H
 
 #include "PAutomaton.h"
+#include "TypedPDA.h"
 
 namespace pdaaal {
 
@@ -204,10 +205,16 @@ namespace pdaaal {
         }
 
         template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
-        static std::vector<typename TypedPDA<T>::tracestate_t> get_trace(const TypedPDA<T>& pda, const PAutomaton<W,C,A>& automaton, size_t state, const std::vector<T>& stack) {
+        static std::vector<typename TypedPDA<T>::tracestate_t> get_trace(const TypedPDA<T,W,C>& pda, const PAutomaton<W,C,A>& automaton, size_t state, const std::vector<T>& stack) {
             static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
-            auto path = automaton.accept_path<trace_type>(state, pda.encode_pre(stack));
-            return _get_trace(pda, automaton, path, stack);
+            std::vector<size_t> path;
+            auto stack_native = pda.encode_pre(stack);
+            if constexpr (trace_type == Trace_Type::Shortest) {
+                path = automaton.template accept_path<trace_type>(state, stack_native).first;
+            } else {
+                path = automaton.template accept_path<trace_type>(state, stack_native);
+            }
+            return _get_trace(pda, automaton, path, stack_native);
         }
 
     private:
@@ -539,7 +546,7 @@ namespace pdaaal {
         }
 
         template <typename T, typename W, typename C, typename A>
-        static std::vector<typename TypedPDA<T>::tracestate_t> _get_trace(const TypedPDA<T> &pda, const PAutomaton<W,C,A> &automaton, const std::vector<size_t>& path, const std::vector<uint32_t>& stack) {
+        static std::vector<typename TypedPDA<T>::tracestate_t> _get_trace(const TypedPDA<T,W,C> &pda, const PAutomaton<W,C,A> &automaton, const std::vector<size_t>& path, const std::vector<uint32_t>& stack) {
             using tracestate_t = typename TypedPDA<T>::tracestate_t;
 
             if (path.empty()) {
@@ -569,7 +576,7 @@ namespace pdaaal {
             while (true) {
                 auto &edge = edges.back();
                 edges.pop_back();
-                const trace_t *trace_label = automaton->get_trace_label(edge);
+                const trace_t *trace_label = automaton.get_trace_label(edge);
                 if (trace_label == nullptr) break;
 
                 auto from = std::get<0>(edge);
@@ -578,7 +585,7 @@ namespace pdaaal {
 
                 if (trace_label->is_pre_trace()) {
                     // pre* trace
-                    auto &rule = automaton->pda().states()[from]._rules[trace_label->_rule_id];
+                    auto &rule = automaton.pda().states()[from]._rules[trace_label->_rule_id];
                     switch (rule._operation) {
                         case POP:
                             break;
@@ -604,7 +611,7 @@ namespace pdaaal {
 
                 } else {
                     // post* trace
-                    auto &rule = automaton->pda().states()[trace_label->_state]._rules[trace_label->_rule_id];
+                    auto &rule = automaton.pda().states()[trace_label->_state]._rules[trace_label->_rule_id];
                     switch (rule._operation) {
                         case POP:
                         case SWAP:
@@ -614,7 +621,7 @@ namespace pdaaal {
                         case PUSH:
                             auto &edge2 = edges.back();
                             edges.pop_back();
-                            auto trace_label2 = automaton->get_trace_label(edge2);
+                            auto trace_label2 = automaton.get_trace_label(edge2);
                             edges.emplace_back(trace_label2->_state, trace_label2->_label, std::get<2>(edge2));
                             break;
                     }

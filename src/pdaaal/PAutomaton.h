@@ -116,6 +116,13 @@ namespace pdaaal {
             return trace;
         }
     }
+    template<typename W> constexpr const trace_t * trace_from(trace_ptr<W> t) {
+        if constexpr (is_weighted<W>) {
+            return t.first;
+        } else {
+            return t;
+        }
+    }
 
 
     template <typename W = void, typename C = std::less<W>, typename adder = add<W>>
@@ -418,7 +425,7 @@ namespace pdaaal {
                     label_with_trace_t<W> label_trace{label, default_trace_ptr<W>()};
                     auto lb = std::lower_bound(e._labels.begin(), e._labels.end(), label_trace);
                     assert(lb != std::end(e._labels)); // We assume the edge exists.
-                    return lb->_trace;
+                    return trace_from<W>(lb->_t);
                 }
             }
             assert(false); // We assume the edge exists.
