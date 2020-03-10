@@ -250,9 +250,9 @@ namespace pdaaal {
                 }
             }
             auto n_automata_states = automaton.states().size();
-            std::vector<W> minpath(n_automata_states - n_pda_states);
+            std::vector<W> minpath(n_automata_states - n_Q);
             for (size_t i = 0; i < minpath.size(); ++i) {
-                minpath[i] = i < n_Q - n_pda_states ? pdaaal::zero<W>()() : pdaaal::max<W>()();
+                minpath[i] = pdaaal::max<W>()();
             }
 
             std::unordered_map<temp_edge_t, std::pair<W,W>, temp_edge_hasher> edge_weights;
@@ -278,7 +278,7 @@ namespace pdaaal {
             };
             std::vector<std::vector<rel3_elem>> rel3(n_automata_states - n_Q);
 
-            auto update_edge = [&edge_weights](size_t from, uint32_t label, size_t to, W edge_weight, W workset_weight) -> std::pair<bool,bool> {
+            auto update_edge_ = [&edge_weights](size_t from, uint32_t label, size_t to, W edge_weight, W workset_weight) -> std::pair<bool,bool> {
                 auto res = edge_weights.emplace(temp_edge_t{from, label, to}, std::make_pair(edge_weight, workset_weight));
                 if (!res.second) {
                     C less;
@@ -294,6 +294,12 @@ namespace pdaaal {
                     return result;
                 }
                 return std::make_pair(res.second, res.second);
+            };
+            auto update_edge = [n_Q, &minpath, &workset, &update_edge_, &add](size_t from, uint32_t label, size_t to, W edge_weight, const trace_t* trace) {
+                auto workset_weight = to < n_Q ? edge_weight : add(minpath[to - n_Q], edge_weight);
+                if (update_edge_(from, label, to, edge_weight, workset_weight).second) {
+                    workset.emplace(workset_weight, temp_edge_t{from, label, to}, trace);
+                }
             };
             auto get_weight = [&edge_weights](size_t from, uint32_t label, size_t to) -> W {
                 return (*edge_weights.find(temp_edge_t{from, label, to})).second.first;
@@ -332,14 +338,14 @@ namespace pdaaal {
                 if (less(weights.second, elem.weight)) {
                     continue; // Same edge with a smaller weight was already processed.
                 }
-                auto b = weights.first;
+                auto t_weight = weights.first;
 
                 // rel = rel U {t}
                 insert_rel(t._from, t._label, t._to);
                 if (t._label == epsilon) {
-                    automaton.add_epsilon_edge(t._from, t._to, std::make_pair(elem.trace, b));
+                    automaton.add_epsilon_edge(t._from, t._to, std::make_pair(elem.trace, t_weight));
                 } else {
-                    automaton.add_edge(t._from, t._to, t._label, std::make_pair(elem.trace, b));
+                    automaton.add_edge(t._from, t._to, t._label, std::make_pair(elem.trace, t_weight));
                 }
 
                 // if y != epsilon
@@ -350,7 +356,7 @@ namespace pdaaal {
                         if (!rule._labels.contains(t._label)) { continue; }
                         auto trace = automaton.new_post_trace(t._from, rule_id, t._label);
                         auto wd = add(elem.weight, rule._weight);
-                        auto wb = add(b, rule._weight);
+                        auto wb = add(t_weight, rule._weight);
                         if (rule._operation != PUSH) {
                             uint32_t label;
                             switch(rule._operation) {
@@ -367,14 +373,12 @@ namespace pdaaal {
                                 default:
                                     assert(false); // Does not happen!
                             }
-                            if (update_edge(rule._to, label, t._to, wb, wd).second) {
-                                workset.emplace(wd, temp_edge_t{rule._to, label, t._to}, trace);
-                            }
+                            update_edge(rule._to, label, t._to, wb, trace);
                         } else { // rule._operation == PUSH
                             assert(q_prime.find(std::make_pair(rule._to, rule._op_label)) != std::end(q_prime));
                             size_t q_new = q_prime[std::make_pair(rule._to, rule._op_label)];
-                            auto update_t = update_edge(rule._to, rule._op_label, q_new, zero<W>()(), wd).second;
-                            auto was_updated = update_edge(q_new, t._label, t._to, wb, zero<W>()()).first;
+                            auto add_to_workset = update_edge_(rule._to, rule._op_label, q_new, zero<W>()(), wd).second;
+                            auto was_updated = update_edge_(q_new, t._label, t._to, wb, zero<W>()()).first;
                             if (was_updated) {
                                 rel3_elem new_elem{t._label, t._to, trace, wb};
                                 auto &relq = rel3[q_new - n_Q];
@@ -385,18 +389,14 @@ namespace pdaaal {
                                     *lb = new_elem;
                                 }
                             }
-                            if (less(wd, minpath[q_new - n_pda_states])) {
-                                minpath[q_new - n_pda_states] = wd;
-                                if (update_t) {
+                            if (less(wd, minpath[q_new - n_Q])) {
+                                minpath[q_new - n_Q] = wd;
+                                if (add_to_workset) {
                                     workset.emplace(wd, temp_edge_t{rule._to, rule._op_label, q_new}, trace);
                                 }
                             } else if (was_updated) {
                                 for (auto f : rel2[q_new - n_Q]) {
-                                    auto wt = add(get_weight(f, epsilon, q_new), wb);
-                                    auto dt = add(minpath[t._to - n_pda_states], wt);
-                                    if (update_edge(f, t._label, t._to, wt, dt).second) {
-                                        workset.emplace(dt, temp_edge_t{f, t._label, t._to}, automaton.new_post_trace(q_new));
-                                    }
+                                    update_edge(f, t._label, t._to, add(get_weight(f, epsilon, q_new), wb), automaton.new_post_trace(q_new));
                                 }
                             }
                         }
@@ -405,19 +405,11 @@ namespace pdaaal {
                     if (t._to < n_Q) {
                         for (auto e : rel1[t._to]) {
                             assert(e.first >= n_pda_states);
-                            auto w = add(get_weight(t._to, e.second, e.first), get_weight(t._from, t._label, t._to));
-                            auto dd = add(minpath[e.first - n_pda_states], w);
-                            if(update_edge(t._from, e.second, e.first, w, dd).second) {
-                                workset.emplace(dd, temp_edge_t{t._from, e.second, e.first}, automaton.new_post_trace(t._to));
-                            }
+                            update_edge(t._from, e.second, e.first, add(get_weight(t._to, e.second, e.first), t_weight), automaton.new_post_trace(t._to));
                         }
                     } else {
                         for (auto &e : rel3[t._to - n_Q]) {
-                            auto w = add(get_weight(t._to, e._label, e._to), get_weight(t._from, t._label, t._to));
-                            auto dd = add(minpath[e._to - n_pda_states], w);
-                            if(update_edge(t._from, e._label, e._to, w, dd).second) {
-                                workset.emplace(dd, temp_edge_t{t._from, e._label, e._to}, automaton.new_post_trace(t._to));
-                            }
+                            update_edge(t._from, e._label, e._to, add(get_weight(t._to, e._label, e._to), t_weight), automaton.new_post_trace(t._to));
                         }
                     }
                 }
