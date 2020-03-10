@@ -193,6 +193,7 @@ namespace pdaaal {
 
         template <Trace_Type trace_type = Trace_Type::Any, typename W = void, typename C = std::less<W>, typename A = add<W>>
         static void post_star(PAutomaton<W,C,A> &automaton) {
+            static_assert(is_weighted<W> || trace_type != Trace_Type::Shortest, "Cannot do shorste-trace post* for PDA without weights."); // TODO: Consider: W=uin32_t, weight==1 as a default weight.
             if constexpr (is_weighted<W> && trace_type == Trace_Type::Shortest) {
                 post_star_shortest<W,C,A,true>(automaton);
             } else if constexpr (trace_type == Trace_Type::Any) {
@@ -204,7 +205,7 @@ namespace pdaaal {
     private:
         template<typename W = void, typename C = std::less<W>, typename A = add<W>, bool E, typename = std::enable_if_t<E>>
         static void post_star_shortest(PAutomaton<W,C,A> &automaton) {
-            static_assert(is_weighted<W>); // TODO: Consider: W=uin32_t, weight==1 as a default weight.
+            static_assert(is_weighted<W>);
             const A add;
             const C less;
 
@@ -463,9 +464,9 @@ namespace pdaaal {
                     }
                     if (trace != nullptr) { // Don't add existing edges
                         if (label == epsilon) {
-                            automaton.add_epsilon_edge(from, to, trace);
+                            automaton.add_epsilon_edge(from, to, trace_ptr_from<W>(trace));
                         } else {
-                            automaton.add_edge(from, to, label, trace);
+                            automaton.add_edge(from, to, label, trace_ptr_from<W>(trace));
                         }
                     }
                 }
