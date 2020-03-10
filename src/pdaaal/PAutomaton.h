@@ -467,18 +467,6 @@ namespace pdaaal {
             edges.emplace_back(_states[to].get(), label, trace);
         }
 
-        /*void update_edge(size_t from, size_t to, uint32_t label, trace_ptr<W> trace) {
-            assert(label < std::numeric_limits<uint32_t>::max() - 1);
-            auto &edges = _states[from]->_edges;
-            for (auto &e : edges) {
-                if (e._to->_id == to) {
-                    e.update_label(label, trace);
-                    return;
-                }
-            }
-            edges.emplace_back(_states[to].get(), label, trace);
-        }*/
-
         void add_wildcard(size_t from, size_t to) {
             auto &edges = _states[from]->_edges;
             for (auto &e : edges) {

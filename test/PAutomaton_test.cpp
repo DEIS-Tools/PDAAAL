@@ -29,7 +29,7 @@
 #include <boost/test/unit_test.hpp>
 #include <pdaaal/PAutomaton.h>
 #include <pdaaal/TypedPDA.h>
-#include <pdaaal/PostStar.h>
+#include <pdaaal/Solver.h>
 #include <chrono>
 
 using namespace pdaaal;
@@ -49,7 +49,7 @@ BOOST_AUTO_TEST_CASE(UnweightedPreStar)
     std::vector<char> init_stack{'A', 'A'};
     PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
-    PostStar::pre_star(automaton);
+    Solver::pre_star(automaton);
 
     std::vector<char> test_stack_reachable{'C', 'B', 'B', 'A'};
     BOOST_CHECK_EQUAL(automaton.accepts(2, pda.encode_pre(test_stack_reachable)), true);
@@ -73,7 +73,7 @@ BOOST_AUTO_TEST_CASE(UnweightedPostStar)
     std::vector<char> init_stack{'A', 'A'};
     PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
-    PostStar::post_star(automaton);
+    Solver::post_star(automaton);
 
     std::vector<char> test_stack_reachable{'B', 'A', 'A', 'A'};
     BOOST_CHECK_EQUAL(automaton.accepts(1, pda.encode_pre(test_stack_reachable)), true);
@@ -97,7 +97,7 @@ BOOST_AUTO_TEST_CASE(WeightedPreStar)
     std::vector<char> init_stack{'A', 'A'};
     PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
-    PostStar::pre_star(automaton);
+    Solver::pre_star(automaton);
 
     std::vector<char> test_stack_reachable{'C', 'B', 'B', 'A'};
     BOOST_CHECK_EQUAL(automaton.accepts(2, pda.encode_pre(test_stack_reachable)), true);
@@ -122,7 +122,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar)
     std::vector<char> init_stack{'A', 'A'};
     PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
-    PostStar::post_star<Trace_Type::Shortest>(automaton);
+    Solver::post_star<Trace_Type::Shortest>(automaton);
 
     std::vector<char> test_stack_reachable{'B', 'A', 'A', 'A'};
     BOOST_CHECK_EQUAL(automaton.accepts(1, pda.encode_pre(test_stack_reachable)), true);
@@ -147,7 +147,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar2)
     std::vector<char> init_stack{'A', 'B', 'A'};
     PAutomaton automaton(pda, 1, pda.encode_pre(init_stack));
 
-    PostStar::post_star<Trace_Type::Shortest>(automaton);
+    Solver::post_star<Trace_Type::Shortest>(automaton);
 
     std::vector<char> test_stack_reachable{'A'};
     BOOST_CHECK_EQUAL(automaton.accepts(1, pda.encode_pre(test_stack_reachable)), true);
@@ -167,7 +167,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar3)
     std::vector<char> init_stack{'A'};
     PAutomaton automaton(pda, 1, pda.encode_pre(init_stack));
 
-    PostStar::post_star<Trace_Type::Shortest>(automaton);
+    Solver::post_star<Trace_Type::Shortest>(automaton);
 
     std::vector<char> test_stack_reachable{'A','A'};
     BOOST_CHECK_EQUAL(automaton.accepts(2, pda.encode_pre(test_stack_reachable)), true);
@@ -187,7 +187,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar4)
     std::vector<char> init_stack{'A'};
     PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
-    PostStar::post_star<Trace_Type::Shortest>(automaton);
+    Solver::post_star<Trace_Type::Shortest>(automaton);
 
     std::vector<char> test_stack_reachable{'A'};
     BOOST_CHECK_EQUAL(automaton.accepts(4, pda.encode_pre(test_stack_reachable)), true);
@@ -207,7 +207,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStarResult)
     std::vector<char> init_stack{'A'};
     PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
-    PostStar::post_star<Trace_Type::Shortest>(automaton);
+    Solver::post_star<Trace_Type::Shortest>(automaton);
 
     std::vector<char> test_stack_reachableA{'A'};
     auto result4A = automaton.accept_path<Trace_Type::Shortest>(4, pda.encode_pre(test_stack_reachableA));
@@ -245,7 +245,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStarPerformance)
     PAutomaton automaton(pda, 0, pda.encode_pre(init_stack)); //Fast
     PAutomaton slow_automaton(pda, 0, pda.encode_pre(init_stack));  //Slow
 
-    PostStar::post_star<Trace_Type::Shortest>(automaton);
+    Solver::post_star<Trace_Type::Shortest>(automaton);
 
     std::vector<int> test_stack_reachable;
     test_stack_reachable.push_back(0);
@@ -305,7 +305,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStarSyntheticModel)
     init_stack.push_back(0);
     PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
-    PostStar::post_star<Trace_Type::Shortest>(automaton);
+    Solver::post_star<Trace_Type::Shortest>(automaton);
 
     std::vector<int> test_stack_reachable;
     test_stack_reachable.push_back(0);

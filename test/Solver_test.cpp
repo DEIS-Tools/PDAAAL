@@ -27,7 +27,7 @@
 #define BOOST_TEST_MODULE Solver
 
 #include <boost/test/unit_test.hpp>
-#include <pdaaal/Solver.h>
+#include <pdaaal/Solver_Adapter.h>
 
 using namespace pdaaal;
 
@@ -47,7 +47,7 @@ BOOST_AUTO_TEST_CASE(SolverTest1)
     //std::vector<char> init_stack{'A', 'A'};
     //PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
-    Solver solver;
+    Solver_Adapter solver;
 
 //    solver.post_star(pda); // Does not work yet. The new WPDA is not compatible was the initial/terminal PDA design from AalWiNes. Refactoring needed.
 
