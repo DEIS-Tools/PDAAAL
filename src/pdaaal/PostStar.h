@@ -18,7 +18,7 @@
  */
 
 /*
- * File:   PAutomaton.h
+ * File:   PostStar.h
  * Author: Morten K. Schou <morten@h-schou.dk>
  *
  * Created on 09-03-2020.

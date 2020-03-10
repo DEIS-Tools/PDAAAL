@@ -18,7 +18,7 @@
  */
 
 /*
- * File:   WPDA.h
+ * File:   Weight.h
  * Author: Morten K. Schou <morten@h-schou.dk>
  *
  * Created on 03-03-2020.
