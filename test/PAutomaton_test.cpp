@@ -30,6 +30,7 @@
 #include <pdaaal/PAutomaton.h>
 #include <pdaaal/TypedPDA.h>
 #include <pdaaal/PostStar.h>
+#include <chrono>
 
 using namespace pdaaal;
 
@@ -192,6 +193,35 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar4)
     BOOST_CHECK_EQUAL(automaton.accepts(4, pda.encode_pre(test_stack_reachable)), true);
 }
 
+BOOST_AUTO_TEST_CASE(WeightedPostStarResult)
+{
+    std::unordered_set<char> labels{'A'};
+    TypedPDA<char, int> pda(labels);
+
+    pda.add_rule(0, 3, PUSH, 'A', 4, false, 'A');
+    pda.add_rule(0, 1, PUSH , 'A', 1, false, 'A');
+    pda.add_rule(3, 1, PUSH , 'A', 8, false, 'A');
+    pda.add_rule(1, 2, POP , 'A', 2, false, 'A');
+    pda.add_rule(2, 4, POP , 'A', 16, false, 'A');
+
+    std::vector<char> init_stack{'A'};
+    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+
+    PostStar::post_star<Trace_Type::Shortest>(automaton);
+
+    std::vector<char> test_stack_reachableA{'A'};
+    auto result4A = automaton.accept_path<Trace_Type::Shortest>(4, pda.encode_pre(test_stack_reachableA));
+    auto distance4A = result4A.second;
+
+    std::vector<char> test_stack_reachableAA{'A','A'};
+    auto result2AA = automaton.accept_path<Trace_Type::Shortest>(2, pda.encode_pre(test_stack_reachableAA));
+    auto distance2AA = result2AA.second;
+
+    BOOST_CHECK_EQUAL(distance4A, 30);          //Example Derived on whiteboard
+    BOOST_CHECK_EQUAL(distance2AA, 14);         //Example Derived on whiteboard
+}
+
+
 BOOST_AUTO_TEST_CASE(WeightedPostStarPerformance)
 {
     std::unordered_set<int> labels;
@@ -211,12 +241,76 @@ BOOST_AUTO_TEST_CASE(WeightedPostStarPerformance)
     }
     std::vector<int> init_stack;
     init_stack.push_back(0);
+
+    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack)); //Fast
+    PAutomaton slow_automaton(pda, 0, pda.encode_pre(init_stack));  //Slow
+
+    PostStar::post_star<Trace_Type::Shortest>(automaton);
+
+    std::vector<int> test_stack_reachable;
+    test_stack_reachable.push_back(0);
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+    automaton.accepts(3, pda.encode_pre(test_stack_reachable));
+    auto t2 = std::chrono::high_resolution_clock::now();
+    slow_automaton.accepts(3, pda.encode_pre(test_stack_reachable));
+    auto t3 = std::chrono::high_resolution_clock::now();
+
+    auto duration_slow = std::chrono::duration_cast<std::chrono::microseconds>( t3 - t2 ).count();
+    auto duration_fast = std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count();
+
+    std::cout << "fast: " + std::to_string(duration_fast) << " slow " << std::to_string(duration_slow);
+    BOOST_CHECK_EQUAL(duration_fast < duration_slow, true);
+}
+
+BOOST_AUTO_TEST_CASE(WeightedPostStarSyntheticModel)
+{
+    std::unordered_set<int> labels;
+    int alphabet_size = 5;
+    int network_size = 1;
+    int start_state = 0;
+    int states = 4;
+
+    //Insert labels alphabet
+    for(int i = 0; i < alphabet_size; i++){
+        labels.insert(i);
+    }
+
+    TypedPDA<int, int> pda(labels);
+
+    for(int j = 0; j < network_size; j++){
+        pda.add_rule(start_state, 1+start_state, PUSH, 0, 0, false, 0);
+        pda.add_rule(start_state, 1+start_state, PUSH, 1, 1, false, 0);
+        pda.add_rule(start_state, 1+start_state, PUSH, 2, 1, false, 0);
+        pda.add_rule(start_state, 2+start_state, PUSH, 0, 0, false, 2);
+        pda.add_rule(start_state, 3+start_state, POP, 0, 1, false, 1);
+
+        pda.add_rule(1+start_state, 2+start_state, PUSH, 1, 1, false, 2);
+        pda.add_rule(1+start_state, 4+start_state, PUSH, 0, 1, false, 0);
+        pda.add_rule(1+start_state, 4+start_state, PUSH, 1, 1, false, 1);
+
+        for(int i = 0; i < alphabet_size; i++){
+            pda.add_rule(2+start_state, 2+start_state, POP, 0, 5, false, i);
+        }
+        pda.add_rule(2+start_state, 4+start_state, PUSH, 0, 1, false, 0);
+
+        pda.add_rule(3+start_state, 2+start_state, POP, 0, 1, false, 2);
+        pda.add_rule(3+start_state, 4+start_state, PUSH, 2, 1, false, 0);
+        pda.add_rule(3+start_state, 4+start_state, PUSH, 2, 1, false, 1);
+
+        start_state = start_state + states;
+    }
+
+    std::vector<int> init_stack;
+    init_stack.push_back(0);
     PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
     PostStar::post_star<Trace_Type::Shortest>(automaton);
 
     std::vector<int> test_stack_reachable;
     test_stack_reachable.push_back(0);
-    test_stack_reachable.push_back(0);
-    BOOST_CHECK_EQUAL(automaton.accepts(3, pda.encode_pre(test_stack_reachable)), true);
+
+    BOOST_CHECK_EQUAL(automaton.accepts(start_state, pda.encode_pre(test_stack_reachable)), true);
 }
+
+

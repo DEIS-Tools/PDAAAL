@@ -313,6 +313,9 @@ namespace pdaaal {
                     size_t state;
                     size_t stack_index;
                     const queue_elem *back_pointer;
+                    queue_elem(W weight, size_t state, size_t stack_index, const queue_elem *back_pointer = nullptr)
+                    : weight(weight), state(state), stack_index(stack_index), back_pointer(back_pointer) {};
+
                     bool operator<(const queue_elem &other) const {
                         if (state != other.state) {
                             return state < other.state;
@@ -332,17 +335,26 @@ namespace pdaaal {
                         return less(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
                     }
                 };
+                queue_elem_comp less;
                 adder add;
                 std::priority_queue<queue_elem, std::vector<queue_elem>, queue_elem_comp> search_queue;
                 std::vector<queue_elem> visited;
                 std::vector<std::unique_ptr<queue_elem>> pointers;
-                search_queue.emplace(zero<W>()(), state, 0, nullptr);
+                search_queue.emplace(zero<W>()(), state, 0);
                 while(!search_queue.empty()) {
                     auto current = search_queue.top();
                     search_queue.pop();
+                    if (current.stack_index == stack.size()) {
+                        std::vector<size_t> path(stack.size() + 1);
+                        path[current.stack_index] = current.state;
+                        for (auto p = current.back_pointer; p != nullptr; p = p->back_pointer) {
+                            path[p->stack_index] = p->state;
+                        }
+                        return std::make_pair(path, current.weight);
+                    }
                     auto lb = std::lower_bound(visited.begin(), visited.end(), current);
                     if (lb != std::end(visited) && *lb == current) {
-                        if (queue_elem_comp(*lb, current)) {
+                        if (less(*lb, current)) {
                             *lb = current;
                         } else {
                             break;
@@ -350,22 +362,14 @@ namespace pdaaal {
                     } else {
                         lb = visited.insert(lb, current);
                     }
-                    auto u_pointer = std::make_unique(*lb);
+                    auto u_pointer = std::make_unique<queue_elem>(*lb);
                     auto pointer = u_pointer.get();
                     pointers.push_back(std::move(u_pointer));
                     for (auto &edge : _states[current.state]->_edges) {
                         auto label = edge.find(stack[current.stack_index]);
                         if (label) {
-                            auto to = edge._to->_id;
-                            if (current.stack_index + 1 < stack.size()) {
-                                search_queue.emplace(add(current.priority, label->_weight), to, current.stack_index + 1, pointer);
-                            } else if (edge._to->_accepting) {
-                                std::vector<size_t> path(stack.size() + 1);
-                                path[current.stack_index + 1] = to;
-                                for (auto p = current.back_pointer; p != nullptr; p = p->back_pointer) {
-                                    path[p->stack_index] = p->state;
-                                }
-                                return std::make_pair(path, current.weight);
+                            if (current.stack_index + 1 < stack.size() || edge._to->_accepting) {
+                                search_queue.emplace(add(current.weight, label->_t.second), edge._to->_id, current.stack_index + 1, pointer);
                             }
                         }
                     }
