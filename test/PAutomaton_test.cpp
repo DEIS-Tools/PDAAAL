@@ -221,8 +221,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStarResult)
     BOOST_CHECK_EQUAL(distance2AA, 14);         //Example Derived on whiteboard
 }
 
-
-BOOST_AUTO_TEST_CASE(WeightedPostStarPerformance)
+BOOST_AUTO_TEST_CASE(WeightedPostStarSyntheticModelBroad)
 {
     std::unordered_set<int> labels;
     int alphabet_size = 1000;
@@ -313,4 +312,106 @@ BOOST_AUTO_TEST_CASE(WeightedPostStarSyntheticModel)
     BOOST_CHECK_EQUAL(automaton.accepts(start_state, pda.encode_pre(test_stack_reachable)), true);
 }
 
+BOOST_AUTO_TEST_CASE(WeightedPostStarPerformance)
+{
+    std::unordered_set<int> labels;
+    int alphabet_size = 10000;
+
+    //Insert labels alphabet
+    for(int i = 0; i < alphabet_size; i++){
+        labels.insert(i);
+    }
+
+    TypedPDA<int, int> pda(labels);
+
+    for(int i = 0; i < alphabet_size; i++){
+        pda.add_rule(0, 1, SWAP, i, 1, false, 0);
+        pda.add_rule(1, 2, SWAP, 0, i, false, i);
+        pda.add_rule(2, 3, PUSH, i, 1, false, 0);
+    }
+
+    std::vector<int> init_stack;
+    init_stack.push_back(0);
+
+    PAutomaton shortest_automaton(pda, 0, pda.encode_pre(init_stack));
+    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+
+    std::vector<int> test_stack_reachable;
+    test_stack_reachable.push_back(0);
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+    Solver::post_star<Trace_Type::Shortest>(shortest_automaton);
+    auto t2 = std::chrono::high_resolution_clock::now();
+    Solver::post_star<Trace_Type::Any>(automaton);
+    auto t3 = std::chrono::high_resolution_clock::now();
+
+    auto duration_short_post = std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count();
+    auto duration_post = std::chrono::duration_cast<std::chrono::microseconds>( t3 - t2 ).count();
+
+    BOOST_TEST_MESSAGE( "ShortestTrace: " << std::to_string(duration_short_post) << " PostStar: " << std::to_string(duration_post));
+}
+
+TypedPDA<int,int> create_syntactic_network_deep(int network_size = 2){
+    std::unordered_set<int> labels{0,1,2};
+    TypedPDA<int, int> pda(labels);
+    int start_state = 0;
+    int new_start_state = 4;
+    int end_state = 2;
+    int new_end_state = 6;
+
+    for(int j = 0; j < network_size; j++){
+        pda.add_rule(start_state, 1+start_state, POP, 2, 1, false, 1);
+
+        pda.add_rule(1+start_state, end_state, SWAP, 2, 1, false, 0);
+
+        pda.add_rule(end_state, 3+start_state, POP, 1, 1, false, 2);
+
+        pda.add_rule(3+start_state, start_state, SWAP, 1, 1, false, 0);
+
+        for(int i = 0; i < labels.size(); i++){
+            for(int k = 0; k < labels.size(); k++) {
+                pda.add_rule(new_start_state, start_state, PUSH, i, 1, false, k);
+            }
+        }
+        for(int i = 0; i < labels.size(); i++){
+            for(int k = 0; k < labels.size(); k++) {
+                pda.add_rule(end_state, new_end_state, PUSH, i, 1, false, k);
+            }
+        }
+        start_state = new_start_state;
+        end_state = new_end_state;
+        new_start_state = new_start_state + 4;
+        new_end_state = new_end_state + 4;
+    }
+    return pda;
+}
+
+BOOST_AUTO_TEST_CASE(WeightedShortestPerformance)
+{
+    TypedPDA<int, int> pda = create_syntactic_network_deep(200);
+
+    std::vector<int> init_stack;
+    init_stack.push_back(0);
+
+    std::vector<int> test_stack_reachable;
+    test_stack_reachable.push_back(0);
+    test_stack_reachable.push_back(0);
+    test_stack_reachable.push_back(0);
+    test_stack_reachable.push_back(0);
+
+    PAutomaton shortest_automaton(pda, 0, pda.encode_pre(init_stack));
+    auto t1 = std::chrono::high_resolution_clock::now();
+    Solver::post_star<Trace_Type::Shortest>(shortest_automaton);
+    auto t2 = std::chrono::high_resolution_clock::now();
+
+    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    auto t3 = std::chrono::high_resolution_clock::now();
+    Solver::post_star<Trace_Type::Any>(automaton);
+    auto t4 = std::chrono::high_resolution_clock::now();
+
+    auto duration_short_post = std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count();
+    auto duration_post = std::chrono::duration_cast<std::chrono::microseconds>( t4 - t3 ).count();
+
+    BOOST_TEST_MESSAGE( "ShortestTrace: " << std::to_string(duration_short_post) << " PostStar: " << std::to_string(duration_post));
+}
 
