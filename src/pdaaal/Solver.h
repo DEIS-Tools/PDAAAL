@@ -218,7 +218,7 @@ namespace pdaaal {
         }
 
     private:
-        template<typename W = void, typename C = std::less<W>, typename A = add<W>, bool E, typename = std::enable_if_t<E>>
+        template<typename W, typename C, typename A, bool E, typename = std::enable_if_t<E>>
         static void post_star_shortest(PAutomaton<W,C,A> &automaton) {
             static_assert(is_weighted<W>);
             const A add;
@@ -439,7 +439,7 @@ namespace pdaaal {
             }
         }
 
-        template<typename W = void, typename C = std::less<W>, typename A = add<W>>
+        template<typename W, typename C, typename A>
         static void post_star_any(PAutomaton<W,C,A> &automaton) {
             // This is an implementation of Algorithm 2 (figure 3.4) in:
             // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.

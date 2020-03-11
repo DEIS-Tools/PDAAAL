@@ -42,9 +42,9 @@ namespace pdaaal {
 
         virtual ~Solver_Adapter() = default;
 
-        template <typename W = void, typename C = std::less<W>, typename A = add<W>>
+        template <typename W, typename C, typename A>
                 using trace_info = typename std::pair<std::unique_ptr<PAutomaton<W,C,A>>, size_t>;
-        template <typename W = void, typename C = std::less<W>, typename A = add<W>>
+        template <typename W, typename C, typename A>
                 using res_type = typename std::pair<bool, trace_info<W,C,A>>;
 
         template<typename T, typename W, typename C, typename A = add<W>>
