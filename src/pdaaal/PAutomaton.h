@@ -33,12 +33,19 @@
 #include <functional>
 #include <vector>
 #include <stack>
+#include <queue>
 #include <iostream>
 #include <cassert>
 #include <boost/functional/hash.hpp>
 
 
 namespace pdaaal {
+
+    enum class Trace_Type {
+        None,
+        Any,
+        Shortest
+    };
 
     struct trace_t {
         size_t _state = std::numeric_limits<size_t>::max(); // _state = p
@@ -69,109 +76,103 @@ namespace pdaaal {
         }
     };
 
-    struct label_with_trace_t {
+    template <typename T> struct label_with_t {
         uint32_t _label = std::numeric_limits<uint32_t>::max();
-        const trace_t *_trace = nullptr;
+        T _t;
 
-        explicit label_with_trace_t(uint32_t label)
-                : _label(label) {};
+        explicit label_with_t(T t) // epsilon edge
+            : _t(t) {};
 
-        explicit label_with_trace_t(const trace_t *trace) // epsilon edge
-                : _trace(trace) {};
+        label_with_t(uint32_t label, T t)
+            : _label(label), _t(t) {};
 
-        label_with_trace_t(uint32_t label, const trace_t *trace)
-                : _label(label), _trace(trace) {};
-
-        bool operator<(const label_with_trace_t &other) const {
+        bool operator<(const label_with_t &other) const {
             return _label < other._label;
         }
-
-        bool operator==(const label_with_trace_t &other) const {
+        bool operator==(const label_with_t &other) const {
             return _label == other._label;
         }
-
-        bool operator!=(const label_with_trace_t &other) const {
+        bool operator!=(const label_with_t &other) const {
             return !(*this == other);
         }
-
         [[nodiscard]] bool is_epsilon() const {
             return _label == std::numeric_limits<uint32_t>::max();
         }
     };
 
-    template <typename W = void, typename C = std::less<W>>
+    template<typename W> using trace_ptr = std::conditional_t<is_weighted<W>, std::pair<const trace_t*, W>, const trace_t*>;
+    template<typename W> using label_with_trace_t = label_with_t<trace_ptr<W>>;
+    template<typename W> constexpr trace_ptr<W> default_trace_ptr() {
+        if constexpr (is_weighted<W>) {
+            return std::make_pair<const trace_t*, W>(nullptr, zero<W>()());
+        } else {
+            return nullptr;
+        }
+    }
+    template<typename W> constexpr trace_ptr<W> trace_ptr_from(const trace_t *trace) {
+        if constexpr (is_weighted<W>) {
+            return std::make_pair(trace, zero<W>()());
+        } else {
+            return trace;
+        }
+    }
+    template<typename W> constexpr const trace_t * trace_from(trace_ptr<W> t) {
+        if constexpr (is_weighted<W>) {
+            return t.first;
+        } else {
+            return t;
+        }
+    }
+
+
+    template <typename W = void, typename C = std::less<W>, typename adder = add<W>>
     class PAutomaton {
-    private:
-        struct temp_edge_t {
-            size_t _from = std::numeric_limits<size_t>::max();
-            size_t _to = std::numeric_limits<size_t>::max();
-            uint32_t _label = std::numeric_limits<uint32_t>::max();
-
-            temp_edge_t() = default;
-
-            temp_edge_t(size_t from, uint32_t label, size_t to)
-                    : _from(from), _to(to), _label(label) {};
-
-            bool operator<(const temp_edge_t &other) const {
-                if (_from != other._from) return _from < other._from;
-                if (_label != other._label) return _label < other._label;
-                return _to < other._to;
-            }
-
-            bool operator==(const temp_edge_t &other) const {
-                return _from == other._from && _to == other._to && _label == other._label;
-            }
-
-            bool operator!=(const temp_edge_t &other) const {
-                return !(*this == other);
-            }
-        };
-        struct temp_edge_hasher {
-            std::size_t operator()(const temp_edge_t& e) const
-            {
-                std::size_t seed = 0;
-                boost::hash_combine(seed, e._from);
-                boost::hash_combine(seed, e._to);
-                boost::hash_combine(seed, e._label);
-                return seed;
-            }
-        };
-
     public:
+        static constexpr auto epsilon = std::numeric_limits<uint32_t>::max();
+
         struct state_t;
 
         struct edge_t {
             state_t *_to;
-            std::vector<label_with_trace_t> _labels;
+            std::vector<label_with_trace_t<W>> _labels;
 
             // edge with a label and optional trace
-            edge_t(state_t *to, uint32_t label, const trace_t *trace = nullptr)
+            edge_t(state_t *to, uint32_t label, trace_ptr<W> trace)
                     : _to(to), _labels() {
                 _labels.emplace_back(label, trace);
             };
 
             // epsilon edge with trace
-            edge_t(state_t *to, const trace_t *trace) : _to(to), _labels() {
+            edge_t(state_t *to, trace_ptr<W> trace) : _to(to), _labels() {
                 _labels.emplace_back(trace);
             };
 
             // wildcard (all labels), no trace
             edge_t(state_t *to, size_t all_labels) : _to(to), _labels() {
                 for (uint32_t label = 0; label < all_labels; label++) {
-                    _labels.emplace_back(label);
+                    _labels.emplace_back(label, default_trace_ptr<W>());
                 }
             };
 
-            void add_label(uint32_t label, const trace_t *trace) {
-                label_with_trace_t label_trace{label, trace};
+            void add_label(uint32_t label, trace_ptr<W> trace) {
+                label_with_trace_t<W> label_trace{label, trace};
                 auto lb = std::lower_bound(_labels.begin(), _labels.end(), label_trace);
                 if (lb == std::end(_labels) || *lb != label_trace) {
                     _labels.insert(lb, label_trace);
                 }
             }
 
+            std::optional<label_with_trace_t<W>> find(uint32_t label) {
+                label_with_trace_t<W> label_trace{label, default_trace_ptr<W>()};
+                auto lb = std::lower_bound(_labels.begin(), _labels.end(), label_trace);
+                if (lb != std::end(_labels) && *lb == label_trace) {
+                    return std::optional<label_with_trace_t<W>>(*lb);
+                }
+                return std::nullopt;
+            }
+
             bool contains(uint32_t label) {
-                label_with_trace_t label_trace{label};
+                label_with_trace_t<W> label_trace{label, default_trace_ptr<W>()};
                 auto lb = std::lower_bound(_labels.begin(), _labels.end(), label_trace);
                 return lb != std::end(_labels) && *lb == label_trace;
             }
@@ -228,232 +229,11 @@ namespace pdaaal {
             }
         }
 
-        void pre_star() {
-            // This is an implementation of Algorithm 1 (figure 3.3) in:
-            // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.
-            // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 42)
-            auto& pda_states = pda().states();
-            const size_t n_pda_states = pda_states.size();
-
-            std::unordered_set<temp_edge_t, temp_edge_hasher> edges;
-            std::stack<temp_edge_t> trans;
-            std::vector<std::vector<std::pair<size_t,uint32_t>>> rel(_states.size());
-
-            auto insert_edge = [&edges, &trans, this](size_t from, uint32_t label, size_t to, const trace_t *trace) {
-                auto res = edges.emplace(from, label, to);
-                if (res.second) { // New edge is not already in edges (rel U trans).
-                    trans.emplace(from, label, to);
-                    if (trace != nullptr) { // Don't add existing edges
-                        this->add_edge(from, to, label, trace);
-                    }
-                }
-            };
-            const size_t n_pda_labels = this->number_of_labels();
-            auto insert_edge_bulk = [&insert_edge, n_pda_labels](size_t from, const labels_t &precondition, size_t to, const trace_t *trace) {
-                if (precondition.wildcard()) {
-                    for (uint32_t i = 0; i < n_pda_labels; i++) {
-                        insert_edge(from, i, to, trace);
-                    }
-                } else {
-                    for (auto &label : precondition.labels()) {
-                        insert_edge(from, label, to, trace);
-                    }
-                }
-            };
-
-            // trans := ->_0  (line 1)
-            for (auto &from : this->states()) {
-                for (auto &edge : from->_edges) {
-                    for (auto &label : edge._labels) {
-                        insert_edge(from->_id, label._label, edge._to->_id, nullptr);
-                    }
-                }
-            }
-
-            // for all <p, y> --> <p', epsilon> : trans U= (p, y, p') (line 2)
-            for (size_t state = 0; state < n_pda_states; ++state) {
-                const auto &rules = pda_states[state]._rules;
-                for (size_t rule_id = 0; rule_id < rules.size(); ++rule_id) {
-                    auto &rule = rules[rule_id];
-                    if (rule._operation == POP) {
-                        insert_edge_bulk(state, rule._labels, rule._to, this->new_pre_trace(rule_id));
-                    }
-                }
-            }
-
-            // delta_prime[q] = [p,rule_id]    where states[p]._rules[rule_id]._labels.contains(y)    for each p, rule_id
-            // corresponds to <p, y> --> <q, y>   (the y is the same, since we only have PUSH and not arbitrary <p, y> --> <q, y1 y2>, i.e. y==y2)
-            std::vector<std::vector<std::pair<size_t, size_t>>> delta_prime(states().size());
-
-            while (!trans.empty()) { // (line 3)
-                // pop t = (q, y, q') from trans (line 4)
-                auto t = trans.top();
-                trans.pop();
-                // rel = rel U {t} (line 6)   (membership test on line 5 is done in insert_edge).
-                rel[t._from].emplace_back(t._to, t._label);
-
-                // (line 7-8 for \Delta')
-                for (auto pair : delta_prime[t._from]) { // Loop over delta_prime (that match with t->from)
-                    auto state = pair.first;
-                    auto rule_id = pair.second;
-                    if (pda_states[state]._rules[rule_id]._labels.contains(t._label)) {
-                        insert_edge(state, t._label, t._to, this->new_pre_trace(rule_id, t._from));
-                    }
-                }
-                // Loop over \Delta (filter rules going into q) (line 7 and 9)
-                if (t._from >= n_pda_states) { continue; }
-                for (auto pre_state : pda_states[t._from]._pre_states) {
-                    const auto &rules = pda_states[pre_state]._rules;
-                    rule_t<W,C> dummy_rule{t._from, PUSH, 0}; // PUSH and 0 are the smallest w.r.t. PDA::rule_t::operator<
-                    auto lb = std::lower_bound(rules.begin(), rules.end(), dummy_rule);
-                    while (lb != rules.end() && lb->_to == t._from) {
-                        auto &rule = *lb;
-                        size_t rule_id = lb - rules.begin();
-                        ++lb;
-                        switch (rule._operation) {
-                            case POP:
-                                break;
-                            case SWAP: // (line 7-8 for \Delta)
-                                if (rule._op_label == t._label) {
-                                    insert_edge_bulk(pre_state, rule._labels, t._to, this->new_pre_trace(rule_id));
-                                }
-                                break;
-                            case NOOP: // (line 7-8 for \Delta)
-                                if (rule._labels.contains(t._label)) {
-                                    insert_edge(pre_state, t._label, t._to, this->new_pre_trace(rule_id));
-                                }
-                                break;
-                            case PUSH: // (line 9)
-                                if (rule._op_label == t._label) {
-                                    // (line 10)
-                                    delta_prime[t._to].emplace_back(pre_state, rule_id);
-                                    for (auto rel_rule : rel[t._to]) { // (line 11-12)
-                                        if (rule._labels.contains(rel_rule.second)) {
-                                            insert_edge(pre_state, rel_rule.second, rel_rule.first, this->new_pre_trace(rule_id, t._to));
-                                        }
-                                    }
-                                }
-                                break;
-                            default:
-                                assert(false);
-                        }
-                    }
-                }
-            }
-        }
-
-        void post_star() {
-            // This is an implementation of Algorithm 2 (figure 3.4) in:
-            // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.
-            // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 48)
-            auto & pda_states = pda().states();
-            auto n_pda_states = pda_states.size();
-
-            std::unordered_set<temp_edge_t, temp_edge_hasher> edges;
-            std::stack<temp_edge_t> trans;
-
-            // for <p, y> -> <p', y1 y2> do  (line 3)
-            //   Q' U= {q_p'y1}              (line 4)
-            std::unordered_map<std::pair<size_t, uint32_t>, size_t, boost::hash<std::pair<size_t, uint32_t>>> q_prime{};
-            for (auto &state : pda_states) {
-                for (auto &rule : state._rules) {
-                    if (rule._operation == PUSH) {
-                        auto res = q_prime.emplace(std::make_pair(rule._to, rule._op_label), this->next_state_id());
-                        if (res.second) {
-                            this->add_state(false, false);
-                        }
-                    }
-                }
-            }
-
-            std::vector<std::vector<std::pair<size_t,uint32_t>>> rel1(_states.size()); // faster access for lookup _from -> (_to, _label)
-            std::vector<std::vector<size_t>> rel2(_states.size()); // faster access for lookup _to -> _from  (when _label is uint32_t::max)
-
-            auto insert_edge = [&edges, &trans, &rel1, &rel2, this](size_t from, uint32_t label, size_t to,
-                                                                    const trace_t *trace,
-                                                                    bool direct_to_rel = false) {
-                auto res = edges.emplace(from, label, to);
-                if (res.second) { // New edge is not already in edges (rel U trans).
-                    if (direct_to_rel) {
-                        rel1[from].emplace_back(to, label);
-                        if (label == std::numeric_limits<uint32_t>::max()) {
-                            rel2[to].push_back(from);
-                        }
-                    } else {
-                        trans.emplace(from, label, to);
-                    }
-                    if (trace != nullptr) { // Don't add existing edges
-                        if (label == std::numeric_limits<uint32_t>::max()) {
-                            this->add_epsilon_edge(from, to, trace);
-                        } else {
-                            this->add_edge(from, to, label, trace);
-                        }
-                    }
-                }
-            };
-
-            // trans := ->_0 intersect (P x Gamma x Q)  (line 1)
-            // rel := ->_0 \ trans (line 2)
-            for (auto &from : this->states()) {
-                for (auto &edge : from->_edges) {
-                    assert(!edge.has_epsilon()); // PostStar algorithm assumes no epsilon transitions in the NFA.
-                    for (auto &label : edge._labels) {
-                        insert_edge(from->_id, label._label, edge._to->_id, nullptr, from->_id >= n_pda_states);
-                    }
-                }
-            }
-
-            while (!trans.empty()) { // (line 5)
-                // pop t = (q, y, q') from trans (line 6)
-                auto t = trans.top();
-                trans.pop();
-                // rel = rel U {t} (line 8)   (membership test on line 7 is done in insert_edge).
-                rel1[t._from].emplace_back(t._to, t._label);
-                if (t._label == std::numeric_limits<uint32_t>::max()) {
-                    rel2[t._to].push_back(t._from);
-                }
-
-                // if y != epsilon (line 9)
-                if (t._label != std::numeric_limits<uint32_t>::max()) {
-                    const auto &rules = pda_states[t._from]._rules;
-                    for (size_t rule_id = 0; rule_id < rules.size(); ++rule_id) {
-                        auto &rule = rules[rule_id];
-                        if (!rule._labels.contains(t._label)) { continue; }
-                        auto trace = this->new_post_trace(t._from, rule_id, t._label);
-                        switch (rule._operation) {
-                            case POP: // (line 10-11)
-                                insert_edge(rule._to, std::numeric_limits<uint32_t>::max(), t._to, trace);
-                                break;
-                            case SWAP: // (line 12-13)
-                                insert_edge(rule._to, rule._op_label, t._to, trace);
-                                break;
-                            case NOOP:
-                                insert_edge(rule._to, t._label, t._to, trace);
-                                break;
-                            case PUSH: // (line 14)
-                                assert(q_prime.find(std::make_pair(rule._to, rule._op_label)) != std::end(q_prime));
-                                size_t q_new = q_prime[std::make_pair(rule._to, rule._op_label)];
-                                insert_edge(rule._to, rule._op_label, q_new, trace); // (line 15)
-                                insert_edge(q_new, t._label, t._to, trace, true); // (line 16)
-                                for (auto f : rel2[q_new]) { // (line 17)
-                                    insert_edge(f, t._label, t._to, this->new_post_trace(q_new)); // (line 18)
-                                }
-                                break;
-                        }
-                    }
-                } else {
-                    for (auto e : rel1[t._to]) { // (line 20)
-                        insert_edge(t._from, e.second, e.first, this->new_post_trace(t._to)); // (line 21)
-                    }
-                }
-            }
-        };
-
         [[nodiscard]] const std::vector<std::unique_ptr<state_t>> &states() const { return _states; }
         
         [[nodiscard]] const WPDA<W,C> &pda() const { return _pda; }
 
-        void to_dot(std::ostream &out, const std::function<void(std::ostream &, const label_with_trace_t &)> &printer = [](auto &s, auto &e) {
+        void to_dot(std::ostream &out, const std::function<void(std::ostream &, const label_with_trace_t<W> &)> &printer = [](auto &s, auto &e) {
                         s << e._label;
                     }) const {
             out << "digraph NFA {\n";
@@ -521,37 +301,119 @@ namespace pdaaal {
             }
             return false;
         }
-        [[nodiscard]] std::vector<size_t> accept_path(size_t state, const std::vector<uint32_t> &stack) const {
-            if (stack.empty()) {
-                if (_states[state]->_accepting) {
-                    return std::vector<size_t>{state};
-                } else {
-                    return std::vector<size_t>();
+
+        template<Trace_Type trace_type = Trace_Type::Any>
+        [[nodiscard]] typename std::conditional_t<trace_type == Trace_Type::Shortest && is_weighted<W>,
+                std::pair<std::vector<size_t>, W>, std::vector<size_t>>
+        accept_path(size_t state, const std::vector<uint32_t> &stack) const {
+            if constexpr (trace_type == Trace_Type::Shortest && is_weighted<W>) { // TODO: Consider unweighted shortest path.
+                if (stack.empty()) {
+                    if (_states[state]->_accepting) {
+                        return std::make_pair(std::vector<size_t>{state}, zero<W>()());
+                    } else {
+                        return std::make_pair(std::vector<size_t>(), max<W>()());
+                    }
                 }
-            }
-            // DFS search.
-            std::vector<size_t> path(stack.size() + 1);
-            std::stack<std::pair<size_t, size_t>> search_stack;
-            search_stack.emplace(state, 0);
-            while (!search_stack.empty()) {
-                auto current = search_stack.top();
-                search_stack.pop();
-                auto current_state = current.first;
-                auto stack_index = current.second;
-                path[stack_index] = current_state;
-                for (auto &edge : _states[current_state]->_edges) {
-                    if (edge.contains(stack[stack_index])) {
-                        auto to = edge._to->_id;
-                        if (stack_index + 1 < stack.size()) {
-                            search_stack.emplace(to, stack_index + 1);
-                        } else if (edge._to->_accepting) {
-                            path[stack_index + 1] = to;
-                            return path;
+                // Dijkstra.
+                struct queue_elem {
+                    W weight;
+                    size_t state;
+                    size_t stack_index;
+                    const queue_elem *back_pointer;
+                    queue_elem(W weight, size_t state, size_t stack_index, const queue_elem *back_pointer = nullptr)
+                    : weight(weight), state(state), stack_index(stack_index), back_pointer(back_pointer) {};
+
+                    bool operator<(const queue_elem &other) const {
+                        if (state != other.state) {
+                            return state < other.state;
+                        }
+                        return stack_index < other.stack_index;
+                    }
+                    bool operator==(const queue_elem &other) const {
+                        return state == other.state && stack_index == other.stack_index;
+                    }
+                    bool operator!=(const queue_elem &other) const {
+                        return !(*this == other);
+                    }
+                };
+                struct queue_elem_comp {
+                    bool operator()(const queue_elem &lhs, const queue_elem &rhs){
+                        C less;
+                        return less(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
+                    }
+                };
+                queue_elem_comp less;
+                adder add;
+                std::priority_queue<queue_elem, std::vector<queue_elem>, queue_elem_comp> search_queue;
+                std::vector<queue_elem> visited;
+                std::vector<std::unique_ptr<queue_elem>> pointers;
+                search_queue.emplace(zero<W>()(), state, 0);
+                while(!search_queue.empty()) {
+                    auto current = search_queue.top();
+                    search_queue.pop();
+                    if (current.stack_index == stack.size()) {
+                        std::vector<size_t> path(stack.size() + 1);
+                        path[current.stack_index] = current.state;
+                        for (auto p = current.back_pointer; p != nullptr; p = p->back_pointer) {
+                            path[p->stack_index] = p->state;
+                        }
+                        return std::make_pair(path, current.weight);
+                    }
+                    auto lb = std::lower_bound(visited.begin(), visited.end(), current);
+                    if (lb != std::end(visited) && *lb == current) {
+                        if (less(*lb, current)) {
+                            *lb = current;
+                        } else {
+                            break;
+                        }
+                    } else {
+                        lb = visited.insert(lb, current);
+                    }
+                    auto u_pointer = std::make_unique<queue_elem>(*lb);
+                    auto pointer = u_pointer.get();
+                    pointers.push_back(std::move(u_pointer));
+                    for (auto &edge : _states[current.state]->_edges) {
+                        auto label = edge.find(stack[current.stack_index]);
+                        if (label) {
+                            if (current.stack_index + 1 < stack.size() || edge._to->_accepting) {
+                                search_queue.emplace(add(current.weight, label->_t.second), edge._to->_id, current.stack_index + 1, pointer);
+                            }
                         }
                     }
                 }
+                return std::make_pair(std::vector<size_t>(), max<W>()());
+            } else {
+                if (stack.empty()) {
+                    if (_states[state]->_accepting) {
+                        return std::vector<size_t>{state};
+                    } else {
+                        return std::vector<size_t>();
+                    }
+                }
+                // DFS search.
+                std::vector<size_t> path(stack.size() + 1);
+                std::stack<std::pair<size_t, size_t>> search_stack;
+                search_stack.emplace(state, 0);
+                while (!search_stack.empty()) {
+                    auto current = search_stack.top();
+                    search_stack.pop();
+                    auto current_state = current.first;
+                    auto stack_index = current.second;
+                    path[stack_index] = current_state;
+                    for (auto &edge : _states[current_state]->_edges) {
+                        if (edge.contains(stack[stack_index])) {
+                            auto to = edge._to->_id;
+                            if (stack_index + 1 < stack.size()) {
+                                search_stack.emplace(to, stack_index + 1);
+                            } else if (edge._to->_accepting) {
+                                path[stack_index + 1] = to;
+                                return path;
+                            }
+                        }
+                    }
+                }
+                return std::vector<size_t>();
             }
-            return std::vector<size_t>();
         }
 
         [[nodiscard]] const trace_t *get_trace_label(const std::tuple<size_t, uint32_t, size_t> &edge) const {
@@ -560,21 +422,16 @@ namespace pdaaal {
         [[nodiscard]] const trace_t *get_trace_label(size_t from, uint32_t label, size_t to) const {
             for (auto &e : _states[from]->_edges) {
                 if (e._to->_id == to) {
-                    label_with_trace_t label_trace{label};
+                    label_with_trace_t<W> label_trace{label, default_trace_ptr<W>()};
                     auto lb = std::lower_bound(e._labels.begin(), e._labels.end(), label_trace);
                     assert(lb != std::end(e._labels)); // We assume the edge exists.
-                    return lb->_trace;
+                    return trace_from<W>(lb->_t);
                 }
             }
             assert(false); // We assume the edge exists.
             return nullptr;
         }
 
-        // TODO: Implement early termination versions.
-        // bool _pre_star_accepts(size_t state, const std::vector<uint32_t> &stack);
-        // bool _post_star_accepts(size_t state, const std::vector<uint32_t> &stack);
-
-    protected:
         [[nodiscard]] size_t number_of_labels() const { return _pda.number_of_labels(); }
 
         size_t add_state(bool initial, bool accepting) {
@@ -592,7 +449,7 @@ namespace pdaaal {
             return _states.size();
         }
 
-        void add_epsilon_edge(size_t from, size_t to, const trace_t *trace) {
+        void add_epsilon_edge(size_t from, size_t to, trace_ptr<W> trace = default_trace_ptr<W>()) {
             auto &edges = _states[from]->_edges;
             for (auto &e : edges) {
                 if (e._to->_id == to) {
@@ -605,7 +462,7 @@ namespace pdaaal {
             edges.emplace_back(_states[to].get(), trace);
         }
 
-        void add_edge(size_t from, size_t to, uint32_t label, const trace_t *trace = nullptr) {
+        void add_edge(size_t from, size_t to, uint32_t label, trace_ptr<W> trace = default_trace_ptr<W>()) {
             assert(label < std::numeric_limits<uint32_t>::max() - 1);
             auto &edges = _states[from]->_edges;
             for (auto &e : edges) {
@@ -623,7 +480,7 @@ namespace pdaaal {
                 if (e._to->_id == to) {
                     e._labels.clear();
                     for (uint32_t i = 0; i < number_of_labels(); i++) {
-                        e._labels.emplace_back(i);
+                        e._labels.emplace_back(i, default_trace_ptr<W>());
                     }
                     return;
                 }
@@ -631,7 +488,6 @@ namespace pdaaal {
             edges.emplace_back(_states[to].get(), number_of_labels());
         }
 
-    private:
         const trace_t *new_pre_trace(size_t rule_id) {
             _trace_info.emplace_back(std::make_unique<trace_t>(rule_id, std::numeric_limits<size_t>::max()));
             return _trace_info.back().get();
@@ -648,7 +504,7 @@ namespace pdaaal {
             _trace_info.emplace_back(std::make_unique<trace_t>(epsilon_state));
             return _trace_info.back().get();
         }
-
+    private:
         std::vector<std::unique_ptr<state_t>> _states;
         std::vector<state_t *> _initial;
         std::vector<state_t *> _accepting;
