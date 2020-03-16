@@ -24,11 +24,6 @@
  * Created on July 18, 2019, 3:24 PM
  */
 
-
-//TODO: Stack size HOPS for each push add weight
-//:
-
-
 #ifndef PDAFACTORY_H
 #define PDAFACTORY_H
 
@@ -47,7 +42,6 @@ namespace pdaaal {
     class PDAFactory {
     public:
         using nfastate_t = typename NFA<T>::state_t;
-        using op_t;
 
         struct state_t {
             size_t _ptr;
@@ -55,28 +49,22 @@ namespace pdaaal {
         };
     protected:
         template <typename W, typename = void> struct rule_t;
-        template <typename W, typename = std::enable_if_t<!is_weighted<W>>>
-        struct rule_t {
+        template <typename W>
+        struct rule_t<W, std::enable_if_t<!is_weighted<W>> {
             op_t _op = POP;
             T _pre;
             size_t _dest;
             T _op_label;
         };
 
-        template <typename W, typename = std::enable_if_t<is_weighted<W>>>
-        struct rule_t {
+        template <typename W>
+        struct rule_t<W, std::enable_if_t<is_weighted<W>>> {
             op_t _op = POP;
             T _pre;
             size_t _dest;
             T _op_label;
             W _weight;
         };
-
-        static auto stack_height = [](op_t op) -> int { switch (op) {
-            case PUSH: return 1;
-            case POP: return 0;
-            case NOOP: return 0;
-        }}
         
     public:
 
@@ -112,7 +100,7 @@ namespace pdaaal {
             if (cons_empty_accept && empty_accept() && des_empty_accept) {
                 std::vector<T> empty;
                 T lbl;
-                result.add_rule(0, 0, NOOP, lbl ,true, empty);
+                result.add_rule(0, 0, NOOP, lbl, true, empty);
             }
 
             // Destruct the stack!
@@ -122,7 +110,6 @@ namespace pdaaal {
         }
 
     protected:
-        template <typename W=void>
         bool initialize_construction(TypedPDA<T>& result, std::unordered_set<const nfastate_t*>& seen, std::vector<const nfastate_t*>& waiting) {
             bool has_empty_accept = false;
             std::vector<T> empty;
@@ -135,11 +122,7 @@ namespace pdaaal {
                     std::vector<nfastate_t*> next{e._destination};
                     NFA<T>::follow_epsilon(next);
                     for (auto n : next) {
-                        if constexpr (is_weighted<W>) {
-                            result.add_rules(0, nfa_id(n), PUSH, stack_height(PUSH), e._negated, e._symbols, true, empty);
-                        } else {
-                            result.add_rules(0, nfa_id(n), PUSH, e._negated, e._symbols, true, empty);
-                        }
+                        result.add_rules(0, nfa_id(n), PUSH, e._negated, e._symbols, true, empty);
                         if (seen.count(n) == 0) {
                             seen.insert(n);
                             waiting.push_back(n);
@@ -147,20 +130,12 @@ namespace pdaaal {
                         if(n->_accepting)
                         {
                             for (auto s : initial()) {
-                                if constexpr (is_weighted<W>) {
-                                    result.add_rules(0, s, PUSH, stack_height(PUSH), e._negated, e._symbols, true, empty);
-                                } else {
-                                    result.add_rules(0, s, PUSH, e._negated, e._symbols, true, empty);
-                                }
+                                result.add_rules(0, s, PUSH, e._negated, e._symbols, true, empty);
                             }
                             // we can pass directly to destruction
                             if (empty_accept()) {
                                 for (auto s : _des_stack.initial()) {
-                                    if constexpr (is_weighted<W>) {
-                                        result.add_rules(0, nfa_id(s), PUSH, stack_height(PUSH), e._negated, e._symbols, true, empty);
-                                    } else {
-                                        result.add_rules(0, nfa_id(s), PUSH, e._negated, e._symbols, true, empty);
-                                    }
+                                    result.add_rules(0, nfa_id(s), PUSH, e._negated, e._symbols, true, empty);
                                 }
                             }                            
                         }
@@ -170,7 +145,6 @@ namespace pdaaal {
             return has_empty_accept;
         }
 
-        template <typename W=void>
         void build_construction(TypedPDA<T>& result, std::unordered_set<const nfastate_t*>& seen, std::vector<const nfastate_t*>& waiting) {
             while (!waiting.empty()) {
                 auto top = waiting.back();
@@ -233,12 +207,12 @@ namespace pdaaal {
                 if (accepting(top)) {
                     accepting_states.push_back(top);
                 }
-                for (rule_t& r : rules<W>(top)) {
+                for (auto &r : rules<W>(top)) {
                     // translate rules into PDA rules
                     std::vector<T> pre{r._pre};
                     assert(_all_labels.count(r._pre) == 1);
-                    constexpr if (is_weighted<W>){
-                        result.add_rule(top, r._dest, r._op, r._op_label, false, pre);
+                    if constexpr (is_weighted<W>) {
+                        result.add_rule(top, r._dest, r._op, r._op_label, false, pre, r._weight);
                     } else {
                         result.add_rule(top, r._dest, r._op, r._op_label, false, pre);
                     }
@@ -258,11 +232,7 @@ namespace pdaaal {
                 // do first step of DES
                 if (des_empty_accept) {
                     // empty accept in destruction, just go directly.
-                    constexpr if (is_weighted<W>){
-                        result.add_rule(a, 0, NOOP, stack_height(NOOP), none, true, empty);
-                    } else{
-                        result.add_rule(a, 0, NOOP, none, true, empty);
-                    }
+                    result.add_rule(a, 0, NOOP, none, true, empty);
                 }
                 // link with destruction-header
                 for (auto ds : _des_stack.initial()) {
@@ -271,11 +241,7 @@ namespace pdaaal {
                         std::vector<nfastate_t*> next{e._destination};
                         NFA<T>::follow_epsilon(next);
                         for (auto n : next) {
-                            constexpr if (is_weighted<W>){
-                                result.add_rule(a, nfa_id(n), POP, stack_height(POP), none, e._negated, e._symbols);
-                            } else{
-                                result.add_rule(a, nfa_id(n), POP, none, e._negated, e._symbols);
-                            }
+                            result.add_rule(a, nfa_id(n), POP, none, e._negated, e._symbols);
                         }
                     }
                 }                
@@ -297,11 +263,7 @@ namespace pdaaal {
                     std::vector<nfastate_t*> next{e._destination};
                     NFA<T>::follow_epsilon(next);
                     for (auto n : next) {
-                        constexpr if(is_weighted){
-                            result.add_rule(nfa_id(top), nfa_id(n), POP, stack_height(POP), none, e._negated, e._symbols);
-                        } else {
-                            result.add_rule(nfa_id(top), nfa_id(n), POP, none, e._negated, e._symbols);
-                        }
+                        result.add_rule(nfa_id(top), nfa_id(n), POP, none, e._negated, e._symbols);
                         if (seen_next.count(n) == 0) {
                             waiting_next.push_back(n);
                             seen_next.insert(n);
@@ -315,7 +277,7 @@ namespace pdaaal {
         virtual bool empty_accept() const = 0;
         virtual bool accepting(size_t) = 0;
         template <typename W>
-        virtual std::vector<rule_t> rules(size_t) = 0;
+        virtual std::vector<rule_t<W>> rules(size_t) = 0;
 
     protected:
         size_t nfa_id(const nfastate_t* state)

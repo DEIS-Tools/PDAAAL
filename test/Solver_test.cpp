@@ -38,11 +38,11 @@ BOOST_AUTO_TEST_CASE(SolverTest1)
     std::unordered_set<char> labels{'A', 'B', 'C'};
     TypedPDA<char, std::array<double, 3>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
-    pda.add_rule(0, 1, PUSH, 'B', w, false, 'A');
-    pda.add_rule(0, 0, POP , '*', w, false, 'B');
-    pda.add_rule(1, 3, SWAP, 'A', w, false, 'B');
-    pda.add_rule(2, 0, SWAP, 'B', w, false, 'C');
-    pda.add_rule(3, 2, PUSH, 'C', w, false, 'A');
+    pda.add_rule(0, 1, PUSH, 'B', false, 'A', w);
+    pda.add_rule(0, 0, POP , '*', false, 'B', w);
+    pda.add_rule(1, 3, SWAP, 'A', false, 'B', w);
+    pda.add_rule(2, 0, SWAP, 'B', false, 'C', w);
+    pda.add_rule(3, 2, PUSH, 'C', false, 'A', w);
 
     std::vector<char> init_stack{'A', 'A'};
     PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
