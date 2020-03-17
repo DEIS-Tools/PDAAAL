@@ -38,7 +38,7 @@
 
 namespace pdaaal {
 
-    template<typename T>
+    template<typename T, typename W = void, typename C = std::less<W>>
     class PDAFactory {
     public:
         using nfastate_t = typename NFA<T>::state_t;
@@ -48,23 +48,24 @@ namespace pdaaal {
             bool _indirect;
         };
     protected:
-        template <typename W, typename = void> struct rule_t;
-        template <typename W>
-        struct rule_t<W, std::enable_if_t<!is_weighted<W>> {
+        template <typename WT, typename = void> struct rule_t_;
+        template <typename WT>
+        struct rule_t_<WT, std::enable_if_t<!is_weighted<WT>>> {
             op_t _op = POP;
             T _pre;
             size_t _dest;
             T _op_label;
         };
 
-        template <typename W>
-        struct rule_t<W, std::enable_if_t<is_weighted<W>>> {
+        template <typename WT>
+        struct rule_t_<WT, std::enable_if_t<is_weighted<WT>>> {
             op_t _op = POP;
             T _pre;
             size_t _dest;
             T _op_label;
-            W _weight;
+            WT _weight;
         };
+        using rule_t = rule_t_<W>;
         
     public:
 
@@ -74,7 +75,6 @@ namespace pdaaal {
             _des_stack.compile();
         };
 
-        template <typename W = void, typename C = std::less<W>>
         TypedPDA<T,W,C> compile() {
             TypedPDA<T,W,C> result(_all_labels);
             bool cons_empty_accept = false;
@@ -82,7 +82,7 @@ namespace pdaaal {
             
             // we need to know the number of "other states" to create indexes
             // for the NFA-states
-            build_pda<W>(result, des_empty_accept);
+            build_pda(result, des_empty_accept);
 
             // CONSTRUCTION-HEADER
             {
@@ -188,7 +188,6 @@ namespace pdaaal {
             return false;
         }
 
-        template <typename W>
         void build_pda(TypedPDA<T>& result, bool des_empty_accept) {
             auto pdawaiting = initial();
             std::unordered_set<size_t> pdaseen(pdawaiting.begin(), pdawaiting.end());
@@ -207,7 +206,7 @@ namespace pdaaal {
                 if (accepting(top)) {
                     accepting_states.push_back(top);
                 }
-                for (auto &r : rules<W>(top)) {
+                for (auto &r : rules(top)) {
                     // translate rules into PDA rules
                     std::vector<T> pre{r._pre};
                     assert(_all_labels.count(r._pre) == 1);
@@ -276,8 +275,7 @@ namespace pdaaal {
         virtual const std::vector<size_t>& initial() = 0;
         virtual bool empty_accept() const = 0;
         virtual bool accepting(size_t) = 0;
-        template <typename W>
-        virtual std::vector<rule_t<W>> rules(size_t) = 0;
+        virtual std::vector<rule_t> rules(size_t) = 0;
 
     protected:
         size_t nfa_id(const nfastate_t* state)
