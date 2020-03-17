@@ -98,6 +98,8 @@ namespace pdaaal {
         }
 
     protected:
+        virtual void finalize() { /* do nothing */ }
+
         uint32_t find_labelid(op_t op, T label) const {
             if (op != POP && op != NOOP) {
                 auto res = _label_map.exists(label);
@@ -110,9 +112,7 @@ namespace pdaaal {
             return std::numeric_limits<uint32_t>::max();
         }
 
-        void
-        add_rules_impl(size_t from, rule_t <W, C> rule, bool negated, const std::vector<T> &labels, bool negated_pre,
-                       const std::vector<T> &pre) {
+        void add_rules_impl(size_t from, rule_t <W, C> rule, bool negated, const std::vector<T> &labels, bool negated_pre, const std::vector<T> &pre) {
             auto tpre = encode_pre(pre);
             if (negated) {
                 size_t last = 0;

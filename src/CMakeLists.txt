@@ -11,5 +11,5 @@ install(TARGETS pdaaal
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
-install (FILES pdaaal/NFA.h pdaaal/Weight.h pdaaal/WPDA.h pdaaal/PDA.h pdaaal/PDAFactory.h pdaaal/SimplePDAFactory.h pdaaal/TypedPDA.h pdaaal/PAutomaton.h pdaaal/Solver.h pdaaal/Solver_Adapter.h pdaaal/Reducer.h DESTINATION include/pdaaal)
+install (FILES pdaaal/NFA.h pdaaal/Weight.h pdaaal/WPDA.h pdaaal/PDA_Adapter.h pdaaal/PDAFactory.h pdaaal/SimplePDAFactory.h pdaaal/TypedPDA.h pdaaal/PAutomaton.h pdaaal/Solver.h pdaaal/Solver_Adapter.h pdaaal/Reducer.h DESTINATION include/pdaaal)
 

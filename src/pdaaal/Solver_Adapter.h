@@ -28,7 +28,7 @@
 #define SOLVER_H
 
 #include "PAutomaton.h"
-#include "TypedPDA.h"
+#include "PDA_Adapter.h"
 #include "Solver.h"
 
 namespace pdaaal {
@@ -43,12 +43,12 @@ namespace pdaaal {
         virtual ~Solver_Adapter() = default;
 
         template <typename W, typename C, typename A>
-                using trace_info = typename std::pair<std::unique_ptr<PAutomaton<W,C,A>>, size_t>;
+        using trace_info = typename std::pair<std::unique_ptr<PAutomaton<W,C,A>>, size_t>;
         template <typename W, typename C, typename A>
-                using res_type = typename std::pair<bool, trace_info<W,C,A>>;
+        using res_type = typename std::pair<bool, trace_info<W,C,A>>;
 
         template<typename T, typename W, typename C, typename A = add<W>>
-        res_type<W,C,A> pre_star(const TypedPDA<T,W,C>& pda, bool build_trace) {
+        res_type<W,C,A> pre_star(const PDA_Adapter<T,W,C>& pda, bool build_trace) {
             auto automaton = std::make_unique<PAutomaton<W,C,A>>(pda, pda.terminal(), pda.initial_stack());
             Solver::pre_star(*automaton); // automaton->pre_star(build_trace); // TODO: implement no-trace version.
             bool result = automaton->accepts(pda.initial(), pda.initial_stack());
@@ -56,7 +56,7 @@ namespace pdaaal {
         }
 
         template<Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A = add<W>>
-        res_type<W,C,A> post_star(const TypedPDA<T,W,C>& pda) {
+        res_type<W,C,A> post_star(const PDA_Adapter<T,W,C>& pda) {
             auto automaton = std::make_unique<PAutomaton<W,C,A>>(pda, pda.initial(), pda.initial_stack());
             Solver::post_star<trace_type>(*automaton); // post_star<Trace_Type::None>(*automaton); // TODO: implement no-trace version.
             bool result = automaton->accepts(pda.terminal(), pda.initial_stack());
@@ -64,7 +64,7 @@ namespace pdaaal {
         }
 
         template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
-        [[nodiscard]] std::vector<typename TypedPDA<T>::tracestate_t> get_trace(const TypedPDA<T,W,C>& pda, trace_info<W,C,A> info) const {
+        [[nodiscard]] std::vector<typename TypedPDA<T>::tracestate_t> get_trace(const PDA_Adapter<T,W,C>& pda, trace_info<W,C,A> info) const {
             auto trace = Solver::get_trace<trace_type>(pda, *info.first, info.second, pda.initial_stack());
             trace.pop_back(); // Removes terminal state from trace.
             return trace;
