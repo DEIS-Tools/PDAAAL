@@ -145,16 +145,6 @@ namespace pdaaal {
         std::vector<state_t>& states_mutable() {
             return _states;
         }
-        size_t size() const {
-            size_t cnt = 0;
-            for (auto& s : _states) {
-                for (auto& r : s._rules) {
-                    if (r._labels.empty()) continue;
-                    cnt += r._labels.wildcard() ? number_of_labels() : r._labels.labels().size();
-                }
-            }
-            return cnt;
-        }
         void clear_state(size_t s) {
             _states[s]._rules.clear();
             for (auto& p : _states[s]._pre_states) {
@@ -179,7 +169,7 @@ namespace pdaaal {
         void add_untyped_rule(Args&&... args) {
             add_untyped_rule_<W>(std::forward<Args>(args)...);
         }
-        void add_untyped_rule(size_t from, rule_t<W,C> r, bool negated, const std::vector<uint32_t>& pre) {
+        void add_untyped_rule_impl(size_t from, rule_t<W,C> r, bool negated, const std::vector<uint32_t>& pre) {
             auto mm = std::max(from, r._to);
             if (mm >= _states.size()) {
                 _states.resize(mm + 1);
@@ -201,11 +191,11 @@ namespace pdaaal {
     private:
         template <typename WT, typename = std::enable_if_t<!is_weighted<WT>>>
         void add_untyped_rule_(size_t from, size_t to, op_t op, uint32_t label, bool negated, const std::vector<uint32_t>& pre) {
-            add_untyped_rule(from, {to, op, label}, negated, pre);
+            add_untyped_rule_impl(from, {to, op, label}, negated, pre);
         }
         template <typename WT, typename = std::enable_if_t<is_weighted<WT>>>
         void add_untyped_rule_(size_t from, size_t to, op_t op, uint32_t label, WT weight, bool negated, const std::vector<uint32_t>& pre) {
-            add_untyped_rule(from, {to, op, weight, label}, negated, pre);
+            add_untyped_rule_impl(from, {to, op, weight, label}, negated, pre);
         }
 
         std::vector<state_t> _states;

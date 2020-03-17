@@ -16,21 +16,18 @@ namespace pdaaal {
 
         using state_t = typename TypedPDA<T,W,C>::template WPDA<W,C>::state_t;
 
-        [[nodiscard]] size_t initial() const { return _initial_id; }
+        [[nodiscard]] size_t initial() const { return 1; }
         [[nodiscard]] const std::vector<uint32_t>& initial_stack() const { return _initial_stack; }
         [[nodiscard]] size_t terminal() const { return 0; }
 
-    protected:
-        virtual void finalize() {
-            _initial_id = this->states().size();
-            this->states_mutable().emplace_back(_initial);
+        void finalize() {
             for (auto& s : this->states_mutable()) {
-                if (!s._pre.empty() && s._pre.front() == 0) {
-                    s._pre.erase(std::begin(s._pre));
-                    s._pre.emplace_back(_initial_id);
+                if (!s._pre_states.empty() && s._pre_states.front() == initial()) {
+                    s._pre_states.erase(std::begin(s._pre_states));
+                    s._pre_states.emplace_back(initial());
                 }
             }
-            for (auto& r : this->states_mutable()[_initial_id]._rules) {
+            for (auto& r : this->states_mutable()[initial()]._rules) {
                 r._labels.clear();
                 r._labels.merge(false, _initial_stack, std::numeric_limits<size_t>::max());
             }
@@ -38,8 +35,6 @@ namespace pdaaal {
 
     private:
         const std::vector<uint32_t> _initial_stack{std::numeric_limits<uint32_t>::max() - 2}; // std::numeric_limits<uint32_t>::max() is reserved for epsilon transitions (and max-1 for a flag in trace_t).
-        size_t _initial_id = 0;
-        state_t _initial;
     };
 }
 

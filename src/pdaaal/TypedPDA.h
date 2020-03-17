@@ -98,8 +98,6 @@ namespace pdaaal {
         }
 
     protected:
-        virtual void finalize() { /* do nothing */ }
-
         uint32_t find_labelid(op_t op, T label) const {
             if (op != POP && op != NOOP) {
                 auto res = _label_map.exists(label);
@@ -121,19 +119,19 @@ namespace pdaaal {
                     assert(res.first);
                     for (; last < res.second; ++last) {
                         rule._op_label = last;
-                        _add_rule(from, rule, negated_pre, tpre);
+                        this->add_untyped_rule_impl(from, rule, negated_pre, tpre);
                     }
                     ++last;
                 }
                 for (; last < _label_map.size(); ++last) {
                     rule._op_label = last;
-                    _add_rule(from, rule, negated_pre, tpre);
+                    this->add_untyped_rule_impl(from, rule, negated_pre, tpre);
                 }
             } else {
                 for (auto &s : labels) {
                     auto lid = find_labelid(rule._operation, s);
                     rule._op_label = lid;
-                    _add_rule(from, rule, negated_pre, tpre);
+                    this->add_untyped_rule_impl(from, rule, negated_pre, tpre);
                 }
             }
         }

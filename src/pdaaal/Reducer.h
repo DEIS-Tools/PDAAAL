@@ -182,7 +182,7 @@ namespace pdaaal {
     public:
         template <typename W, typename C>
         static std::pair<size_t, size_t> reduce(WPDA<W,C> &pda, int aggresivity, size_t initial_id, size_t terminal_id) {
-            size_t cnt = pda.size();
+            size_t cnt = Reducer::size(pda, initial_id, terminal_id);
             if (aggresivity == 0)
                 return std::make_pair(cnt, cnt);
 
@@ -281,7 +281,7 @@ namespace pdaaal {
                 Reducer::target_tos_prune(pda, terminal_id);
             }
 
-            size_t after_cnt = pda.size();
+            size_t after_cnt = Reducer::size(pda, initial_id, terminal_id);
             return std::make_pair(cnt, after_cnt);
         }
 
@@ -394,6 +394,26 @@ namespace pdaaal {
                     }
                 }
             }
+        }
+
+    private:
+        template <typename W, typename C>
+        static size_t size(const WPDA<W,C> &pda, size_t initial_id, size_t terminal_id)
+        {
+            size_t cnt = 1;
+            // lets start by the initial transitions
+            cnt += pda.states()[initial_id]._rules.size();
+            for (size_t sid = 1; sid < pda.states().size(); ++sid) {
+                for (auto& r : pda.states()[sid]._rules) {
+                    if (r._to == terminal_id) {
+                        ++cnt;
+                        continue;
+                    }
+                    if (r._labels.empty()) continue;
+                    cnt += r._labels.wildcard() ? pda.number_of_labels() : r._labels.labels().size();
+                }
+            }
+            return cnt;
         }
     };
 }
