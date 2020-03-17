@@ -27,7 +27,7 @@
 #ifndef PDAAAL_PAUTOMATON_H
 #define PDAAAL_PAUTOMATON_H
 
-#include "WPDA.h"
+#include "PDA.h"
 
 #include <memory>
 #include <functional>
@@ -193,7 +193,7 @@ namespace pdaaal {
 
     public:
         // Accept one control state with given stack.
-        PAutomaton(const WPDA<W,C> &pda, size_t initial_state, const std::vector<uint32_t> &initial_stack) : _pda(pda) {
+        PAutomaton(const PDA<W,C> &pda, size_t initial_state, const std::vector<uint32_t> &initial_stack) : _pda(pda) {
             const size_t size = pda.states().size();
             const size_t accepting = initial_stack.empty() ? initial_state : size;
             for (size_t i = 0; i < size; ++i) {
@@ -231,7 +231,7 @@ namespace pdaaal {
 
         [[nodiscard]] const std::vector<std::unique_ptr<state_t>> &states() const { return _states; }
         
-        [[nodiscard]] const WPDA<W,C> &pda() const { return _pda; }
+        [[nodiscard]] const PDA<W,C> &pda() const { return _pda; }
 
         void to_dot(std::ostream &out, const std::function<void(std::ostream &, const label_with_trace_t<W> &)> &printer = [](auto &s, auto &e) {
                         s << e._label;
@@ -511,7 +511,7 @@ namespace pdaaal {
 
         std::vector<std::unique_ptr<trace_t>> _trace_info;
 
-        const WPDA<W,C> &_pda;
+        const PDA<W,C> &_pda;
     };
 
 

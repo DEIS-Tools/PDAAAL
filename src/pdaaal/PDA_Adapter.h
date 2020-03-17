@@ -14,7 +14,7 @@ namespace pdaaal {
     public:
         explicit PDA_Adapter(const std::unordered_set<T> &all_labels) : TypedPDA<T,W,C>{all_labels} {};
 
-        using state_t = typename TypedPDA<T,W,C>::template WPDA<W,C>::state_t;
+        using state_t = typename TypedPDA<T,W,C>::template PDA<W,C>::state_t;
 
         [[nodiscard]] size_t initial() const { return 1; }
         [[nodiscard]] const std::vector<uint32_t>& initial_stack() const { return _initial_stack; }

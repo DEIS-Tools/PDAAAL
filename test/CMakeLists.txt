@@ -7,7 +7,7 @@ add_definitions (-DBOOST_TEST_DYN_LINK)
 
 add_executable (TestPDAFactory TestPDAFactory.h TestPDAFactory.cpp testmain.cpp)
 add_executable (Weight Weight_test.cpp)
-add_executable (WPDA WPDA_test.cpp)
+add_executable (WPDA PDA_test.cpp)
 add_executable (PAutomaton PAutomaton_test.cpp)
 add_executable (Solver Solver_test.cpp)
 add_executable (Reducer Reducer_test.cpp)

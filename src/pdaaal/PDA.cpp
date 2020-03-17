@@ -18,13 +18,13 @@
  */
 
 /*
- * File:   WPDA.cpp
+ * File:   PDA.cpp
  * Author: Morten K. Schou <morten@h-schou.dk>
  *
  * Created on 19-02-2020.
  */
 
-#include "WPDA.h"
+#include "PDA.h"
 #include <cassert>
 
 namespace pdaaal {

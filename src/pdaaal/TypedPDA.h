@@ -27,7 +27,7 @@
 #ifndef TPDA_H
 #define TPDA_H
 
-#include "WPDA.h"
+#include "PDA.h"
 
 #include <vector>
 #include <queue>
@@ -41,7 +41,7 @@
 namespace pdaaal {
 
     template<typename T, typename W = void, typename C = std::less<W>>
-    class TypedPDA : public WPDA<W, C> {
+    class TypedPDA : public PDA<W, C> {
     public:
         struct tracestate_t {
             size_t _pdastate = 0;

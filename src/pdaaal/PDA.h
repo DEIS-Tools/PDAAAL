@@ -18,14 +18,14 @@
  */
 
 /*
- * File:   WPDA.h
+ * File:   PDA.h
  * Author: Morten K. Schou <morten@h-schou.dk>
  *
  * Created on 19-02-2020.
  */
 
-#ifndef PDAAAL_WPDA_H
-#define PDAAAL_WPDA_H
+#ifndef PDAAAL_PDA_H
+#define PDAAAL_PDA_H
 
 #include "Weight.h"
 
@@ -130,7 +130,7 @@ namespace pdaaal {
     };
 
     template <typename W, typename C>
-    class WPDA {
+    class PDA {
     public:
         struct state_t {
             std::vector<rule_t<W,C>> _rules;
@@ -203,4 +203,4 @@ namespace pdaaal {
 
 }
 
-#endif //PDAAAL_WPDA_H
+#endif //PDAAAL_PDA_H
