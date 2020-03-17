@@ -14,7 +14,7 @@
  */
 
 /*
- *  Copyright Morten K. Schou
+ *  Copyright Peter G. Jensen and Morten K. Schou
  */
 
 /*
@@ -72,6 +72,65 @@ namespace pdaaal {
             _labels.clear();
         }
         assert(std::is_sorted(_labels.begin(), _labels.end()));
+    }
+
+    bool labels_t::intersect(const std::vector<uint32_t>& other, size_t all_labels) {
+        if (other.size() == all_labels) {
+            //            std::cerr << "EMPY 1" << std::endl;
+            return !empty();
+        }
+        if (_wildcard) {
+            if (other.size() == all_labels)
+                return empty();
+            else {
+                _labels = other;
+                _wildcard = false;
+            }
+        }
+        else {
+            auto fit = other.begin();
+            size_t bit = 0;
+            for (size_t nl = 0; nl < _labels.size(); ++nl) {
+                while (fit != std::end(other) && *fit < _labels[nl]) ++fit;
+                if (fit == std::end(other)) break;
+                if (*fit == _labels[nl]) {
+                    _labels[bit] = _labels[nl];
+                    ++bit;
+                }
+            }
+            _labels.resize(bit);
+            assert(_labels.size() != all_labels);
+        }
+        return !empty();
+    }
+
+    bool labels_t::noop_pre_filter(const std::set<uint32_t>& usefull) {
+        if (_wildcard) {
+            _labels.insert(_labels.begin(), usefull.begin(), usefull.end());
+            _wildcard = false;
+            return true;
+        }
+        else {
+            auto it = _labels.begin();
+            auto wit = it;
+            auto uit = usefull.begin();
+            while (it != _labels.end()) {
+                while (uit != std::end(usefull) && *uit < *it) ++uit;
+                if (uit != std::end(usefull) && *uit == *it) {
+                    *wit = *it;
+                    ++wit;
+                    ++it;
+                }
+                else {
+                    ++it;
+                }
+            }
+            if (wit != it) {
+                _labels.resize(wit - _labels.begin());
+                return true;
+            }
+        }
+        return false;
     }
 
 }

@@ -110,7 +110,7 @@ namespace pdaaal {
         }
 
     protected:
-        bool initialize_construction(TypedPDA<T>& result, std::unordered_set<const nfastate_t*>& seen, std::vector<const nfastate_t*>& waiting) {
+        bool initialize_construction(TypedPDA<T,W,C>& result, std::unordered_set<const nfastate_t*>& seen, std::vector<const nfastate_t*>& waiting) {
             bool has_empty_accept = false;
             std::vector<T> empty;
             for (auto& i : _cons_stack.initial()) {
@@ -145,7 +145,7 @@ namespace pdaaal {
             return has_empty_accept;
         }
 
-        void build_construction(TypedPDA<T>& result, std::unordered_set<const nfastate_t*>& seen, std::vector<const nfastate_t*>& waiting) {
+        void build_construction(TypedPDA<T,W,C>& result, std::unordered_set<const nfastate_t*>& seen, std::vector<const nfastate_t*>& waiting) {
             while (!waiting.empty()) {
                 auto top = waiting.back();
                 waiting.pop_back();
@@ -188,7 +188,7 @@ namespace pdaaal {
             return false;
         }
 
-        void build_pda(TypedPDA<T>& result, bool des_empty_accept) {
+        void build_pda(TypedPDA<T,W,C>& result, bool des_empty_accept) {
             auto pdawaiting = initial();
             std::unordered_set<size_t> pdaseen(pdawaiting.begin(), pdawaiting.end());
             std::vector<T> empty;
@@ -247,7 +247,7 @@ namespace pdaaal {
             }
         }
 
-        void build_destruction(TypedPDA<T>& result) {
+        void build_destruction(TypedPDA<T,W,C>& result) {
             std::vector<nfastate_t*> waiting_next = _des_stack.initial();
             std::unordered_set<nfastate_t*> seen_next(waiting_next.begin(), waiting_next.end());
             std::vector<T> empty;

@@ -32,6 +32,7 @@
 #include <cinttypes>
 #include <vector>
 #include <unordered_set>
+#include <set>
 #include <algorithm>
 #include <functional>
 #include <type_traits>
@@ -69,10 +70,8 @@ namespace pdaaal {
         }
 
         void merge(bool negated, const std::vector<uint32_t> &other, size_t all_labels);
-        /*
-        bool intersect(const tos_t& tos, size_t all_labels);
+        bool intersect(const std::vector<uint32_t>& tos, size_t all_labels);
         bool noop_pre_filter(const std::set<uint32_t>& usefull);
-        */
     };
 
     enum op_t {
@@ -140,8 +139,34 @@ namespace pdaaal {
 
     public:
         [[nodiscard]] virtual size_t number_of_labels() const = 0;
-        const std::vector<state_t>& states() const {
+        std::vector<state_t>& states() {
             return _states;
+        }
+        size_t size() const {
+            size_t cnt = 0;
+            for (auto& s : _states) {
+                for (auto& r : s._rules) {
+                    if (r._labels.empty()) continue;
+                    cnt += r._labels.wildcard() ? number_of_labels() : r._labels.labels().size();
+                }
+            }
+            return cnt;
+        }
+        void clear_state(size_t s) {
+            _states[s]._rules.clear();
+            for (auto& p : _states[s]._pre_states) {
+                auto rit = _states[p]._rules.begin();
+                auto wit = rit;
+                for (; rit != std::end(_states[p]._rules); ++rit) {
+                    if (rit->_to != s) {
+                        if (wit != rit)
+                            *wit = *rit;
+                        ++wit;
+                    }
+                }
+                _states[p]._rules.resize(wit - std::begin(_states[p]._rules));
+            }
+            _states[s]._pre_states.clear();
         }
 
     protected:
