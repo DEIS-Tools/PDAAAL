@@ -64,7 +64,7 @@ namespace pdaaal {
         }
 
         template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
-        [[nodiscard]] std::vector<typename TypedPDA<T>::tracestate_t> get_trace(const TypedPDA<T>& pda, trace_info<W,C,A> info) const {
+        [[nodiscard]] std::vector<typename TypedPDA<T>::tracestate_t> get_trace(const TypedPDA<T,W,C>& pda, trace_info<W,C,A> info) const {
             auto trace = Solver::get_trace<trace_type>(pda, *info.first, info.second, pda.initial_stack());
             trace.pop_back(); // Removes terminal state from trace.
             return trace;
