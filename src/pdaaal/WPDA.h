@@ -139,7 +139,10 @@ namespace pdaaal {
 
     public:
         [[nodiscard]] virtual size_t number_of_labels() const = 0;
-        std::vector<state_t>& states() {
+        const std::vector<state_t>& states() const {
+            return _states;
+        }
+        std::vector<state_t>& states_mutable() {
             return _states;
         }
         size_t size() const {

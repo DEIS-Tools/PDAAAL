@@ -257,7 +257,7 @@ namespace pdaaal {
             for (size_t i = 1; i < pda.states().size(); ++i) {
                 if(i == initial_id) continue;
                 auto& app = approximation[i];
-                auto& state = pda.states()[i];
+                auto& state = pda.states_mutable()[i];
                 size_t br = 0;
                 for (size_t r = 0; r < state._rules.size(); ++r) {
                     // check rule
@@ -363,7 +363,7 @@ namespace pdaaal {
                 if (cont)
                     continue;
                 for (auto& pres : pda.states()[s]._pre_states) {
-                    auto& state = pda.states()[pres];
+                    auto& state = pda.states_mutable()[pres];
                     for (auto& r : state._rules) {
                         if (r._to == s) {
                             switch (r._operation) {
