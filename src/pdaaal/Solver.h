@@ -385,7 +385,7 @@ namespace pdaaal {
                         auto wd = add(elem.weight, rule._weight);
                         auto wb = add(t_weight, rule._weight);
                         if (rule._operation != PUSH) {
-                            uint32_t label;
+                            uint32_t label = 0;
                             switch(rule._operation) {
                                 case POP:
                                     label = epsilon;
