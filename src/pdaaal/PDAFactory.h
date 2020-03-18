@@ -193,10 +193,10 @@ namespace pdaaal {
             std::unordered_set<size_t> pdaseen(pdawaiting.begin(), pdawaiting.end());
             std::vector<T> empty;
             std::vector<size_t> accepting_states;
-            _num_pda_states = 1; // 0 is allready counted,
+            _num_pda_states = 2; // 0 and 1 is allready counted,
             while (!pdawaiting.empty()) {
                 auto top = pdawaiting.back();
-                if(top != 0)
+                if(top > 1)
                     ++_num_pda_states;
                 else
                 {
