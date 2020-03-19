@@ -230,6 +230,7 @@ namespace pdaaal {
         }
 
         [[nodiscard]] const std::vector<std::unique_ptr<state_t>> &states() const { return _states; }
+        [[nodiscard]] const std::vector<state_t *> &accepting_states() const { return _accepting; }
         
         [[nodiscard]] const PDA<W,C> &pda() const { return _pda; }
 

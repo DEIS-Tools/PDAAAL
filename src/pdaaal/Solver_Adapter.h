@@ -58,8 +58,7 @@ namespace pdaaal {
         template<Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A = add<W>>
         res_type<W,C,A> post_star(const PDA_Adapter<T,W,C>& pda) {
             auto automaton = std::make_unique<PAutomaton<W,C,A>>(pda, pda.initial(), pda.initial_stack());
-            Solver::post_star<trace_type>(*automaton); // post_star<Trace_Type::None>(*automaton); // TODO: implement no-trace version.
-            bool result = automaton->accepts(pda.terminal(), pda.initial_stack());
+            bool result = Solver::post_star_accepts<trace_type>(*automaton, pda.terminal(), pda.initial_stack());
             return std::make_pair(result, std::make_pair(std::move(automaton), pda.terminal()));
         }
 
