@@ -82,14 +82,15 @@ namespace pdaaal {
             // This is an implementation of Algorithm 1 (figure 3.3) in:
             // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.
             // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 42)
-            auto& pda_states = automaton.pda().states();
-            const size_t n_pda_states = pda_states.size();
+            const auto& pda_states = automaton.pda().states();
+            const auto n_pda_states = pda_states.size();
+            const auto n_automaton_states = automaton.states().size();
 
             std::unordered_set<temp_edge_t, temp_edge_hasher> edges;
             std::stack<temp_edge_t> workset;
-            std::vector<std::vector<std::pair<size_t,uint32_t>>> rel(automaton.states().size());
+            std::vector<std::vector<std::pair<size_t,uint32_t>>> rel(n_automaton_states);
 
-            auto insert_edge = [&edges, &workset, &automaton](size_t from, uint32_t label, size_t to, const trace_t *trace) {
+            const auto insert_edge = [&edges, &workset, &automaton](size_t from, uint32_t label, size_t to, const trace_t *trace) {
                 auto res = edges.emplace(from, label, to);
                 if (res.second) { // New edge is not already in edges (rel U workset).
                     workset.emplace(from, label, to);
@@ -98,8 +99,8 @@ namespace pdaaal {
                     }
                 }
             };
-            const size_t n_pda_labels = automaton.number_of_labels();
-            auto insert_edge_bulk = [&insert_edge, n_pda_labels](size_t from, const labels_t &precondition, size_t to, const trace_t *trace) {
+            const auto n_pda_labels = automaton.number_of_labels();
+            const auto insert_edge_bulk = [&insert_edge, n_pda_labels](size_t from, const labels_t &precondition, size_t to, const trace_t *trace) {
                 if (precondition.wildcard()) {
                     for (uint32_t i = 0; i < n_pda_labels; i++) {
                         insert_edge(from, i, to, trace);
@@ -133,7 +134,7 @@ namespace pdaaal {
 
             // delta_prime[q] = [p,rule_id]    where states[p]._rules[rule_id]._labels.contains(y)    for each p, rule_id
             // corresponds to <p, y> --> <q, y>   (the y is the same, since we only have PUSH and not arbitrary <p, y> --> <q, y1 y2>, i.e. y==y2)
-            std::vector<std::vector<std::pair<size_t, size_t>>> delta_prime(automaton.states().size());
+            std::vector<std::vector<std::pair<size_t, size_t>>> delta_prime(n_automaton_states);
 
             while (!workset.empty()) { // (line 3)
                 // pop t = (q, y, q') from workset (line 4)
@@ -177,9 +178,11 @@ namespace pdaaal {
                                 if (rule._op_label == t._label) {
                                     // (line 10)
                                     delta_prime[t._to].emplace_back(pre_state, rule_id);
+                                    const trace_t *trace = nullptr;
                                     for (auto rel_rule : rel[t._to]) { // (line 11-12)
                                         if (rule._labels.contains(rel_rule.second)) {
-                                            insert_edge(pre_state, rel_rule.second, rel_rule.first, automaton.new_pre_trace(rule_id, t._to));
+                                            trace = trace == nullptr ? automaton.new_pre_trace(rule_id, t._to) : trace;
+                                            insert_edge(pre_state, rel_rule.second, rel_rule.first, trace);
                                         }
                                     }
                                 }
@@ -235,13 +238,6 @@ namespace pdaaal {
             const A add;
             const C less;
 
-            using weight_edge_pair = std::pair<W, temp_edge_t>;
-            struct weight_edge_pair_comp{
-                bool operator()(const weight_edge_pair &lhs, const weight_edge_pair &rhs){
-                    const C less;
-                    return less(rhs.first, lhs.first); // Used in a max-heap, so swap arguments to make it a min-heap.
-                }
-            };
             struct weight_edge_trace {
                 W weight;
                 temp_edge_t edge;
@@ -259,9 +255,9 @@ namespace pdaaal {
             // This is an implementation of Algorithm 2 (figure 3.4) in:
             // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.
             // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 48)
-            auto & pda_states = automaton.pda().states();
-            auto n_pda_states = pda_states.size();
-            auto n_Q = automaton.states().size();
+            const auto & pda_states = automaton.pda().states();
+            const auto n_pda_states = pda_states.size();
+            const auto n_Q = automaton.states().size();
 
             // for <p, y> -> <p', y1 y2> do
             //   Q' U= {q_p'y1}
@@ -276,7 +272,7 @@ namespace pdaaal {
                     }
                 }
             }
-            auto n_automata_states = automaton.states().size();
+            const auto n_automata_states = automaton.states().size();
             std::vector<W> minpath(n_automata_states - n_Q);
             for (size_t i = 0; i < minpath.size(); ++i) {
                 minpath[i] = pdaaal::max<W>()();
@@ -305,7 +301,7 @@ namespace pdaaal {
             };
             std::vector<std::vector<rel3_elem>> rel3(n_automata_states - n_Q);
 
-            auto update_edge_ = [&edge_weights](size_t from, uint32_t label, size_t to, W edge_weight, W workset_weight) -> std::pair<bool,bool> {
+            const auto update_edge_ = [&edge_weights](size_t from, uint32_t label, size_t to, W edge_weight, W workset_weight) -> std::pair<bool,bool> {
                 auto res = edge_weights.emplace(temp_edge_t{from, label, to}, std::make_pair(edge_weight, workset_weight));
                 if (!res.second) {
                     C less;
@@ -322,17 +318,17 @@ namespace pdaaal {
                 }
                 return std::make_pair(res.second, res.second);
             };
-            auto update_edge = [n_Q, &minpath, &workset, &update_edge_, &add](size_t from, uint32_t label, size_t to, W edge_weight, const trace_t* trace) {
+            const auto update_edge = [n_Q, &minpath, &workset, &update_edge_, &add](size_t from, uint32_t label, size_t to, W edge_weight, const trace_t* trace) {
                 auto workset_weight = to < n_Q ? edge_weight : add(minpath[to - n_Q], edge_weight);
                 if (update_edge_(from, label, to, edge_weight, workset_weight).second) {
                     workset.emplace(workset_weight, temp_edge_t{from, label, to}, trace);
                 }
             };
-            auto get_weight = [&edge_weights](size_t from, uint32_t label, size_t to) -> W {
+            const auto get_weight = [&edge_weights](size_t from, uint32_t label, size_t to) -> W {
                 return (*edge_weights.find(temp_edge_t{from, label, to})).second.first;
             };
             // Adds to rel and inserts into the PAutomaton including the trace.
-            auto insert_rel = [&rel1, &rel2, n_Q](size_t from, uint32_t label, size_t to){
+            const auto insert_rel = [&rel1, &rel2, n_Q](size_t from, uint32_t label, size_t to){
                 rel1[from].emplace_back(to, label);
                 if (label == epsilon && to >= n_Q) {
                     rel2[to - n_Q].push_back(from);
@@ -422,21 +418,30 @@ namespace pdaaal {
                                     workset.emplace(wd, temp_edge_t{rule._to, rule._op_label, q_new}, trace);
                                 }
                             } else if (was_updated) {
-                                for (auto f : rel2[q_new - n_Q]) {
-                                    update_edge(f, t._label, t._to, add(get_weight(f, epsilon, q_new), wb), automaton.new_post_trace(q_new));
+                                if (!rel2[q_new - n_Q].empty()) {
+                                    auto trace_q_new = automaton.new_post_trace(q_new);
+                                    for (auto f : rel2[q_new - n_Q]) {
+                                        update_edge(f, t._label, t._to, add(get_weight(f, epsilon, q_new), wb), trace_q_new);
+                                    }
                                 }
                             }
                         }
                     }
                 } else {
                     if (t._to < n_Q) {
-                        for (auto e : rel1[t._to]) {
-                            assert(e.first >= n_pda_states);
-                            update_edge(t._from, e.second, e.first, add(get_weight(t._to, e.second, e.first), t_weight), automaton.new_post_trace(t._to));
+                        if (!rel1[t._to].empty()) {
+                            auto trace = automaton.new_post_trace(t._to);
+                            for (auto e : rel1[t._to]) {
+                                assert(e.first >= n_pda_states);
+                                update_edge(t._from, e.second, e.first, add(get_weight(t._to, e.second, e.first), t_weight), trace);
+                            }
                         }
                     } else {
-                        for (auto &e : rel3[t._to - n_Q]) {
-                            update_edge(t._from, e._label, e._to, add(get_weight(t._to, e._label, e._to), t_weight), automaton.new_post_trace(t._to));
+                        if (!rel3[t._to - n_Q].empty()) {
+                            auto trace = automaton.new_post_trace(t._to);
+                            for (auto &e : rel3[t._to - n_Q]) {
+                                update_edge(t._from, e._label, e._to, add(get_weight(t._to, e._label, e._to), t_weight), trace);
+                            }
                         }
                     }
                 }
@@ -455,8 +460,9 @@ namespace pdaaal {
             // This is an implementation of Algorithm 2 (figure 3.4) in:
             // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.
             // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 48)
-            auto & pda_states = automaton.pda().states();
-            auto n_pda_states = pda_states.size();
+            const auto & pda_states = automaton.pda().states();
+            const auto n_pda_states = pda_states.size();
+            const auto n_Q = automaton.states().size();
 
             // for <p, y> -> <p', y1 y2> do  (line 3)
             //   Q' U= {q_p'y1}              (line 4)
@@ -471,19 +477,20 @@ namespace pdaaal {
                     }
                 }
             }
+            const auto n_automata_states = automaton.states().size();
 
             std::unordered_set<temp_edge_t, temp_edge_hasher> edges;
             std::stack<temp_edge_t> workset;
             std::vector<std::vector<std::pair<size_t,uint32_t>>> rel1(automaton.states().size()); // faster access for lookup _from -> (_to, _label)
-            std::vector<std::vector<size_t>> rel2(automaton.states().size()); // faster access for lookup _to -> _from  (when _label is uint32_t::max)
+            std::vector<std::vector<size_t>> rel2(n_automata_states - n_Q); // faster access for lookup _to -> _from  (when _label is uint32_t::max)
 
-            auto insert_edge = [&edges, &workset, &rel1, &rel2, &automaton](size_t from, uint32_t label, size_t to, const trace_t *trace, bool direct_to_rel = false) {
+            const auto insert_edge = [&edges, &workset, &rel1, &rel2, &automaton, n_Q](size_t from, uint32_t label, size_t to, const trace_t *trace, bool direct_to_rel = false) {
                 auto res = edges.emplace(from, label, to);
                 if (res.second) { // New edge is not already in edges (rel U workset).
                     if (direct_to_rel) {
                         rel1[from].emplace_back(to, label);
-                        if (label == epsilon) {
-                            rel2[to].push_back(from);
+                        if (label == epsilon && to >= n_Q) {
+                            rel2[to - n_Q].push_back(from);
                         }
                     } else {
                         workset.emplace(from, label, to);
@@ -516,8 +523,8 @@ namespace pdaaal {
                 workset.pop();
                 // rel = rel U {t} (line 8)   (membership test on line 7 is done in insert_edge).
                 rel1[t._from].emplace_back(t._to, t._label);
-                if (t._label == epsilon) {
-                    rel2[t._to].push_back(t._from);
+                if (t._label == epsilon && t._to >= n_Q) {
+                    rel2[t._to - n_Q].push_back(t._from);
                 }
 
                 // if y != epsilon (line 9)
@@ -542,15 +549,21 @@ namespace pdaaal {
                                 size_t q_new = q_prime[std::make_pair(rule._to, rule._op_label)];
                                 insert_edge(rule._to, rule._op_label, q_new, trace, false); // (line 15)
                                 insert_edge(q_new, t._label, t._to, trace, true); // (line 16)
-                                for (auto f : rel2[q_new]) { // (line 17)
-                                    insert_edge(f, t._label, t._to, automaton.new_post_trace(q_new), false); // (line 18)
+                                if (!rel2[q_new - n_Q].empty()) {
+                                    auto trace_q_new = automaton.new_post_trace(q_new);
+                                    for (auto f : rel2[q_new - n_Q]) { // (line 17)
+                                        insert_edge(f, t._label, t._to, trace_q_new, false); // (line 18)
+                                    }
                                 }
                                 break;
                         }
                     }
                 } else {
-                    for (auto e : rel1[t._to]) { // (line 20)
-                        insert_edge(t._from, e.second, e.first, automaton.new_post_trace(t._to), false); // (line 21)
+                    if (!rel1[t._to].empty()) {
+                        auto trace = automaton.new_post_trace(t._to);
+                        for (auto e : rel1[t._to]) { // (line 20)
+                            insert_edge(t._from, e.second, e.first, trace, false); // (line 21)
+                        }
                     }
                 }
             }
