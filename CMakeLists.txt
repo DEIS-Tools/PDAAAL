@@ -59,7 +59,7 @@ if(BUILD_TESTING AND PDAAAL_BuildTests)
     #testing
     add_subdirectory(test)
     enable_testing()
-    add_test(NAME TestPDAFactory    COMMAND Weight)
+    add_test(NAME TestPDAFactory    COMMAND TestPDAFactory)
     add_test(NAME Weight            COMMAND Weight)
     add_test(NAME WPDA              COMMAND WPDA)
     add_test(NAME PAutomaton        COMMAND PAutomaton)
