@@ -28,7 +28,7 @@
 #include <boost/test/unit_test.hpp>
 
 #include "TestPDAFactory.h"
-#include <pdaaal/Solver.h>
+#include <pdaaal/SolverAdapter.h>
 
 using namespace pdaaal;
 
@@ -37,71 +37,23 @@ BOOST_AUTO_TEST_CASE(PassTest)
     BOOST_CHECK_EQUAL(true, true);
 }
 
-/*BOOST_AUTO_TEST_CASE(SimpleConstructorTest)
+BOOST_AUTO_TEST_CASE(TestFactoryTest)
 {
-    binarywrapper_t basic;
-    BOOST_CHECK_EQUAL(basic.size(), 0);
-    basic.release();
-
-    size_t b = 0;
-    for(size_t i = 0; i < 128; ++i)
-    {
-        if((i % 8) == 1) ++b;
-        binarywrapper_t sized(i);
-        BOOST_CHECK_EQUAL(sized.size(), b);
-        sized.release();
-        BOOST_CHECK_EQUAL(sized.size(), 0);
-    }
-
-}
-
-
-int main(int argc, const char **argv) {
-
     TestPDAFactory testFactory{};
     TypedPDA<char> testPDA = testFactory.compile();
 
     std::vector<char> stack{'A', 'A'};
-    PAutomaton test{testPDA, 0, stack};
+    PAutomaton test{testPDA, 0, testPDA.encode_pre(stack)};
+    auto test2 = test;
 
-    test.to_dot_with_symbols(std::cout);
+    Solver::pre_star(test);
 
-    auto pre_result = test.pre_star();
-    pre_result.to_dot_with_symbols(std::cout);
-
-    auto post_result = test.post_star();
-    post_result.to_dot_with_symbols(std::cout);
+    Solver::post_star(test2);
 
     std::vector<char> test_stack{'B', 'A', 'A', 'A'};
-    auto trace = post_result.get_trace(1, test_stack);
-    if (trace.empty()) {
-        std::cout << "No trace" << std::endl;
-    }
-    for (auto &trace_state : trace) {
-        std::cout << "(" << trace_state._pdastate << ", ";
-        for (auto &label : trace_state._stack) {
-            std::cout << label;
-        }
-        std::cout << ")" << std::endl;
-    }
+    auto trace = Solver::get_trace(testPDA, test, 1, test_stack);
+    BOOST_CHECK_EQUAL(trace.size(), 0);
 
-
-    PAutomaton test2{testPDA, 1, test_stack};
-    auto pre_result2 = test2.pre_star();
-    pre_result2.to_dot_with_symbols(std::cout);
-
-    auto trace2 = pre_result2.get_trace(0, stack);
-    if (trace2.empty()) {
-        std::cout << "No trace" << std::endl;
-    }
-    for (auto &trace_state : trace2) {
-        std::cout << "(" << trace_state._pdastate << ", ";
-        for (auto &label : trace_state._stack) {
-            std::cout << label;
-        }
-        std::cout << ")" << std::endl;
-    }
-
-    return 0;
+    auto trace2 = Solver::get_trace(testPDA, test2, 1, test_stack);
+    BOOST_CHECK_EQUAL(trace2.size(), 7);
 }
-*/

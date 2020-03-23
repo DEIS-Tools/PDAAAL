@@ -36,7 +36,7 @@ namespace pdaaal {
     class SimplePDAFactory {
     protected:
         struct rule_t {
-            PDA::op_t _op = PDA::POP;
+            op_t _op = POP;
             T _pre;
             size_t _dest;
             T _op_label;

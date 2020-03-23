@@ -43,17 +43,17 @@ namespace pdaaal {
             // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
             // However r_2 requires a swap and a push, which is done through auxiliary state 3.
             case 0:
-                rules.push_back({PDA::PUSH, 'A', 1, 'B'});
-                rules.push_back({PDA::POP, 'B', 0});
+                rules.push_back({PUSH, 'A', 1, 'B'});
+                rules.push_back({POP, 'B', 0});
                 break;
             case 1:
-                rules.push_back({PDA::SWAP, 'B', 3, 'A'});
+                rules.push_back({SWAP, 'B', 3, 'A'});
                 break;
             case 2:
-                rules.push_back({PDA::SWAP, 'C', 0, 'B'});
+                rules.push_back({SWAP, 'C', 0, 'B'});
                 break;
             case 3:
-                rules.push_back({PDA::PUSH, 'A', 2, 'C'});
+                rules.push_back({PUSH, 'A', 2, 'C'});
                 break;
             default:
                 assert(false);

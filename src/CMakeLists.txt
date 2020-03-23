@@ -3,7 +3,7 @@ project(PDAAAL C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-add_library(pdaaal pdaaal/PDA.h pdaaal/PDA.cpp pdaaal/PAutomaton.h pdaaal/PAutomaton.cpp ${HEADER_FILES})
+add_library(pdaaal pdaaal/PDA.h pdaaal/PDA.cpp pdaaal/Reducer.h pdaaal/Reducer.cpp ${HEADER_FILES})
 add_dependencies(pdaaal ptrie-ext)
 target_include_directories (pdaaal PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -11,5 +11,5 @@ install(TARGETS pdaaal
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
-install (FILES pdaaal/NFA.h pdaaal/PDA.h pdaaal/PDAFactory.h pdaaal/SimplePDAFactory.h pdaaal/TypedPDA.h pdaaal/PAutomaton.h pdaaal/Solver.h DESTINATION include/pdaaal)
+install (FILES pdaaal/NFA.h pdaaal/Weight.h pdaaal/PDA.h pdaaal/PDAAdapter.h pdaaal/PDAFactory.h pdaaal/SimplePDAFactory.h pdaaal/TypedPDA.h pdaaal/PAutomaton.h pdaaal/Solver.h pdaaal/SolverAdapter.h pdaaal/Reducer.h DESTINATION include/pdaaal)
 
