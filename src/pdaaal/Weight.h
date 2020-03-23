@@ -189,7 +189,7 @@ namespace pdaaal {
 
         explicit ordered_weight_function(std::vector<linear_weight_function<W, Args...>> functions) : _functions(functions) {}
 
-        constexpr result_type operator()(Args... args) {
+        constexpr result_type operator()(Args... args) const {
             std::vector<W> result;
             std::transform(_functions.begin(), _functions.end(), std::back_inserter(result),
                     [&args...](const linear_weight_function<W, Args...>& f) -> W { return f(args...); });
