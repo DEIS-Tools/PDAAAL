@@ -156,6 +156,7 @@ namespace pdaaal {
         const std::optional<std::function<W(Args...)>> _function;
     public:
         static_assert(is_weighted<W>);
+        using result_type = W;
 
         // A single function
         explicit linear_weight_function(std::function<W(Args...)> function) : _function(function) {}
@@ -165,7 +166,7 @@ namespace pdaaal {
             static_assert(has_mult_v<W>, "For a linear combination, he weight type needs to specialize mult<W>.");
         }
 
-        constexpr W operator()(Args... args) const {
+        constexpr result_type operator()(Args... args) const {
             if (_function) {
                 return _function.value()(args...);
             }
@@ -184,10 +185,11 @@ namespace pdaaal {
         const std::vector<linear_weight_function<W, Args...>> _functions;
     public:
         static_assert(is_weighted<W>);
+        using result_type = std::vector<W>;
 
         explicit ordered_weight_function(std::vector<linear_weight_function<W, Args...>> functions) : _functions(functions) {}
 
-        constexpr std::vector<W> operator()(Args... args) {
+        constexpr result_type operator()(Args... args) {
             std::vector<W> result;
             std::transform(_functions.begin(), _functions.end(), std::back_inserter(result),
                     [&args...](const linear_weight_function<W, Args...>& f) -> W { return f(args...); });
