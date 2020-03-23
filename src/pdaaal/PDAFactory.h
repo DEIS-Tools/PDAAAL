@@ -34,7 +34,7 @@
 #include <unordered_set>
 
 #include "NFA.h"
-#include "PDA_Adapter.h"
+#include "PDAAdapter.h"
 
 namespace pdaaal {
 

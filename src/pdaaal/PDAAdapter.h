@@ -24,17 +24,17 @@
  * Created on 17-03-2020.
  */
 
-#ifndef PDAAAL_PDA_ADAPTER_H
-#define PDAAAL_PDA_ADAPTER_H
+#ifndef PDAAAL_PDAADAPTER_H
+#define PDAAAL_PDAADAPTER_H
 
 #include "TypedPDA.h"
 
 namespace pdaaal {
 
     template<typename T, typename W = void, typename C = std::less<W>>
-    class PDA_Adapter : public TypedPDA<T,W,C> {
+    class PDAAdapter : public TypedPDA<T,W,C> {
     public:
-        explicit PDA_Adapter(const std::unordered_set<T> &all_labels) : TypedPDA<T,W,C>{all_labels} {};
+        explicit PDAAdapter(const std::unordered_set<T> &all_labels) : TypedPDA<T,W,C>{all_labels} {};
 
         using state_t = typename TypedPDA<T,W,C>::template PDA<W,C>::state_t;
 
@@ -60,4 +60,4 @@ namespace pdaaal {
     };
 }
 
-#endif //PDAAAL_PDA_ADAPTER_H
+#endif //PDAAAL_PDAADAPTER_H
