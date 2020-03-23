@@ -87,12 +87,13 @@ BOOST_AUTO_TEST_CASE(WeightedPreStar)
     // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
     // However r_2 requires a swap and a push, which is done through auxiliary state 3.
     std::unordered_set<char> labels{'A', 'B', 'C'};
-    TypedPDA<char, int> pda(labels);
-    pda.add_rule(0, 1, PUSH, 'B', false, 'A', 1);
-    pda.add_rule(0, 0, POP , '*', false, 'B', 1);
-    pda.add_rule(1, 3, SWAP, 'A', false, 'B', 1);
-    pda.add_rule(2, 0, SWAP, 'B', false, 'C', 1);
-    pda.add_rule(3, 2, PUSH, 'C', false, 'A', 1);
+    TypedPDA<char, std::vector<int>> pda(labels);
+    std::vector<int> w{1};
+    pda.add_rule(0, 1, PUSH, 'B', false, 'A', w);
+    pda.add_rule(0, 0, POP , '*', false, 'B', w);
+    pda.add_rule(1, 3, SWAP, 'A', false, 'B', w);
+    pda.add_rule(2, 0, SWAP, 'B', false, 'C', w);
+    pda.add_rule(3, 2, PUSH, 'C', false, 'A', w);
 
     std::vector<char> init_stack{'A', 'A'};
     PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));

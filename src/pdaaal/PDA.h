@@ -88,8 +88,8 @@ namespace pdaaal {
     template<typename W, typename C>
     struct rule_t<W, C, std::enable_if_t<!is_weighted<W>>> {
         size_t _to = 0;
-        op_t _operation = NOOP;
-        uint32_t _op_label = uint32_t{};
+        op_t _operation = PUSH;
+        uint32_t _op_label = 0;
         labels_t _labels;
         bool operator<(const rule_t<W,C>& other) const {
             if (_to != other._to)
@@ -108,9 +108,9 @@ namespace pdaaal {
     template<typename W, typename C>
     struct rule_t<W, C, std::enable_if_t<is_weighted<W>>> {
         size_t _to = 0;
-        op_t _operation = NOOP;
-        W _weight;
-        uint32_t _op_label = uint32_t{};
+        op_t _operation = PUSH;
+        W _weight = zero<W>()();
+        uint32_t _op_label = 0;
         labels_t _labels;
         bool operator<(const rule_t<W,C>& other) const {
             if (_to != other._to)
