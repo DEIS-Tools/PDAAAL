@@ -95,7 +95,7 @@ namespace pdaaal {
         size_t _to = 0;
         op_t _operation = PUSH;
         uint32_t _op_label = 0;
-        labels_t _labels;
+        mutable labels_t _labels;
 
         bool operator<(const rule_t<W, C> &other) const {
             if (_to != other._to)
@@ -129,7 +129,7 @@ namespace pdaaal {
         op_t _operation = PUSH;
         W _weight = zero<W>()();
         uint32_t _op_label = 0;
-        labels_t _labels;
+        mutable labels_t _labels;
 
         bool operator<(const rule_t<W, C> &other) const {
             if (_to != other._to)
@@ -172,6 +172,9 @@ namespace pdaaal {
 
     public:
         [[nodiscard]] virtual size_t number_of_labels() const = 0;
+        std::vector<state_t> move_states() {
+            return std::move(_states);
+        }
 
     protected:
         // Handle both weighted and unweighted rules appropriately.
@@ -186,7 +189,7 @@ namespace pdaaal {
             }
 
             auto rule = _states[from]._rules.emplace(r);
-            rule->_labels.merge(negated, pre, number_of_labels());
+            rule.first->_labels.merge(negated, pre, number_of_labels());
             auto& prestates = _states[r._to]._pre_states;
             auto lpre = std::lower_bound(prestates.begin(), prestates.end(), from);
             if (lpre == std::end(prestates) || *lpre != from) {
@@ -222,8 +225,8 @@ namespace pdaaal {
         };
 
     public:
-        explicit PDA(TempPDA<W,C>&& temp_pda)
-        : _states(std::make_move_iterator(temp_pda._states.begin()), std::make_move_iterator(temp_pda._states.end())) {};
+        explicit PDA(std::vector<typename TempPDA<W,C>::state_t>&& temp_states)
+        : _states(std::make_move_iterator(temp_states.begin()), std::make_move_iterator(temp_states.end())) {};
         PDA() = default;
 
         [[nodiscard]] virtual size_t number_of_labels() const = 0;

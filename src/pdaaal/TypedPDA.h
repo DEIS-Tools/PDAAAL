@@ -39,7 +39,6 @@
 #include <ptrie/ptrie_map.h>
 
 namespace pdaaal {
-
     template<typename T, typename W = void, typename C = std::less<W>>
     class TempTypedPDA : public TempPDA<W, C> {
     public:
@@ -56,6 +55,9 @@ namespace pdaaal {
             }
         }
 
+        ptrie::set_stable<T> move_label_map() {
+            return std::move(_label_map);
+        }
         [[nodiscard]] virtual size_t number_of_labels() const {
             return _label_map.size();
         }
@@ -164,7 +166,6 @@ namespace pdaaal {
         }
 
         ptrie::set_stable<T> _label_map;
-
     };
 
     template<typename T, typename W = void, typename C = std::less<W>>
@@ -177,7 +178,7 @@ namespace pdaaal {
 
     public:
         explicit TypedPDA(TempTypedPDA<T,W,C>&& temp_pda)
-        : _label_map(std::move(temp_pda._label_map)), PDA<W,C>(std::move(static_cast<TempPDA<W, C>>(temp_pda))) {};
+        : PDA<W,C>(temp_pda.move_states()), _label_map(temp_pda.move_label_map()) {};
         explicit TypedPDA(const std::unordered_set<T> &all_labels) {
             std::set<T> sorted(all_labels.begin(), all_labels.end());
             for (auto &l : sorted) {
