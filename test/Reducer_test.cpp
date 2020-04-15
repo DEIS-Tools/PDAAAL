@@ -18,7 +18,7 @@
  */
 
 /*
- * File:   Solver_test.cpp
+ * File:   Reducer_test.cpp
  * Author: Morten K. Schou <morten@h-schou.dk>
  *
  * Created on 17-03-2020.

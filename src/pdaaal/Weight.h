@@ -48,6 +48,7 @@ namespace pdaaal {
     template <typename T> struct has_add<T, std::void_t<decltype(std::declval<add<T>>()(std::declval<T>(), std::declval<T>()))>> : std::true_type {};
     template <typename T> inline constexpr auto has_add_v = has_add<T>::value;
     template<typename W> inline constexpr auto is_weighted = !std::is_void_v<W> && has_zero_v<W> && has_max_v<W> && has_add_v<W>;
+    // TODO is_weighted<W> should also require that boost::hash<W> is defined.
 
     template<typename W>
     struct zero<W, std::enable_if_t<std::is_arithmetic_v<W>>> {
