@@ -134,7 +134,7 @@ namespace pdaaal {
 
         struct edge_t {
             state_t *_to;
-            std::vector<label_with_trace_t<W>> _labels;
+            mutable std::vector<label_with_trace_t<W>> _labels;
 
             // edge with a label and optional trace
             edge_t(state_t *to, uint32_t label, trace_ptr<W> trace)
@@ -153,16 +153,18 @@ namespace pdaaal {
                     _labels.emplace_back(label, default_trace_ptr<W>());
                 }
             };
+            // dummy
+            explicit edge_t(state_t *to) : _to(to) {};
 
-            void add_label(uint32_t label, trace_ptr<W> trace) {
+            static void add_label(std::vector<label_with_trace_t<W>>& labels, uint32_t label, trace_ptr<W> trace) {
                 label_with_trace_t<W> label_trace{label, trace};
-                auto lb = std::lower_bound(_labels.begin(), _labels.end(), label_trace);
-                if (lb == std::end(_labels) || *lb != label_trace) {
-                    _labels.insert(lb, label_trace);
+                auto lb = std::lower_bound(labels.begin(), labels.end(), label_trace);
+                if (lb == std::end(labels) || *lb != label_trace) {
+                    labels.insert(lb, label_trace);
                 }
             }
 
-            std::optional<label_with_trace_t<W>> find(uint32_t label) {
+            std::optional<label_with_trace_t<W>> find(uint32_t label) const {
                 label_with_trace_t<W> label_trace{label, default_trace_ptr<W>()};
                 auto lb = std::lower_bound(_labels.begin(), _labels.end(), label_trace);
                 if (lb != std::end(_labels) && *lb == label_trace) {
@@ -171,7 +173,7 @@ namespace pdaaal {
                 return std::nullopt;
             }
 
-            bool contains(uint32_t label) {
+            bool contains(uint32_t label) const {
                 label_with_trace_t<W> label_trace{label, default_trace_ptr<W>()};
                 auto lb = std::lower_bound(_labels.begin(), _labels.end(), label_trace);
                 return lb != std::end(_labels) && *lb == label_trace;
@@ -179,12 +181,28 @@ namespace pdaaal {
 
             [[nodiscard]] bool has_epsilon() const { return !_labels.empty() && _labels.back().is_epsilon(); }
             [[nodiscard]] bool has_non_epsilon() const { return !_labels.empty() && !_labels[0].is_epsilon(); }
+
+            bool operator<(const edge_t &other) const {
+                return _to->_id < other._to->_id;
+            }
+            bool operator==(const edge_t &other) const {
+                return _to->_id == other._to->_id;
+            }
+            bool operator!=(const edge_t &other) const {
+                return !(*this == other);
+            }
+            struct hasher {
+                size_t operator()(const edge_t& edge) const {
+                    std::hash<size_t> hasher;
+                    return hasher(edge._to->_id);
+                }
+            };
         };
 
         struct state_t {
             bool _accepting = false;
             size_t _id;
-            std::vector<edge_t> _edges;
+            std::unordered_set<edge_t, typename edge_t::hasher> _edges;
 
             state_t(bool accepting, size_t id) : _accepting(accepting), _id(id) {};
 
@@ -420,13 +438,13 @@ namespace pdaaal {
             return get_trace_label(std::get<0>(edge), std::get<1>(edge), std::get<2>(edge));
         }
         [[nodiscard]] const trace_t *get_trace_label(size_t from, uint32_t label, size_t to) const {
-            for (auto &e : _states[from]->_edges) {
-                if (e._to->_id == to) {
-                    label_with_trace_t<W> label_trace{label, default_trace_ptr<W>()};
-                    auto lb = std::lower_bound(e._labels.begin(), e._labels.end(), label_trace);
-                    assert(lb != std::end(e._labels)); // We assume the edge exists.
-                    return trace_from<W>(lb->_t);
-                }
+            edge_t dummy_edge(_states[to].get());
+            auto e = _states[from]->_edges.find(dummy_edge);
+            if (e != std::end(_states[from]->_edges)) {
+                label_with_trace_t<W> label_trace{label, default_trace_ptr<W>()};
+                auto lb = std::lower_bound(e->_labels.begin(), e->_labels.end(), label_trace);
+                assert(lb != std::end(e->_labels)); // We assume the edge exists.
+                return trace_from<W>(lb->_t);
             }
             assert(false); // We assume the edge exists.
             return nullptr;
@@ -450,42 +468,31 @@ namespace pdaaal {
         }
 
         void add_epsilon_edge(size_t from, size_t to, trace_ptr<W> trace = default_trace_ptr<W>()) {
-            auto &edges = _states[from]->_edges;
-            for (auto &e : edges) {
-                if (e._to->_id == to) {
-                    if (!e._labels.back().is_epsilon()) {
-                        e._labels.emplace_back(trace);
-                    }
-                    return;
-                }
+            auto res = _states[from]->_edges.emplace(_states[to].get(), trace);
+            if (!res.second && !res.first->_labels.back().is_epsilon()) {
+                res.first->_labels.emplace_back(trace);
             }
-            edges.emplace_back(_states[to].get(), trace);
         }
 
         void add_edge(size_t from, size_t to, uint32_t label, trace_ptr<W> trace = default_trace_ptr<W>()) {
             assert(label < std::numeric_limits<uint32_t>::max() - 1);
-            auto &edges = _states[from]->_edges;
-            for (auto &e : edges) {
-                if (e._to->_id == to) {
-                    e.add_label(label, trace);
-                    return;
-                }
+            auto res = _states[from]->_edges.emplace(_states[to].get(), label, trace);
+            if (!res.second) {
+                edge_t::add_label(res.first->_labels, label, trace);
             }
-            edges.emplace_back(_states[to].get(), label, trace);
         }
 
         void add_wildcard(size_t from, size_t to) {
-            auto &edges = _states[from]->_edges;
-            for (auto &e : edges) {
-                if (e._to->_id == to) {
-                    e._labels.clear();
-                    for (uint32_t i = 0; i < number_of_labels(); i++) {
-                        e._labels.emplace_back(i, default_trace_ptr<W>());
-                    }
-                    return;
+            edge_t dummy_edge(_states[to].get());
+            auto e = _states[from]->_edges.find(dummy_edge);
+            if (e == std::end(_states[from]->_edges)) {
+                _states[from]->_edges.emplace(_states[to].get(), number_of_labels());
+            } else {
+                e->_labels.clear();
+                for (uint32_t i = 0; i < number_of_labels(); i++) {
+                    e->_labels.emplace_back(i, default_trace_ptr<W>());
                 }
             }
-            edges.emplace_back(_states[to].get(), number_of_labels());
         }
 
         const trace_t *new_pre_trace(size_t rule_id) {
