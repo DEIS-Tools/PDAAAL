@@ -101,7 +101,7 @@ BOOST_AUTO_TEST_CASE(SolverTest3)
     BOOST_CHECK_EQUAL(trace.size(), 7);
 }
 
-BOOST_AUTO_TEST_CASE(EarlyTermination)
+BOOST_AUTO_TEST_CASE(EarlyTerminationPostStar)
 {
     // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
     // However r_2 requires a swap and a push, which is done through auxiliary state 3.
@@ -124,4 +124,28 @@ BOOST_AUTO_TEST_CASE(EarlyTermination)
 
     auto trace = Solver::get_trace(pda, automaton, 1, test_stack_reachable);
     BOOST_CHECK_EQUAL(trace.size(), 7);
+}
+
+BOOST_AUTO_TEST_CASE(EarlyTerminationPreStar)
+{
+    // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
+    // However r_2 requires a swap and a push, which is done through auxiliary state 3.
+    std::unordered_set<char> labels{'A', 'B', 'C'};
+    TypedPDA<char, std::array<double, 3>> pda(labels);
+    std::array<double, 3> w{0.5, 1.2, 0.3};
+    pda.add_rule(0, 1, PUSH, 'B', false, 'A', w);
+    pda.add_rule(0, 0, POP , '*', false, 'B', w);
+    pda.add_rule(1, 3, SWAP, 'A', false, 'B', w);
+    pda.add_rule(2, 0, SWAP, 'B', false, 'C', w);
+    pda.add_rule(3, 2, PUSH, 'C', false, 'A', w);
+
+    std::vector<char> init_stack{'B', 'A', 'A', 'A'};
+    PAutomaton automaton(pda, 1, pda.encode_pre(init_stack));
+
+    std::vector<char> test_stack_reachable{'A'};
+    auto result = Solver::pre_star_accepts(automaton, 0, pda.encode_pre(test_stack_reachable));
+    BOOST_CHECK_EQUAL(result, true);
+
+    auto trace = Solver::get_trace(pda, automaton, 0, test_stack_reachable);
+    BOOST_CHECK_EQUAL(trace.size(), 12);
 }

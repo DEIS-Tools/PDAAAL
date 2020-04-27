@@ -73,10 +73,24 @@ namespace pdaaal {
             }
         };
 
+        using early_termination_fn = std::function<bool(size_t,uint32_t,size_t)>;
+
     public:
 
         template <typename W, typename C, typename A>
-        static void pre_star(PAutomaton<W,C,A> &automaton) {
+        static bool pre_star_accepts(PAutomaton<W,C,A> &automaton, size_t state, const std::vector<uint32_t> &stack) {
+            if (stack.size() == 1) {
+                auto s_label = stack[0];
+                return pre_star<W,C,A,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to) -> bool {
+                    return from == state && label == s_label && automaton.states()[to]->_accepting;
+                });
+            } else {
+                return pre_star<W,C,A,true>(automaton) || automaton.accepts(state, stack);
+            }
+        }
+
+        template <typename W, typename C, typename A, bool ET=false>
+        static bool pre_star(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination = [](size_t f, uint32_t l, size_t t) -> bool { return false; }) {
             // This is an implementation of Algorithm 1 (figure 3.3) in:
             // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.
             // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 42)
@@ -88,7 +102,11 @@ namespace pdaaal {
             std::stack<temp_edge_t> workset;
             std::vector<std::vector<std::pair<size_t,uint32_t>>> rel(n_automaton_states);
 
-            const auto insert_edge = [&edges, &workset, &automaton](size_t from, uint32_t label, size_t to, const trace_t *trace) {
+            bool found = false;
+            const auto insert_edge = [&found, &early_termination, &edges, &workset, &automaton](size_t from, uint32_t label, size_t to, const trace_t *trace) {
+                if constexpr (ET) {
+                    found = found || early_termination(from, label, to);
+                }
                 auto res = edges.emplace(from, label, to);
                 if (res.second) { // New edge is not already in edges (rel U workset).
                     workset.emplace(from, label, to);
@@ -135,6 +153,12 @@ namespace pdaaal {
             std::vector<std::vector<std::pair<size_t, size_t>>> delta_prime(n_automaton_states);
 
             while (!workset.empty()) { // (line 3)
+                if constexpr (ET) {
+                    if (found) {
+                        return true;
+                    }
+                }
+
                 // pop t = (q, y, q') from workset (line 4)
                 auto t = workset.top();
                 workset.pop();
@@ -191,6 +215,7 @@ namespace pdaaal {
                     }
                 }
             }
+            return false;
         }
 
         template <Trace_Type trace_type = Trace_Type::Any, typename W, typename C, typename A>
@@ -466,62 +491,20 @@ namespace pdaaal {
             }
         }
 
-        // TODO: Implement early termination version of pre*.
-        // template <typename W, typename C, typename A>
-        // static bool pre_star_accepts(PAutomaton<W,C,A> &automaton, size_t state, const std::vector<uint32_t> &stack)
-
         template <typename W, typename C, typename A>
         static bool post_star_any_accepts(PAutomaton<W,C,A> &automaton, size_t state, const std::vector<uint32_t> &stack) {
             if (stack.size() == 1) {
                 auto s_label = stack[0];
-                auto wrapper = [&automaton, state, s_label](size_t n_automaton_states){
-                    return [&automaton, state, s_label](size_t from, uint32_t label, size_t to) -> bool {
-                        return from == state && label == s_label && automaton.states()[to]->_accepting;
-                    };
-                };
-                return post_star_any<W,C,A,true>(automaton, wrapper);
+                return post_star_any<W,C,A,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to) -> bool {
+                    return from == state && label == s_label && automaton.states()[to]->_accepting;
+                });
             } else {
-                // FIXME: Algorithm does not work.
-                // TODO: Come up with better algorithm.
-                std::vector<boost::dynamic_bitset<>> reachable;
-                auto wrapper = [&reachable, &automaton, state, &stack](size_t n_automaton_states){
-                    const auto n_pda_states = automaton.pda().states().size();
-                    reachable = std::vector<boost::dynamic_bitset<>>(n_automaton_states - n_pda_states, boost::dynamic_bitset(stack.size() + 1));
-                    for (auto a : automaton.accepting_states()) {
-                        assert(a->_id >= n_pda_states);
-                        reachable[a->_id - n_pda_states].set(stack.size());
-                    }
-                    return [&reachable, &automaton, state, &stack, n_automaton_states, n_pda_states]
-                            (size_t from, uint32_t label, size_t to) -> bool {
-                        if (from < n_pda_states) {
-                            return from == state && ((label == stack[0] && (bool)reachable[to - n_pda_states][1])
-                                                     || (label == epsilon && (bool)reachable[to - n_pda_states][0]));
-                        } else {
-                            if (label == epsilon) {
-                                reachable[from - n_pda_states] |= reachable[to - n_pda_states];
-                            } else {
-                                boost::dynamic_bitset<> mask(stack.size() + 1);
-                                for (size_t i = 0; i < stack.size(); ++i) {
-                                    if (label == stack[i]) {
-                                        mask.set(i);
-                                    }
-                                }
-                                reachable[from - n_pda_states] |= mask & (reachable[to - n_pda_states] >> 1);
-                            }
-                        }
-                        return false;
-                    };
-                };
-                return post_star_any<W,C,A,true>(automaton, wrapper) || automaton.accepts(state, stack);;
+                return post_star_any<W,C,A,true>(automaton) || automaton.accepts(state, stack);
             }
         }
 
-        using early_termination_fn = std::function<bool(size_t,uint32_t,size_t)>;
-        using early_termination_wrapper = std::function<early_termination_fn(size_t)>;
-
         template <typename W, typename C, typename A, bool ET = false>
-        static bool post_star_any(PAutomaton<W,C,A> &automaton, const early_termination_wrapper& wrapper =
-                [](size_t _){return [](size_t f, uint32_t l, size_t t) -> bool{return false;};}) {
+        static bool post_star_any(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination = [](size_t f, uint32_t l, size_t t) -> bool { return false; }) {
             // This is an implementation of Algorithm 2 (figure 3.4) in:
             // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.
             // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 48)
@@ -543,11 +526,6 @@ namespace pdaaal {
                 }
             }
             const auto n_automata_states = automaton.states().size();
-
-            early_termination_fn early_termination;
-            if constexpr (ET) {
-                early_termination = wrapper(n_automata_states);
-            }
 
             std::unordered_set<temp_edge_t, temp_edge_hasher> edges;
             std::stack<temp_edge_t> workset;
