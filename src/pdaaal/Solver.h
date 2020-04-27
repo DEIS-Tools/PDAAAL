@@ -153,7 +153,7 @@ namespace pdaaal {
                 if (t._from >= n_pda_states) { continue; }
                 for (auto pre_state : pda_states[t._from]._pre_states) {
                     const auto &rules = pda_states[pre_state]._rules;
-                    rule_t<W,C> dummy_rule{t._from, PUSH, 0}; // PUSH and 0 are the smallest w.r.t. PDA::rule_t::operator<
+                    rule_t<W,C> dummy_rule{t._from};
                     auto lb = std::lower_bound(rules.begin(), rules.end(), dummy_rule);
                     while (lb != rules.end() && lb->_to == t._from) {
                         auto &rule = *lb;

@@ -34,7 +34,7 @@
 #include <unordered_set>
 
 #include "NFA.h"
-#include "PDA_Adapter.h"
+#include "PDAAdapter.h"
 
 namespace pdaaal {
 
@@ -53,7 +53,7 @@ namespace pdaaal {
         struct rule_t_<WT, std::enable_if_t<!is_weighted<WT>>> {
             op_t _op = POP;
             T _pre;
-            size_t _dest;
+            size_t _dest = std::numeric_limits<size_t>::max();
             T _op_label;
         };
 
@@ -61,7 +61,7 @@ namespace pdaaal {
         struct rule_t_<WT, std::enable_if_t<is_weighted<WT>>> {
             op_t _op = POP;
             T _pre;
-            size_t _dest;
+            size_t _dest = std::numeric_limits<size_t>::max();
             T _op_label;
             WT _weight;
         };
@@ -75,14 +75,14 @@ namespace pdaaal {
             _des_stack.compile();
         };
 
-        PDA_Adapter<T,W,C> compile() {
-            PDA_Adapter<T,W,C> result(_all_labels);
+        PDAAdapter<T,W,C> compile() {
+            TempPDAAdapter<T,W,C> temp_result(_all_labels);
             bool cons_empty_accept = false;
             bool des_empty_accept = empty_desctruction_accept();
             
             // we need to know the number of "other states" to create indexes
             // for the NFA-states
-            build_pda(result, des_empty_accept);
+            build_pda(temp_result, des_empty_accept);
 
             // CONSTRUCTION-HEADER
             {
@@ -90,27 +90,28 @@ namespace pdaaal {
                 std::vector<const nfastate_t*> waiting;
 
                 // compute initial for construction
-                cons_empty_accept = initialize_construction(result, seen, waiting);
+                cons_empty_accept = initialize_construction(temp_result, seen, waiting);
 
                 // saturate reachable rules from initial construction
-                build_construction(result, seen, waiting);
+                build_construction(temp_result, seen, waiting);
             }
 
             // trivially empty
             if (cons_empty_accept && empty_accept() && des_empty_accept) {
                 std::vector<T> empty;
                 T lbl;
-                result.add_rule(result.initial(), result.terminal(), NOOP, lbl, true, empty);
+                temp_result.add_rule(temp_result.initial(), temp_result.terminal(), NOOP, lbl, true, empty);
             }
 
             // Destruct the stack!
-            build_destruction(result);
+            build_destruction(temp_result);
+            PDAAdapter<T,W,C> result(std::move(temp_result));
             result.finalize();
             return result;
         }
 
     protected:
-        bool initialize_construction(PDA_Adapter<T,W,C>& result, std::unordered_set<const nfastate_t*>& seen, std::vector<const nfastate_t*>& waiting) {
+        bool initialize_construction(TempPDAAdapter<T,W,C>& result, std::unordered_set<const nfastate_t*>& seen, std::vector<const nfastate_t*>& waiting) {
             bool has_empty_accept = false;
             std::vector<T> empty;
             for (auto& i : _cons_stack.initial()) {
@@ -145,7 +146,7 @@ namespace pdaaal {
             return has_empty_accept;
         }
 
-        void build_construction(PDA_Adapter<T,W,C>& result, std::unordered_set<const nfastate_t*>& seen, std::vector<const nfastate_t*>& waiting) {
+        void build_construction(TempPDAAdapter<T,W,C>& result, std::unordered_set<const nfastate_t*>& seen, std::vector<const nfastate_t*>& waiting) {
             while (!waiting.empty()) {
                 auto top = waiting.back();
                 waiting.pop_back();
@@ -188,7 +189,7 @@ namespace pdaaal {
             return false;
         }
 
-        void build_pda(PDA_Adapter<T,W,C>& result, bool des_empty_accept) {
+        void build_pda(TempPDAAdapter<T,W,C>& result, bool des_empty_accept) {
             auto pdawaiting = initial();
             std::unordered_set<size_t> pdaseen(pdawaiting.begin(), pdawaiting.end());
             std::vector<T> empty;
@@ -247,7 +248,7 @@ namespace pdaaal {
             }
         }
 
-        void build_destruction(PDA_Adapter<T,W,C>& result) {
+        void build_destruction(TempPDAAdapter<T,W,C>& result) {
             std::vector<nfastate_t*> waiting_next = _des_stack.initial();
             std::unordered_set<nfastate_t*> seen_next(waiting_next.begin(), waiting_next.end());
             std::vector<T> empty;

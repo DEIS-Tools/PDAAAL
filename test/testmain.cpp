@@ -28,7 +28,7 @@
 #include <boost/test/unit_test.hpp>
 
 #include "TestPDAFactory.h"
-#include <pdaaal/Solver_Adapter.h>
+#include <pdaaal/SolverAdapter.h>
 
 using namespace pdaaal;
 

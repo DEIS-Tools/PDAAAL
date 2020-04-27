@@ -24,17 +24,29 @@
  * Created on 17-03-2020.
  */
 
-#ifndef PDAAAL_PDA_ADAPTER_H
-#define PDAAAL_PDA_ADAPTER_H
+#ifndef PDAAAL_PDAADAPTER_H
+#define PDAAAL_PDAADAPTER_H
 
 #include "TypedPDA.h"
 
 namespace pdaaal {
 
     template<typename T, typename W = void, typename C = std::less<W>>
-    class PDA_Adapter : public TypedPDA<T,W,C> {
+    class TempPDAAdapter : public TempTypedPDA<T,W,C> {
     public:
-        explicit PDA_Adapter(const std::unordered_set<T> &all_labels) : TypedPDA<T,W,C>{all_labels} {};
+        explicit TempPDAAdapter(const std::unordered_set<T> &all_labels) : TempTypedPDA<T,W,C>{all_labels} {};
+        [[nodiscard]] size_t initial() const { return 1; }
+        [[nodiscard]] const std::vector<uint32_t>& initial_stack() const { return _initial_stack; }
+        [[nodiscard]] size_t terminal() const { return 0; }
+    private:
+        const std::vector<uint32_t> _initial_stack{std::numeric_limits<uint32_t>::max() - 2}; // std::numeric_limits<uint32_t>::max() is reserved for epsilon transitions (and max-1 for a flag in trace_t).
+    };
+
+    template<typename T, typename W = void, typename C = std::less<W>>
+    class PDAAdapter : public TypedPDA<T,W,C> {
+    public:
+        explicit PDAAdapter(TempPDAAdapter<T,W,C>&& temp_pda) : TypedPDA<T,W,C>(std::move(temp_pda)) {};
+        explicit PDAAdapter(const std::unordered_set<T> &all_labels) : TypedPDA<T,W,C>{all_labels} {};
 
         using state_t = typename TypedPDA<T,W,C>::template PDA<W,C>::state_t;
 
@@ -60,4 +72,4 @@ namespace pdaaal {
     };
 }
 
-#endif //PDAAAL_PDA_ADAPTER_H
+#endif //PDAAAL_PDAADAPTER_H

@@ -14,12 +14,13 @@
  */
 
 /*
- *  Copyright Peter G. Jensen and Morten K. Schou
+ *  Copyright Peter G. Jensen
  */
 
 /*
  * File:   PDA.cpp
- * Author: Morten K. Schou <morten@h-schou.dk>
+ * Author: Peter G. Jensen <root@petergjoel.dk>
+ * Modified by: Morten K. Schou
  *
  * Created on 19-02-2020.
  */
