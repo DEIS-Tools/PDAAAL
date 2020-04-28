@@ -33,17 +33,19 @@ if (PDAAAL_GetDependencies)
     include(ExternalProject)
     set(EXTERNAL_INSTALL_LOCATION ${CMAKE_BINARY_DIR}/external)
 
-    ExternalProject_add(ptrie-ext
-            URL https://github.com/petergjoel/ptrie/archive/v1.1.0.zip
-            URL_HASH SHA512=092a8f50ca21d1199b19a10c4e0273c93a717a9f6491998a16bf21d21d37e6537ffd8a06ac41a2b623241da6036546d44b754567441944565e2a16646378cf29
-            CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EXTERNAL_INSTALL_LOCATION} -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
-            )
-    file(MAKE_DIRECTORY ${EXTERNAL_INSTALL_LOCATION}/include)
-
+    if (PTRIE_INSTALL_DIR)
+        include_directories(${PTRIE_INSTALL_DIR})
+    else()
+        ExternalProject_add(ptrie-ext
+                URL https://github.com/petergjoel/ptrie/archive/v1.1.0.zip
+                URL_HASH SHA512=092a8f50ca21d1199b19a10c4e0273c93a717a9f6491998a16bf21d21d37e6537ffd8a06ac41a2b623241da6036546d44b754567441944565e2a16646378cf29
+                CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EXTERNAL_INSTALL_LOCATION} -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
+                )
+        file(MAKE_DIRECTORY ${EXTERNAL_INSTALL_LOCATION}/include)
+    endif()
     # we can now include external libraries
     include_directories(${EXTERNAL_INSTALL_LOCATION}/include)
     link_directories(${EXTERNAL_INSTALL_LOCATION}/lib)
-
 endif (PDAAAL_GetDependencies)
 
 
