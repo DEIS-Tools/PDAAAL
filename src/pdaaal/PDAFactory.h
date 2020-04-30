@@ -53,7 +53,7 @@ namespace pdaaal {
         struct rule_t_<WT, std::enable_if_t<!is_weighted<WT>>> {
             op_t _op = POP;
             T _pre;
-            size_t _dest;
+            size_t _dest = std::numeric_limits<size_t>::max();
             T _op_label;
         };
 
@@ -61,7 +61,7 @@ namespace pdaaal {
         struct rule_t_<WT, std::enable_if_t<is_weighted<WT>>> {
             op_t _op = POP;
             T _pre;
-            size_t _dest;
+            size_t _dest = std::numeric_limits<size_t>::max();
             T _op_label;
             WT _weight;
         };
