@@ -33,7 +33,7 @@ using namespace pdaaal;
 
 BOOST_AUTO_TEST_CASE(Test_fut_set_hash_vecter_map)
 {
-    fut_set<std::tuple<size_t, size_t, uint32_t>, void, fut_container_type::hash, fut_container_type::vector> set;
+    fut::set<std::tuple<size_t, size_t, uint32_t>, fut::type::hash, fut::type::vector> set;
 
     auto res = set.emplace(4,7,10);
     BOOST_CHECK_EQUAL(res.second, true);
@@ -52,7 +52,7 @@ BOOST_AUTO_TEST_CASE(Test_fut_set_hash_vecter_map)
 
 BOOST_AUTO_TEST_CASE(Test_fut_set_vector_hash_map)
 {
-    fut_set<std::tuple<size_t, size_t, uint32_t>, void, fut_container_type::vector, fut_container_type::hash> set;
+    fut::set<std::tuple<size_t, size_t, uint32_t>, fut::type::vector, fut::type::hash> set;
 
     auto res = set.emplace(4,7,10);
     BOOST_CHECK_EQUAL(res.second, true);
@@ -70,7 +70,7 @@ BOOST_AUTO_TEST_CASE(Test_fut_set_vector_hash_map)
 
 BOOST_AUTO_TEST_CASE(Test_fut_set_hash_vector_set)
 {
-    fut_set<std::tuple<size_t, int>, void, fut_container_type::hash, fut_container_type::vector> set;
+    fut::set<std::tuple<size_t, int>, fut::type::hash, fut::type::vector> set;
 
     auto res = set.emplace(4,7);
     BOOST_CHECK_EQUAL(res.second, true);
@@ -88,7 +88,7 @@ BOOST_AUTO_TEST_CASE(Test_fut_set_hash_vector_set)
 
 BOOST_AUTO_TEST_CASE(Test_fut_set_vector_hash_set)
 {
-    fut_set<std::tuple<size_t, size_t>, void, fut_container_type::vector, fut_container_type::hash> set;
+    fut::set<std::tuple<size_t, size_t>, fut::type::vector, fut::type::hash> set;
 
     auto res = set.emplace(4,7);
     BOOST_CHECK_EQUAL(res.second, true);
@@ -106,7 +106,7 @@ BOOST_AUTO_TEST_CASE(Test_fut_set_vector_hash_set)
 
 BOOST_AUTO_TEST_CASE(Test_fut_set_hash_vecter_tuplemap)
 {
-    fut_set<std::tuple<size_t, std::string, uint32_t, std::vector<char>>, void, fut_container_type::hash, fut_container_type::vector> set;
+    fut::set<std::tuple<size_t, std::string, uint32_t, std::vector<char>>, fut::type::hash, fut::type::vector> set;
 
     auto res = set.emplace(4,"1",10, std::vector<char>{'a', 'b'});
     BOOST_TEST(res.second);
@@ -128,7 +128,7 @@ BOOST_AUTO_TEST_CASE(Test_fut_set_hash_vecter_tuplemap)
 
 BOOST_AUTO_TEST_CASE(Test_fut_set_hash_vecter_vector_set)
 {
-    fut_set<std::tuple<size_t, size_t, uint32_t>, void, fut_container_type::hash, fut_container_type::vector, fut_container_type::vector> set;
+    fut::set<std::tuple<size_t, size_t, uint32_t>, fut::type::hash, fut::type::vector, fut::type::vector> set;
 
     uint32_t i = 10;
     auto res = set.emplace(4,7,i);

@@ -46,10 +46,15 @@ namespace pdaaal {
         };
         std::vector<elem_t> elems;
 
-        auto begin() { return elems.begin(); }
-        auto end() { return elems.end(); }
-        auto begin() const { return elems.begin(); }
-        auto end() const { return elems.end(); }
+        using iterator = typename std::vector<elem_t>::iterator;
+        using const_iterator = typename std::vector<elem_t>::const_iterator;
+
+        iterator begin() noexcept  { return elems.begin(); }
+        iterator end() noexcept { return elems.end(); }
+        const_iterator begin() const noexcept { return elems.begin(); }
+        const_iterator end() const noexcept { return elems.end(); }
+        const_iterator cbegin() const noexcept { return elems.cbegin(); }
+        const_iterator cend() const noexcept { return elems.cend(); }
 
         template <typename... Args>
         auto emplace(const Key& key, Args&&... args) {
@@ -78,7 +83,7 @@ namespace pdaaal {
             return lb != elems.end() && *lb == elem;
         }
 
-        auto find(const Key& key) {
+        iterator find(const Key& key) {
             elem_t elem(key);
             auto lb = std::lower_bound(elems.begin(), elems.end(), elem);
             if (lb == elems.end() || *lb != elem) {
@@ -86,7 +91,7 @@ namespace pdaaal {
             }
             return lb;
         }
-        auto find(const Key& key) const {
+        const_iterator find(const Key& key) const {
             elem_t elem(key);
             auto lb = std::lower_bound(elems.begin(), elems.end(), elem);
             if (lb == elems.end() || *lb != elem) {
@@ -101,8 +106,15 @@ namespace pdaaal {
     struct vector_set {
         std::vector<Key> elems;
 
-        auto begin() { return elems.begin(); }
-        auto end() { return elems.end(); }
+        using iterator = typename std::vector<Key>::iterator;
+        using const_iterator = typename std::vector<Key>::const_iterator;
+
+        iterator begin() noexcept  { return elems.begin(); }
+        iterator end() noexcept { return elems.end(); }
+        const_iterator begin() const noexcept { return elems.begin(); }
+        const_iterator end() const noexcept { return elems.end(); }
+        const_iterator cbegin() const noexcept { return elems.cbegin(); }
+        const_iterator cend() const noexcept { return elems.cend(); }
 
         template <typename... Args>
         auto emplace(Args&&... args) {
@@ -120,14 +132,14 @@ namespace pdaaal {
             return lb != elems.end() && *lb == key;
         }
 
-        auto find(const Key& key) {
+        iterator find(const Key& key) {
             auto lb = std::lower_bound(elems.begin(), elems.end(), key);
             if (lb == elems.end() || *lb != key) {
                 return elems.end();
             }
             return lb;
         }
-        auto find(const Key& key) const {
+        const_iterator find(const Key& key) const {
             auto lb = std::lower_bound(elems.begin(), elems.end(), key);
             if (lb == elems.end() || *lb != key) {
                 return elems.end();

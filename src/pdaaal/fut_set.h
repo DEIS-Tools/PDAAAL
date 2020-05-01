@@ -31,79 +31,98 @@
 #include <unordered_set>
 #include <unordered_map>
 
-namespace pdaaal {
+namespace pdaaal::fut {
 
-    enum class fut_container_type {
+    enum class type {
         hash,
         vector
     };
 
-    // FUT-set is a Fast Unordered Tuple-set. Hopefully so fast that executing it says FUT.
-    template<class T, typename = void, fut_container_type... C>
-    class fut_set {};
+    namespace detail {
+        // FUT-set is a Fast Unordered Tuple-set. Hopefully so fast that executing it says FUT.
+        template<class T, typename = void, type... C>
+        class fut_set {
+        };
 
-    // recursive case - hash
-    template<typename Head, typename... Tail, fut_container_type CHead, fut_container_type... CTail>
-    struct fut_set<std::tuple<Head, Tail...>, std::enable_if_t<CHead == fut_container_type::hash>, CHead, CTail...> {
-        using Inner = fut_set<std::tuple<Tail...>, void, CTail...>;
-        std::unordered_map<Head,Inner> elems;
+        // recursive case - hash
+        template<typename Head, typename... Tail, type CHead, type... CTail>
+        struct fut_set<std::tuple<Head, Tail...>, std::enable_if_t<
+                CHead == type::hash>, CHead, CTail...> {
+            using Inner = fut_set<std::tuple<Tail...>, void, CTail...>;
+            std::unordered_map<Head, Inner> elems;
 
-        template <typename... Args>
-        auto emplace(const Head& head, Args&&... args) {
-            return elems.try_emplace(head).first->second.emplace(std::forward<Args>(args)...);
-        }
-        template <typename... Args>
-        auto emplace(Head&& head, Args&&... args) {
-            return elems.try_emplace(std::move(head)).first->second.emplace(std::forward<Args>(args)...);
-        }
-        template <typename... Args>
-        bool contains(const Head& head, const Args&... tail) const {
-            auto it = elems.find(head);
-            return it != elems.end() && it->second.contains(tail...);
-        }
-    };
+            template<typename... Args>
+            auto emplace(const Head &head, Args &&... args) {
+                return elems.try_emplace(head).first->second.emplace(std::forward<Args>(args)...);
+            }
 
-    // recursive case - vector
-    template<typename Head, typename... Tail, fut_container_type CHead, fut_container_type... CTail>
-    struct fut_set<std::tuple<Head, Tail...>, std::enable_if_t<CHead == fut_container_type::vector>, CHead, CTail...> {
-        using Inner = fut_set<std::tuple<Tail...>, void, CTail...>;
-        vector_map<Head,Inner> elems;
+            template<typename... Args>
+            auto emplace(Head &&head, Args &&... args) {
+                return elems.try_emplace(std::move(head)).first->second.emplace(std::forward<Args>(args)...);
+            }
 
-        template <typename... Args>
-        auto emplace(const Head& head, Args&&... args) {
-            return elems.emplace(head).first->value.emplace(std::forward<Args>(args)...);
-        }
-        template <typename... Args>
-        auto emplace(Head&& head, Args&&... args) {
-            return elems.emplace(std::move(head)).first->value.emplace(std::forward<Args>(args)...);
-        }
-        template <typename... Args>
-        bool contains(const Head& head, const Args&... tail) const {
-            auto it = elems.find(head);
-            return it != elems.end() && it->value.contains(tail...);
-        }
-    };
+            template<typename... Args>
+            bool contains(const Head &head, const Args &... tail) const {
+                auto it = elems.find(head);
+                return it != elems.end() && it->second.contains(tail...);
+            }
+        };
 
-    // base case - map - hash
-    template< class Head, class... Tail, fut_container_type C>
-    struct fut_set<std::tuple<Head, Tail...>, std::enable_if_t<C == fut_container_type::hash>, C> : std::unordered_map<Head,std::tuple<Tail...>> {
-        bool contains(const Head& head) const { // TODO: When C++20 arrives: Delete this.
-            return this->find(head) != this->end();
-        }
-    };
-    // base case - set - hash
-    template< class Head, fut_container_type C>
-    struct fut_set<std::tuple<Head>, std::enable_if_t<C == fut_container_type::hash>, C> : std::unordered_set<Head> {
-        bool contains(const Head& head) const { // TODO: When C++20 arrives: Delete this.
-            return this->find(head) != this->end();
-        }
-    };
-    // base case - map - vector
-    template< class Head, class... Tail, fut_container_type C>
-    struct fut_set<std::tuple<Head, Tail...>, std::enable_if_t<C == fut_container_type::vector>, C> : vector_map<Head, std::tuple<Tail...>> { };
-    // base case - set - vector
-    template< class Head, fut_container_type C>
-    struct fut_set<std::tuple<Head>, std::enable_if_t<C == fut_container_type::vector>, C> : vector_set<Head> { };
+        // recursive case - vector
+        template<typename Head, typename... Tail, type CHead, type... CTail>
+        struct fut_set<std::tuple<Head, Tail...>, std::enable_if_t<
+                CHead == type::vector>, CHead, CTail...> {
+            using Inner = fut_set<std::tuple<Tail...>, void, CTail...>;
+            vector_map<Head, Inner> elems;
+
+            template<typename... Args>
+            auto emplace(const Head &head, Args &&... args) {
+                return elems.emplace(head).first->value.emplace(std::forward<Args>(args)...);
+            }
+
+            template<typename... Args>
+            auto emplace(Head &&head, Args &&... args) {
+                return elems.emplace(std::move(head)).first->value.emplace(std::forward<Args>(args)...);
+            }
+
+            template<typename... Args>
+            bool contains(const Head &head, const Args &... tail) const {
+                auto it = elems.find(head);
+                return it != elems.end() && it->value.contains(tail...);
+            }
+        };
+
+        // base case - map - hash
+        template<class Head, class... Tail, type C>
+        struct fut_set<std::tuple<Head, Tail...>, std::enable_if_t<C == type::hash>, C>
+                : std::unordered_map<Head, std::tuple<Tail...>> {
+            bool contains(const Head &head) const { // TODO: When C++20 arrives: Delete this.
+                return this->find(head) != this->end();
+            }
+        };
+
+        // base case - set - hash
+        template<class Head, type C>
+        struct fut_set<std::tuple<Head>, std::enable_if_t<C == type::hash>, C>
+                : std::unordered_set<Head> {
+            bool contains(const Head &head) const { // TODO: When C++20 arrives: Delete this.
+                return this->find(head) != this->end();
+            }
+        };
+
+        // base case - map - vector
+        template<class Head, class... Tail, type C>
+        struct fut_set<std::tuple<Head, Tail...>, std::enable_if_t<C == type::vector>, C>
+                : vector_map<Head, std::tuple<Tail...>> {
+        };
+        // base case - set - vector
+        template<class Head, type C>
+        struct fut_set<std::tuple<Head>, std::enable_if_t<C == type::vector>, C> : vector_set<Head> {
+        };
+    }
+    
+    template<class T, type... C>
+    using set = typename detail::fut_set<T, void, C...>;
 
 }
 
