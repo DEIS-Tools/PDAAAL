@@ -28,8 +28,6 @@
 #define PDAAAL_FUT_SET_H
 
 #include "vector_set.h"
-#include <unordered_set>
-#include <unordered_map>
 
 namespace std20 { // TODO: When C++20 arrives: Delete this.
     // Add contains method to unordered containers, until we can use the ones in C++20.
@@ -74,7 +72,7 @@ namespace pdaaal::fut {
 
         // TODO: Add 'compare_by' functionality somehow.
 
-        // recursive case - hash
+        // recursive case
         template<typename Head, typename... Tail, type CHead, type CNeck, type... CTail>
         class fut_set<std::tuple<Head, Tail...>, CHead, CNeck, CTail...> {
         private:
@@ -96,6 +94,7 @@ namespace pdaaal::fut {
 
             [[nodiscard]] size_t size() const noexcept { return elems.size(); }
             [[nodiscard]] bool empty() const noexcept { return elems.empty(); }
+            void clear() noexcept { elems.clear(); };
 
             template<typename... Args>
             auto emplace(const Head &head, Args &&... args) {
@@ -127,7 +126,6 @@ namespace pdaaal::fut {
         private:
             container_type elems;
         };
-
 
         // Singleton tuples decay to their inner type.
         template<typename Head, typename... Tail>

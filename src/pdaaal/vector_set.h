@@ -28,21 +28,35 @@
 #define PDAAAL_VECTOR_SET_H
 
 #include <vector>
+#include <unordered_set>
+#include <unordered_map>
+#include <algorithm>
 
 namespace pdaaal::fut {
 
     template<typename Key, typename Value>
     struct vector_map {
         struct elem_t {
+            elem_t() = default;
             template <typename... Args>
-            explicit elem_t(const Key& key, Args&&... args) : first(key), second(std::forward<Args>(args)...) { }
+            explicit elem_t(const Key& key, Args&&... args) : first(key), second(std::forward<Args>(args)...) {}
             template <typename... Args>
-            explicit elem_t(Key&& key, Args&&... args) : first(std::move(key)), second(std::forward<Args>(args)...) { }
+            explicit elem_t(Key&& key, Args&&... args) : first(std::move(key)), second(std::forward<Args>(args)...) {}
+            explicit elem_t(const std::pair<Key,Value>& arg) : first(arg.first), second(arg.second) {};
+            explicit elem_t(std::pair<Key,Value>&& arg) : first(std::move(arg.first)), second(std::move(arg.second)) {};
             Key first;
             Value second;
             bool operator<(const elem_t &other) const { return first < other.first; }
             bool operator==(const elem_t &other) const { return first == other.first; }
             bool operator!=(const elem_t &other) const { return !(*this == other); }
+        };
+
+        vector_map() = default;
+        explicit vector_map(const std::unordered_map<Key,Value>& other) : elems(other.begin(), other.end()) {
+            std::sort(elems.begin(), elems.end());
+        };
+        explicit vector_map(std::unordered_map<Key,Value>&& other) : elems(std::make_move_iterator(other.begin()), std::make_move_iterator(other.end())) {
+            std::sort(elems.begin(), elems.end());
         };
 
         using value_type = typename std::vector<elem_t>::value_type;
@@ -105,6 +119,18 @@ namespace pdaaal::fut {
             }
             return lb;
         }
+        value_type& operator[](std::size_t index) { return elems[index]; }
+        const value_type& operator[](std::size_t index) const { return elems[index]; }
+        void resize(size_t count) {
+            assert(count <= size());
+            elems.resize(count);
+        };
+        void clear() noexcept { elems.clear(); };
+
+        auto lower_bound(const Key& key) const {
+            elem_t elem(key);
+            return std::lower_bound(elems.begin(), elems.end(), elem);
+        }
 
     private:
         std::vector<elem_t> elems;
@@ -112,6 +138,14 @@ namespace pdaaal::fut {
 
     template<typename Key>
     struct vector_set {
+
+        vector_set() = default;
+        explicit vector_set(const std::unordered_set<Key>& other) : elems(other.begin(), other.end()) {
+            std::sort(elems.begin(), elems.end());
+        };
+        explicit vector_set(std::unordered_set<Key>&& other) : elems(std::make_move_iterator(other.begin()), std::make_move_iterator(other.end())) {
+            std::sort(elems.begin(), elems.end());
+        };
 
         using value_type = typename std::vector<Key>::value_type;
         using iterator = typename std::vector<Key>::iterator;
@@ -156,6 +190,17 @@ namespace pdaaal::fut {
                 return elems.end();
             }
             return lb;
+        }
+        value_type& operator[](std::size_t index) { return elems[index]; }
+        const value_type& operator[](std::size_t index) const { return elems[index]; }
+        void resize(size_t count) {
+            assert(count <= size());
+            elems.resize(count);
+        };
+        void clear() noexcept { elems.clear(); };
+
+        auto lower_bound(const Key& key) const {
+            return std::lower_bound(elems.begin(), elems.end(), key);
         }
 
     private:
