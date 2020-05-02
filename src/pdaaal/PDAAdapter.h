@@ -36,9 +36,9 @@ namespace pdaaal {
     public:
         template<fut::type OtherContainer>
         explicit PDAAdapter(PDAAdapter<T,W,C,OtherContainer>&& other_pda) : TypedPDA<T,W,C,Container>(std::move(other_pda)) {}
-        explicit PDAAdapter(const std::unordered_set<T> &all_labels) : TypedPDA<T,W,C>{all_labels} {};
+        explicit PDAAdapter(const std::unordered_set<T> &all_labels) : TypedPDA<T,W,C,Container>{all_labels} {};
 
-        using state_t = typename TypedPDA<T,W,C>::template PDA<W,C>::state_t;
+        using state_t = typename TypedPDA<T,W,C,Container>::template PDA<W,C,Container>::state_t;
 
         [[nodiscard]] size_t initial() const { return 1; }
         [[nodiscard]] const std::vector<uint32_t>& initial_stack() const { return _initial_stack; }
@@ -51,9 +51,9 @@ namespace pdaaal {
                     s._pre_states.emplace_back(initial());
                 }
             }
-            for (auto& r : this->states_mutable()[initial()]._rules) {
-                r._labels.clear();
-                r._labels.merge(false, _initial_stack, std::numeric_limits<size_t>::max());
+            for (auto& [r,labels] : this->states_mutable()[initial()]._rules) {
+                labels.clear();
+                labels.merge(false, _initial_stack, std::numeric_limits<size_t>::max());
             }
         }
 

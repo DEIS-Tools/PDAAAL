@@ -51,7 +51,7 @@ namespace pdaaal {
     public:
         template<fut::type OtherContainer>
         explicit TypedPDA(TypedPDA<T,W,C,OtherContainer>&& other_pda)
-        : PDA<W,C,Container>(std::move(other_pda)), _label_map(std::move(other_pda._label_map)) {}
+        : PDA<W,C,Container>(std::move(other_pda)), _label_map(other_pda.move_label_map()) {}
 
         explicit TypedPDA(const std::unordered_set<T> &all_labels) {
             std::set<T> sorted(all_labels.begin(), all_labels.end());
@@ -65,6 +65,8 @@ namespace pdaaal {
 #endif
             }
         }
+
+        auto move_label_map() { return std::move(_label_map); }
 
         [[nodiscard]] virtual size_t number_of_labels() const {
             return _label_map.size();

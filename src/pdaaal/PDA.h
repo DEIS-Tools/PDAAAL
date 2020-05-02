@@ -112,8 +112,9 @@ namespace pdaaal {
         bool operator!=(const rule_t<W, C> &other) const {
             return !(*this == other);
         }
+
         struct hasher {
-            size_t operator()(const pdaaal::rule_t<W,C>& rule) const {
+            size_t operator()(const pdaaal::rule_t<W, C> &rule) const noexcept {
                 size_t seed = 0;
                 boost::hash_combine(seed, rule._to);
                 boost::hash_combine(seed, rule._op_label);
@@ -149,8 +150,9 @@ namespace pdaaal {
         bool operator!=(const rule_t<W, C> &other) const {
             return !(*this == other);
         }
+
         struct hasher {
-            size_t operator()(const pdaaal::rule_t<W,C>& rule) const {
+            size_t operator()(const pdaaal::rule_t<W, C> &rule) const noexcept {
                 size_t seed = 0;
                 boost::hash_combine(seed, rule._to);
                 boost::hash_combine(seed, rule._op_label);
@@ -160,6 +162,19 @@ namespace pdaaal {
             }
         };
     };
+}
+
+namespace std {
+    template<typename W, typename C>
+    struct hash<pdaaal::rule_t<W, C>> {
+        size_t operator()(const pdaaal::rule_t<W,C>& rule) const noexcept {
+            typename pdaaal::rule_t<W,C>::hasher hasher;
+            return hasher(rule);
+        }
+    };
+}
+
+namespace pdaaal {
 
     template <typename W, typename C, fut::type Container = fut::type::vector>
     class PDA {
@@ -167,8 +182,7 @@ namespace pdaaal {
         struct state_t {
             fut::set<std::tuple<rule_t<W,C>,labels_t>,Container> _rules;
             std::vector<size_t> _pre_states;
-            template<fut::type OtherContainer>
-            explicit state_t(typename PDA<W,C,OtherContainer>::state_t&& other_state)
+            explicit state_t(typename PDA<W,C,fut::type::hash>::state_t&& other_state)
                     : _rules(std::move(other_state._rules)), _pre_states(std::move(other_state._pre_states)) {}
             state_t() = default;
         };
@@ -176,8 +190,11 @@ namespace pdaaal {
     public:
         template<fut::type OtherContainer>
         explicit PDA(PDA<W,C,OtherContainer>&& other_pda)
-                : _states(std::make_move_iterator(other_pda._states.begin()), std::make_move_iterator(other_pda._states.end())) {}
+                : _states(std::make_move_iterator(other_pda.states_begin()), std::make_move_iterator(other_pda.states_end())) {}
         PDA() = default;
+
+        auto states_begin() noexcept { return _states.begin(); }
+        auto states_end() noexcept { return _states.end(); }
 
         [[nodiscard]] virtual size_t number_of_labels() const = 0;
         const std::vector<state_t>& states() const {
@@ -216,7 +233,7 @@ namespace pdaaal {
                 _states.resize(mm + 1);
             }
 
-            auto [it,succeed] = _states[from]._rules.emplace(r);
+            auto [it,succeed] = _states[from]._rules.emplace(r, labels_t{});
             it->second.merge(negated, pre, number_of_labels());
 
             auto& prestates = _states[r._to]._pre_states;

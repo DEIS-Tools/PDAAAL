@@ -136,6 +136,12 @@ namespace pdaaal::fut {
         public:
             using inner_value_type = weak_tuple<Neck, Tail...>;
 
+            fut_set() = default;
+            template<type OtherC>
+            fut_set(const fut_set<std::tuple<Head, Neck, Tail...>, OtherC>& other) : map_container<Head, inner_value_type, C>(other) {}
+            template<type OtherC>
+            fut_set(fut_set<std::tuple<Head, Neck, Tail...>, OtherC>&& other) : map_container<Head, inner_value_type, C>(std::move(other)) {}
+
             const inner_value_type* get(const Head &head) const {
                 auto it = this->find(head);
                 return it == this->end() ? nullptr : &it->second;
