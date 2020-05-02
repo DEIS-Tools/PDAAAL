@@ -112,10 +112,10 @@ namespace pdaaal {
             };
 
             // workset := ->_0  (line 1)
-            for (auto &from : automaton.states()) {
-                for (auto &edge : from->_edges) {
-                    for (auto &label : edge._labels) {
-                        insert_edge(from->_id, label._label, edge._to->_id, nullptr);
+            for (const auto &from : automaton.states()) {
+                for (const auto &[to,labels] : from->_edges) {
+                    for (const auto &[label,_] : labels) {
+                        insert_edge(from->_id, label, to, nullptr);
                     }
                 }
             }
@@ -342,15 +342,15 @@ namespace pdaaal {
             // workset := ->_0 intersect (P x Gamma x Q)
             // rel := ->_0 \ workset
             for (auto &from : automaton.states()) {
-                for (auto &edge : from->_edges) {
-                    assert(!edge.has_epsilon()); // PostStar algorithm assumes no epsilon transitions in the NFA.
-                    for (auto &label : edge._labels) {
-                        temp_edge_t temp_edge{from->_id, label._label, edge._to->_id};
+                for (auto &[to,labels] : from->_edges) {
+                    assert(!labels.contains(epsilon)); // PostStar algorithm assumes no epsilon transitions in the NFA.
+                    for (auto &[label,_] : labels) {
+                        temp_edge_t temp_edge{from->_id, label, to};
                         edge_weights.emplace(temp_edge, std::make_pair(zero<W>()(), zero<W>()()));
                         if (from->_id < n_pda_states) {
                             workset.emplace(zero<W>()(), temp_edge, nullptr);
                         } else {
-                            insert_rel(from->_id, label._label, edge._to->_id);
+                            insert_rel(from->_id, label, to);
                         }
                     }
                 }
@@ -501,10 +501,10 @@ namespace pdaaal {
             // workset := ->_0 intersect (P x Gamma x Q)  (line 1)
             // rel := ->_0 \ workset (line 2)
             for (auto &from : automaton.states()) {
-                for (auto &edge : from->_edges) {
-                    assert(!edge.has_epsilon()); // PostStar algorithm assumes no epsilon transitions in the NFA.
-                    for (auto &label : edge._labels) {
-                        insert_edge(from->_id, label._label, edge._to->_id, nullptr, from->_id >= n_pda_states);
+                for (auto &[to,labels] : from->_edges) {
+                    assert(!labels.contains(epsilon)); // PostStar algorithm assumes no epsilon transitions in the NFA.
+                    for (auto &[label,_] : labels) {
+                        insert_edge(from->_id, label, to, nullptr, from->_id >= n_pda_states);
                     }
                 }
             }

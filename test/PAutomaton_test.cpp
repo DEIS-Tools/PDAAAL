@@ -80,6 +80,33 @@ BOOST_AUTO_TEST_CASE(UnweightedPostStar)
 
     std::vector<char> test_stack_unreachable{'A', 'A', 'B', 'A'};
     BOOST_CHECK_EQUAL(automaton.accepts(0, pda.encode_pre(test_stack_unreachable)), false);
+
+    automaton.to_dot(std::cout, [&pda](auto &s, auto &l) { s << pda.get_symbol(l); });
+
+}
+
+BOOST_AUTO_TEST_CASE(UnweightedPostStarPath)
+{
+    // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
+    // However r_2 requires a swap and a push, which is done through auxiliary state 3.
+    std::unordered_set<char> labels{'A', 'B', 'C'};
+    TypedPDA<char> pda(labels);
+    pda.add_rule(0, 1, PUSH, 'B', false, 'A');
+    pda.add_rule(0, 0, POP, '*', false, 'B');
+    pda.add_rule(1, 3, SWAP, 'A', false, 'B');
+    pda.add_rule(2, 0, SWAP, 'B', false, 'C');
+    pda.add_rule(3, 2, PUSH, 'C', false, 'A');
+
+    std::vector<char> init_stack{'A', 'A'};
+    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+
+    Solver::post_star(automaton);
+
+    std::vector<char> test_stack_reachable{'B', 'A', 'A', 'A'};
+    BOOST_CHECK_EQUAL(automaton.accept_path(1, pda.encode_pre(test_stack_reachable)).size(), 5);
+
+    std::vector<char> test_stack_unreachable{'A', 'A', 'B', 'A'};
+    BOOST_CHECK_EQUAL(automaton.accept_path(0, pda.encode_pre(test_stack_unreachable)).size(), 0);
 }
 
 BOOST_AUTO_TEST_CASE(WeightedPreStar)
