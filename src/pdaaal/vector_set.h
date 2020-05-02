@@ -29,23 +29,23 @@
 
 #include <vector>
 
-namespace pdaaal {
+namespace pdaaal::fut {
 
     template<typename Key, typename Value>
     struct vector_map {
         struct elem_t {
             template <typename... Args>
-            explicit elem_t(const Key& key, Args&&... args) : key(key), value(std::forward<Args>(args)...) { }
+            explicit elem_t(const Key& key, Args&&... args) : first(key), second(std::forward<Args>(args)...) { }
             template <typename... Args>
-            explicit elem_t(Key&& key, Args&&... args) : key(std::move(key)), value(std::forward<Args>(args)...) { }
-            Key key;
-            Value value;
-            bool operator<(const elem_t &other) const { return key < other.key; }
-            bool operator==(const elem_t &other) const { return key == other.key; }
+            explicit elem_t(Key&& key, Args&&... args) : first(std::move(key)), second(std::forward<Args>(args)...) { }
+            Key first;
+            Value second;
+            bool operator<(const elem_t &other) const { return first < other.first; }
+            bool operator==(const elem_t &other) const { return first == other.first; }
             bool operator!=(const elem_t &other) const { return !(*this == other); }
         };
-        std::vector<elem_t> elems;
 
+        using value_type = typename std::vector<elem_t>::value_type;
         using iterator = typename std::vector<elem_t>::iterator;
         using const_iterator = typename std::vector<elem_t>::const_iterator;
 
@@ -55,6 +55,9 @@ namespace pdaaal {
         const_iterator end() const noexcept { return elems.end(); }
         const_iterator cbegin() const noexcept { return elems.cbegin(); }
         const_iterator cend() const noexcept { return elems.cend(); }
+
+        [[nodiscard]] size_t size() const noexcept { return elems.size(); }
+        [[nodiscard]] bool empty() const noexcept { return elems.empty(); }
 
         template <typename... Args>
         auto emplace(const Key& key, Args&&... args) {
@@ -76,6 +79,9 @@ namespace pdaaal {
             }
             return std::make_pair(lb, false);
         }
+        // Provide interface similar to std::unordered_map
+        template <typename... Args> auto try_emplace(const Key& key, Args&&... args) { return emplace(key, args...); }
+        template <typename... Args> auto try_emplace(Key&& key, Args&&... args) { return emplace(key, args...); }
 
         bool contains(const Key& key) const {
             elem_t elem(key);
@@ -100,12 +106,14 @@ namespace pdaaal {
             return lb;
         }
 
+    private:
+        std::vector<elem_t> elems;
     };
 
     template<typename Key>
     struct vector_set {
-        std::vector<Key> elems;
 
+        using value_type = typename std::vector<Key>::value_type;
         using iterator = typename std::vector<Key>::iterator;
         using const_iterator = typename std::vector<Key>::const_iterator;
 
@@ -115,6 +123,9 @@ namespace pdaaal {
         const_iterator end() const noexcept { return elems.end(); }
         const_iterator cbegin() const noexcept { return elems.cbegin(); }
         const_iterator cend() const noexcept { return elems.cend(); }
+
+        [[nodiscard]] size_t size() const noexcept { return elems.size(); }
+        [[nodiscard]] bool empty() const noexcept { return elems.empty(); }
 
         template <typename... Args>
         auto emplace(Args&&... args) {
@@ -146,6 +157,9 @@ namespace pdaaal {
             }
             return lb;
         }
+
+    private:
+        std::vector<Key> elems;
     };
 
 }

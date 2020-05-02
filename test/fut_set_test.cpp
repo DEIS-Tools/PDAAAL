@@ -110,20 +110,20 @@ BOOST_AUTO_TEST_CASE(Test_fut_set_hash_vecter_tuplemap)
 
     auto res = set.emplace(4,"1",10, std::vector<char>{'a', 'b'});
     BOOST_TEST(res.second);
-    BOOST_CHECK_EQUAL(std::get<0>(res.first->value), 10);
+    BOOST_CHECK_EQUAL(std::get<0>(res.first->second), 10);
     std::vector<char> v1{'a', 'b'};
-    BOOST_CHECK_EQUAL_COLLECTIONS(std::get<1>(res.first->value).begin(), std::get<1>(res.first->value).end(), v1.begin(), v1.end());
+    BOOST_CHECK_EQUAL_COLLECTIONS(std::get<1>(res.first->second).begin(), std::get<1>(res.first->second).end(), v1.begin(), v1.end());
 
     std::vector<char> v2{'c', 'd'};
     res = set.emplace(4,"678",10, v2);
     BOOST_TEST(res.second);
-    BOOST_CHECK_EQUAL(std::get<0>(res.first->value), 10);
-    BOOST_CHECK_EQUAL_COLLECTIONS(std::get<1>(res.first->value).begin(), std::get<1>(res.first->value).end(), v2.begin(), v2.end());
+    BOOST_CHECK_EQUAL(std::get<0>(res.first->second), 10);
+    BOOST_CHECK_EQUAL_COLLECTIONS(std::get<1>(res.first->second).begin(), std::get<1>(res.first->second).end(), v2.begin(), v2.end());
 
     res = set.emplace(4,"1",10, std::vector<char>{'a', 'b'});
     BOOST_TEST(!res.second);
-    BOOST_CHECK_EQUAL(std::get<0>(res.first->value), 10);
-    BOOST_CHECK_EQUAL_COLLECTIONS(std::get<1>(res.first->value).begin(), std::get<1>(res.first->value).end(), v1.begin(), v1.end());
+    BOOST_CHECK_EQUAL(std::get<0>(res.first->second), 10);
+    BOOST_CHECK_EQUAL_COLLECTIONS(std::get<1>(res.first->second).begin(), std::get<1>(res.first->second).end(), v1.begin(), v1.end());
 }
 
 BOOST_AUTO_TEST_CASE(Test_fut_set_hash_vecter_vector_set)
