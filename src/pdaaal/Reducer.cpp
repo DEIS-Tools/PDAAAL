@@ -81,4 +81,133 @@ namespace pdaaal {
         return os != _stack.size();
     }
 
+    bool Reducer::tos_t::active(const Reducer::tos_t &prev, const labels_t &labels) {
+        if (labels.empty()) {
+            return false;
+        }
+        if (labels.wildcard()) {
+            return true;
+        }
+        auto rit = labels.labels().begin();
+        bool match = false;
+        for (auto& s : prev._tos) {
+            while (rit != std::end(labels.labels()) && *rit < s) ++rit;
+            if (rit == std::end(labels.labels())) {
+                break;
+            }
+            if (*rit == s) {
+                match = true;
+                break;
+            }
+        }
+        return match;
+    }
+
+    std::pair<bool, bool>
+    Reducer::tos_t::merge_pop(const Reducer::tos_t &prev, const labels_t &labels, bool dual_stack, size_t all_labels) {
+        if (!active(prev, labels)) {
+            return std::make_pair(false, false);
+        }
+        bool changed = false;
+        bool stack_changed = false;
+        if (!dual_stack) {
+            if (_tos.size() != all_labels) {
+                _tos.resize(all_labels);
+                for (size_t i = 0; i < all_labels; ++i) _tos[i] = i;
+                changed = true;
+            }
+        }
+        else {
+            // move stack->stack
+            stack_changed |= forward_stack(prev, all_labels);
+            // move stack -> TOS
+            if (_tos.size() != all_labels) {
+                if (prev._stack.size() == all_labels) {
+                    changed = true;
+                    _tos = prev._stack;
+                }
+                else {
+                    auto it = _tos.begin();
+                    for (auto s : prev._stack) {
+                        while (it != std::end(_tos) && *it < s) ++it;
+                        if (it != std::end(_tos) && *it == s) continue;
+                        it = _tos.insert(it, s);
+                        changed = true;
+                    }
+                }
+            }
+        }
+        return std::make_pair(changed, stack_changed);
+    }
+
+    std::pair<bool, bool>
+    Reducer::tos_t::merge_noop(const Reducer::tos_t &prev, const labels_t &labels, bool dual_stack, size_t all_labels) {
+        if (labels.empty()) return std::make_pair(false, false);
+        bool changed = false;
+        {
+            auto iit = _tos.begin();
+            for (auto& symbol : labels.wildcard() ? prev._tos : labels.labels()) {
+                while (iit != _tos.end() && *iit < symbol) ++iit;
+                if (iit != _tos.end() && *iit == symbol) {
+                    ++iit;
+                    continue;
+                }
+                changed = true;
+                iit = _tos.insert(iit, symbol);
+                ++iit;
+            }
+        }
+        bool stack_changed = false;
+        if (dual_stack) {
+            stack_changed |= forward_stack(prev, all_labels);
+        }
+        return std::make_pair(changed, stack_changed);
+    }
+
+    std::pair<bool, bool>
+    Reducer::tos_t::merge_swap(const Reducer::tos_t &prev, uint32_t op_label, const labels_t &labels, bool dual_stack,
+                               size_t all_labels) {
+        if (!active(prev, labels))
+            return std::make_pair(false, false); // we know that there is a match!
+        bool changed = false;
+        {
+            auto lb = std::lower_bound(_tos.begin(), _tos.end(), op_label);
+            if (lb == std::end(_tos) || *lb != op_label) {
+                changed = true;
+                _tos.insert(lb, op_label);
+            }
+        }
+        bool stack_changed = false;
+        if (dual_stack) {
+            stack_changed |= forward_stack(prev, all_labels);
+        }
+        return std::make_pair(changed, stack_changed);
+    }
+
+    std::pair<bool, bool>
+    Reducer::tos_t::merge_push(const Reducer::tos_t &prev, uint32_t op_label, const labels_t &labels, bool dual_stack,
+                               size_t all_labels) {
+        // similar to swap!
+        auto changed = merge_swap(prev, op_label, labels, dual_stack, all_labels);
+        if (dual_stack) {
+            // but we also push all TOS labels down
+            if (_stack.size() != all_labels) {
+                if (prev._tos.size() == all_labels) {
+                    changed.second = true;
+                    _stack = prev._tos;
+                }
+                else {
+                    auto it = _stack.begin();
+                    for (auto& s : prev._tos) {
+                        while (it != _stack.end() && *it < s) ++it;
+                        if (it != std::end(_stack) && *it == s) continue;
+                        it = _stack.insert(it, s);
+                        changed.second = true;
+                    }
+                }
+            }
+        }
+        return changed;
+    }
+
 }
