@@ -231,7 +231,7 @@ namespace pdaaal {
 
         template <Trace_Type trace_type = Trace_Type::Any, typename W, typename C, typename A, bool ET = false>
         static bool post_star(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination = [](size_t f, uint32_t l, size_t t) -> bool { return false; }) {
-            static_assert(is_weighted<W> || trace_type != Trace_Type::Shortest, "Cannot do shorste-trace post* for PDA without weights."); // TODO: Consider: W=uin32_t, weight==1 as a default weight.
+            static_assert(is_weighted<W> || trace_type != Trace_Type::Shortest, "Cannot do shortest-trace post* for PDA without weights."); // TODO: Consider: W=uin32_t, weight==1 as a default weight.
             if constexpr (is_weighted<W> && trace_type == Trace_Type::Shortest) {
                 return post_star_shortest<W,C,A,true,ET>(automaton, early_termination);
             } else if constexpr (trace_type == Trace_Type::Any) {
