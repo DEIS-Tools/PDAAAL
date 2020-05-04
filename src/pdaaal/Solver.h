@@ -29,7 +29,6 @@
 
 #include "PAutomaton.h"
 #include "TypedPDA.h"
-#include <boost/dynamic_bitset.hpp>
 
 namespace pdaaal {
 
@@ -219,26 +218,26 @@ namespace pdaaal {
         }
 
         template <Trace_Type trace_type = Trace_Type::Any, typename W, typename C, typename A>
-        static void post_star(PAutomaton<W,C,A> &automaton) {
-            static_assert(is_weighted<W> || trace_type != Trace_Type::Shortest, "Cannot do shorste-trace post* for PDA without weights."); // TODO: Consider: W=uin32_t, weight==1 as a default weight.
-            if constexpr (is_weighted<W> && trace_type == Trace_Type::Shortest) {
-                post_star_shortest<W,C,A,true>(automaton);
-            } else if constexpr (trace_type == Trace_Type::Any) {
-                post_star_any(automaton);
-            } else if constexpr (trace_type == Trace_Type::None) {
-                post_star_any(automaton); // TODO: Implement faster no-trace option.
+        static bool post_star_accepts(PAutomaton<W,C,A> &automaton, size_t state, const std::vector<uint32_t> &stack) {
+            if (stack.size() == 1) {
+                auto s_label = stack[0];
+                return post_star<trace_type,W,C,A,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to) -> bool {
+                    return from == state && label == s_label && automaton.states()[to]->_accepting;
+                });
+            } else {
+                return post_star<trace_type,W,C,A>(automaton) || automaton.accepts(state, stack);
             }
         }
 
-        template <Trace_Type trace_type = Trace_Type::Any, typename W, typename C, typename A>
-        static bool post_star_accepts(PAutomaton<W,C,A> &automaton, size_t state, const std::vector<uint32_t> &stack) {
+        template <Trace_Type trace_type = Trace_Type::Any, typename W, typename C, typename A, bool ET = false>
+        static bool post_star(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination = [](size_t f, uint32_t l, size_t t) -> bool { return false; }) {
             static_assert(is_weighted<W> || trace_type != Trace_Type::Shortest, "Cannot do shorste-trace post* for PDA without weights."); // TODO: Consider: W=uin32_t, weight==1 as a default weight.
             if constexpr (is_weighted<W> && trace_type == Trace_Type::Shortest) {
-                return post_star_shortest_accepts<W,C,A,true>(automaton, state, stack);
+                return post_star_shortest<W,C,A,true,ET>(automaton, early_termination);
             } else if constexpr (trace_type == Trace_Type::Any) {
-                return post_star_any_accepts(automaton, state, stack);
+                return post_star_any<W,C,A,ET>(automaton, early_termination);
             } else if constexpr (trace_type == Trace_Type::None) {
-                return post_star_any_accepts(automaton, state, stack);; // TODO: Implement faster no-trace option.
+                return post_star_any<W,C,A,ET>(automaton, early_termination); // TODO: Implement faster no-trace option.
             }
         }
 
@@ -267,20 +266,8 @@ namespace pdaaal {
         }
 
     private:
-        template <typename W, typename C, typename A, bool Enable, typename = std::enable_if_t<Enable>>
-        static bool post_star_shortest_accepts(PAutomaton<W,C,A> &automaton, size_t state, const std::vector<uint32_t> &stack) {
-            if (stack.size() == 1) {
-                auto s_label = stack[0];
-                return post_star_shortest<W,C,A,true,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to) -> bool {
-                    return from == state && label == s_label && automaton.states()[to]->_accepting;
-                });
-            } else {
-                return post_star_shortest<W,C,A,true>(automaton) || automaton.accepts(state, stack);
-            }
-        }
-
-        template<typename W, typename C, typename A, bool Enable, bool ET = false, typename = std::enable_if_t<Enable>>
-        static bool post_star_shortest(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination = [](size_t f, uint32_t l, size_t t) -> bool { return false; }) {
+        template<typename W, typename C, typename A, bool Enable, bool ET, typename = std::enable_if_t<Enable>>
+        static bool post_star_shortest(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination) {
             static_assert(is_weighted<W>);
             const A add;
             const C less;
@@ -514,20 +501,8 @@ namespace pdaaal {
             return found;
         }
 
-        template <typename W, typename C, typename A>
-        static bool post_star_any_accepts(PAutomaton<W,C,A> &automaton, size_t state, const std::vector<uint32_t> &stack) {
-            if (stack.size() == 1) {
-                auto s_label = stack[0];
-                return post_star_any<W,C,A,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to) -> bool {
-                    return from == state && label == s_label && automaton.states()[to]->_accepting;
-                });
-            } else {
-                return post_star_any<W,C,A>(automaton) || automaton.accepts(state, stack);
-            }
-        }
-
-        template <typename W, typename C, typename A, bool ET = false>
-        static bool post_star_any(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination = [](size_t f, uint32_t l, size_t t) -> bool { return false; }) {
+        template <typename W, typename C, typename A, bool ET>
+        static bool post_star_any(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination) {
             // This is an implementation of Algorithm 2 (figure 3.4) in:
             // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.
             // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 48)
