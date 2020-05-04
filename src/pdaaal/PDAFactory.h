@@ -72,7 +72,9 @@ namespace pdaaal {
     public:
 
         PDAFactory(NFA<T>& prestack, NFA<T>& poststack, std::unordered_set<T>&& all_labels)
-        : _cons_stack(prestack), _des_stack(poststack), _all_labels(all_labels) {
+        : _cons_stack(prestack), _des_stack(poststack), _all_labels(all_labels),
+        _dummy{*_all_labels.begin()} // any label will work as the dummy-label.
+        {
             _cons_stack.compile();
             _des_stack.compile();
         };
@@ -115,7 +117,6 @@ namespace pdaaal {
     protected:
         bool initialize_construction(Temp_PDA& result, std::unordered_set<const nfastate_t*>& seen, std::vector<const nfastate_t*>& waiting) {
             bool has_empty_accept = false;
-            std::vector<T> empty;
             for (auto& i : _cons_stack.initial()) {
                 // We do the first step here.
                 if (i->_accepting) {
@@ -125,7 +126,10 @@ namespace pdaaal {
                     std::vector<nfastate_t*> next{e._destination};
                     NFA<T>::follow_epsilon(next);
                     for (auto n : next) {
-                        result.add_rules(result.initial(), nfa_id(n), PUSH, e._negated, e._symbols, true, empty);
+                        auto temp_id = nfa_id(n, false);
+                        auto next_id = nfa_id(n, true);
+                        result.add_rules(result.initial(), temp_id, PUSH, e._negated, e._symbols, true, _empty);
+                        result.add_rules(temp_id, next_id, PUSH, false, _dummy,  e._negated, e._symbols);
                         if (seen.count(n) == 0) {
                             seen.insert(n);
                             waiting.push_back(n);
@@ -133,12 +137,12 @@ namespace pdaaal {
                         if(n->_accepting)
                         {
                             for (auto s : initial()) {
-                                result.add_rules(result.initial(), s, PUSH, e._negated, e._symbols, true, empty);
+                                result.add_rules(result.initial(), s, PUSH, e._negated, e._symbols, true, _empty);
                             }
                             // we can pass directly to destruction
                             if (empty_accept()) {
                                 for (auto s : _des_stack.initial()) {
-                                    result.add_rules(result.initial(), nfa_id(s), PUSH, e._negated, e._symbols, true, empty);
+                                    result.add_rules(result.initial(), nfa_id(s, false), PUSH, e._negated, e._symbols, true, _empty);
                                 }
                             }                            
                         }
@@ -153,13 +157,15 @@ namespace pdaaal {
                 auto top = waiting.back();
                 waiting.pop_back();
                 // we need to know the set of pre-edges to be able to handle the TOS correctly
-                auto pre = top->prelabels(_all_labels);
-
+                auto tid = nfa_id(top, true);
                 for (auto& e : top->_edges) {
                     std::vector<nfastate_t*> next{e._destination};
                     NFA<T>::follow_epsilon(next);
                     for (auto n : next) {
-                        result.add_rules(nfa_id(top), nfa_id(n), PUSH, e._negated, e._symbols, false, pre);
+                        auto temp_id = nfa_id(n, false);
+                        auto next_id = nfa_id(n, true);
+                        result.add_rules(tid, temp_id, SWAP, e._negated, e._symbols, false, _dummy);
+                        result.add_rules(temp_id, next_id, PUSH, false, _dummy, e._negated, e._symbols);
                         if (seen.count(n) == 0) {
                             seen.insert(n);
                             waiting.push_back(n);
@@ -167,13 +173,12 @@ namespace pdaaal {
                         if(n->_accepting)
                         {
                             for (auto s : initial()) {
-                                auto id = nfa_id(top);
-                                result.add_rules(id, s, PUSH, e._negated, e._symbols, false, pre);
+                                result.add_rules(tid, s, SWAP, e._negated, e._symbols, false, _dummy);
                             }
                             // we can pass directly to destruction
                             if (empty_accept()) {
                                 for (auto s : _des_stack.initial()) {
-                                    result.add_rules(nfa_id(top), nfa_id(s), PUSH, e._negated, e._symbols, false, pre);
+                                    result.add_rules(tid, nfa_id(s, false), PUSH, e._negated, e._symbols, false, _dummy);
                                 }
                             }                            
                         }
@@ -243,7 +248,7 @@ namespace pdaaal {
                         std::vector<nfastate_t*> next{e._destination};
                         NFA<T>::follow_epsilon(next);
                         for (auto n : next) {
-                            result.add_rule(a, nfa_id(n), POP, none, e._negated, e._symbols);
+                            result.add_rule(a, nfa_id(n, false), POP, none, e._negated, e._symbols);
                         }
                     }
                 }                
@@ -259,13 +264,13 @@ namespace pdaaal {
                 auto top = waiting_next.back();
                 waiting_next.pop_back();
                 if (top->_accepting) {
-                    result.add_rule(nfa_id(top), result.terminal(), NOOP, none, true, empty);
+                    result.add_rule(nfa_id(top, false), result.terminal(), NOOP, none, true, empty);
                 }
                 for (auto& e : top->_edges) {
                     std::vector<nfastate_t*> next{e._destination};
                     NFA<T>::follow_epsilon(next);
                     for (auto n : next) {
-                        result.add_rule(nfa_id(top), nfa_id(n), POP, none, e._negated, e._symbols);
+                        result.add_rule(nfa_id(top, false), nfa_id(n, false), POP, none, e._negated, e._symbols);
                         if (seen_next.count(n) == 0) {
                             waiting_next.push_back(n);
                             seen_next.insert(n);
@@ -281,9 +286,15 @@ namespace pdaaal {
         virtual std::vector<rule_t> rules(size_t) = 0;
 
     protected:
-        size_t nfa_id(const nfastate_t* state)
+        size_t nfa_id(const nfastate_t* state, bool has_dummy_tos)
         {
-            auto id = _ptr_to_state.insert(state);
+            size_t val = (size_t)state;
+            // yes yes, we should make a grand structure for this... OOOR, we use the first bit
+            // which is never set, cause everything is (at least) base2 aligned.
+            val &= ~(size_t)1;
+            if(has_dummy_tos)
+                val |= 1;
+            auto id = _ptr_to_state.insert(val);
             if(id.first)
             {
                 size_t nid = _nfamap.size() + _num_pda_states;
@@ -297,9 +308,12 @@ namespace pdaaal {
         std::unordered_set<T> _all_labels;
         size_t _num_pda_states = 0;
         std::vector<const nfastate_t*> _nfamap;
-        ptrie::map<const nfastate_t*, size_t> _ptr_to_state;
+        ptrie::map<size_t, size_t> _ptr_to_state;
     private:
-
+        // dummies used under construction, could be done
+        // in a nicer way
+        const std::vector<T> _dummy;
+        const std::vector<T> _empty = std::vector<T>{};
     };
 }
 
