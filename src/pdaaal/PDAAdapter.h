@@ -31,24 +31,14 @@
 
 namespace pdaaal {
 
-    template<typename T, typename W = void, typename C = std::less<W>>
-    class TempPDAAdapter : public TempTypedPDA<T,W,C> {
+    template<typename T, typename W = void, typename C = std::less<W>, fut::type Container = fut::type::vector>
+    class PDAAdapter : public TypedPDA<T,W,C,Container> {
     public:
-        explicit TempPDAAdapter(const std::unordered_set<T> &all_labels) : TempTypedPDA<T,W,C>{all_labels} {};
-        [[nodiscard]] size_t initial() const { return 1; }
-        [[nodiscard]] const std::vector<uint32_t>& initial_stack() const { return _initial_stack; }
-        [[nodiscard]] size_t terminal() const { return 0; }
-    private:
-        const std::vector<uint32_t> _initial_stack{std::numeric_limits<uint32_t>::max() - 2}; // std::numeric_limits<uint32_t>::max() is reserved for epsilon transitions (and max-1 for a flag in trace_t).
-    };
+        template<fut::type OtherContainer>
+        explicit PDAAdapter(PDAAdapter<T,W,C,OtherContainer>&& other_pda) : TypedPDA<T,W,C,Container>(std::move(other_pda)) {}
+        explicit PDAAdapter(const std::unordered_set<T> &all_labels) : TypedPDA<T,W,C,Container>{all_labels} {};
 
-    template<typename T, typename W = void, typename C = std::less<W>>
-    class PDAAdapter : public TypedPDA<T,W,C> {
-    public:
-        explicit PDAAdapter(TempPDAAdapter<T,W,C>&& temp_pda) : TypedPDA<T,W,C>(std::move(temp_pda)) {};
-        explicit PDAAdapter(const std::unordered_set<T> &all_labels) : TypedPDA<T,W,C>{all_labels} {};
-
-        using state_t = typename TypedPDA<T,W,C>::template PDA<W,C>::state_t;
+        using state_t = typename TypedPDA<T,W,C,Container>::template PDA<W,C,Container>::state_t;
 
         [[nodiscard]] size_t initial() const { return 1; }
         [[nodiscard]] const std::vector<uint32_t>& initial_stack() const { return _initial_stack; }
@@ -61,9 +51,9 @@ namespace pdaaal {
                     s._pre_states.emplace_back(initial());
                 }
             }
-            for (auto& r : this->states_mutable()[initial()]._rules) {
-                r._labels.clear();
-                r._labels.merge(false, _initial_stack, std::numeric_limits<size_t>::max());
+            for (auto& [r,labels] : this->states_mutable()[initial()]._rules) {
+                labels.clear();
+                labels.merge(false, _initial_stack, std::numeric_limits<size_t>::max());
             }
         }
 

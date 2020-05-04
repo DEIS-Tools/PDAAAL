@@ -78,3 +78,15 @@ BOOST_AUTO_TEST_CASE(LabelsMerge)
     std::vector<uint32_t> res_labels{1,2,5,6,7,9,11,12,13,15};
     BOOST_CHECK_EQUAL_COLLECTIONS(labels.labels().begin(), labels.labels().end(), res_labels.begin(), res_labels.end());
 }
+
+BOOST_AUTO_TEST_CASE(PDA_Container_Type) {
+    std::unordered_set<char> labels{'A', 'B'};
+    TypedPDA<char,int,std::less<int>,fut::type::hash> pda(labels);
+    pda.add_rule(0, 1, PUSH, 'B', false, 'A');
+
+    TypedPDA<char,int> pda2(std::move(pda));
+
+    pda2.add_rule(1, 3, SWAP, 'A', false, 'B');
+
+    BOOST_CHECK_EQUAL(true, true);
+}
