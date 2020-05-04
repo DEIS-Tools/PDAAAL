@@ -128,22 +128,22 @@ namespace pdaaal {
             };
 
             // workset := ->_0  (line 1)
-            for (auto &from : automaton.states()) {
-                for (auto &edge : from->_edges) {
-                    for (auto &label : edge._labels) {
-                        insert_edge(from->_id, label._label, edge._to->_id, nullptr);
+            for (const auto &from : automaton.states()) {
+                for (const auto &[to,labels] : from->_edges) {
+                    for (const auto &[label,_] : labels) {
+                        insert_edge(from->_id, label, to, nullptr);
                     }
                 }
             }
 
             // for all <p, y> --> <p', epsilon> : workset U= (p, y, p') (line 2)
             for (size_t state = 0; state < n_pda_states; ++state) {
-                const auto &rules = pda_states[state]._rules;
-                for (size_t rule_id = 0; rule_id < rules.size(); ++rule_id) {
-                    auto &rule = rules[rule_id];
+                size_t rule_id = 0;
+                for (const auto&[rule,labels] : pda_states[state]._rules) {
                     if (rule._operation == POP) {
-                        insert_edge_bulk(state, rule._labels, rule._to, automaton.new_pre_trace(rule_id));
+                        insert_edge_bulk(state, labels, rule._to, automaton.new_pre_trace(rule_id));
                     }
+                    ++rule_id;
                 }
             }
 
@@ -168,7 +168,7 @@ namespace pdaaal {
                 for (auto pair : delta_prime[t._from]) { // Loop over delta_prime (that match with t->from)
                     auto state = pair.first;
                     auto rule_id = pair.second;
-                    if (pda_states[state]._rules[rule_id]._labels.contains(t._label)) {
+                    if (pda_states[state]._rules[rule_id].second.contains(t._label)) {
                         insert_edge(state, t._label, t._to, automaton.new_pre_trace(rule_id, t._from));
                     }
                 }
@@ -176,10 +176,9 @@ namespace pdaaal {
                 if (t._from >= n_pda_states) { continue; }
                 for (auto pre_state : pda_states[t._from]._pre_states) {
                     const auto &rules = pda_states[pre_state]._rules;
-                    rule_t<W,C> dummy_rule{t._from};
-                    auto lb = std::lower_bound(rules.begin(), rules.end(), dummy_rule);
-                    while (lb != rules.end() && lb->_to == t._from) {
-                        auto &rule = *lb;
+                    auto lb = rules.lower_bound(rule_t<W,C>{t._from});
+                    while (lb != rules.end() && lb->first._to == t._from) {
+                        const auto &[rule, labels] = *lb;
                         size_t rule_id = lb - rules.begin();
                         ++lb;
                         switch (rule._operation) {
@@ -187,11 +186,11 @@ namespace pdaaal {
                                 break;
                             case SWAP: // (line 7-8 for \Delta)
                                 if (rule._op_label == t._label) {
-                                    insert_edge_bulk(pre_state, rule._labels, t._to, automaton.new_pre_trace(rule_id));
+                                    insert_edge_bulk(pre_state, labels, t._to, automaton.new_pre_trace(rule_id));
                                 }
                                 break;
                             case NOOP: // (line 7-8 for \Delta)
-                                if (rule._labels.contains(t._label)) {
+                                if (labels.contains(t._label)) {
                                     insert_edge(pre_state, t._label, t._to, automaton.new_pre_trace(rule_id));
                                 }
                                 break;
@@ -201,7 +200,7 @@ namespace pdaaal {
                                     delta_prime[t._to].emplace_back(pre_state, rule_id);
                                     const trace_t *trace = nullptr;
                                     for (auto rel_rule : rel[t._to]) { // (line 11-12)
-                                        if (rule._labels.contains(rel_rule.second)) {
+                                        if (labels.contains(rel_rule.second)) {
                                             trace = trace == nullptr ? automaton.new_pre_trace(rule_id, t._to) : trace;
                                             insert_edge(pre_state, rel_rule.second, rel_rule.first, trace);
                                         }
@@ -296,8 +295,8 @@ namespace pdaaal {
             // for <p, y> -> <p', y1 y2> do
             //   Q' U= {q_p'y1}
             std::unordered_map<std::pair<size_t, uint32_t>, size_t, boost::hash<std::pair<size_t, uint32_t>>> q_prime{};
-            for (auto &state : pda_states) {
-                for (auto &rule : state._rules) {
+            for (const auto &state : pda_states) {
+                for (const auto &[rule,labels] : state._rules) {
                     if (rule._operation == PUSH) {
                         auto res = q_prime.emplace(std::make_pair(rule._to, rule._op_label), automaton.next_state_id());
                         if (res.second) {
@@ -378,15 +377,15 @@ namespace pdaaal {
             // workset := ->_0 intersect (P x Gamma x Q)
             // rel := ->_0 \ workset
             for (auto &from : automaton.states()) {
-                for (auto &edge : from->_edges) {
-                    assert(!edge.has_epsilon()); // PostStar algorithm assumes no epsilon transitions in the NFA.
-                    for (auto &label : edge._labels) {
-                        temp_edge_t temp_edge{from->_id, label._label, edge._to->_id};
+                for (auto &[to,labels] : from->_edges) {
+                    assert(!labels.contains(epsilon)); // PostStar algorithm assumes no epsilon transitions in the NFA.
+                    for (auto &[label,_] : labels) {
+                        temp_edge_t temp_edge{from->_id, label, to};
                         edge_weights.emplace(temp_edge, std::make_pair(zero<W>()(), zero<W>()()));
                         if (from->_id < n_pda_states) {
                             workset.emplace(zero<W>()(), temp_edge, nullptr);
                         } else {
-                            insert_rel(from->_id, label._label, edge._to->_id);
+                            insert_rel(from->_id, label, to);
                         }
                     }
                 }
@@ -420,8 +419,8 @@ namespace pdaaal {
                 if (t._label != epsilon) {
                     const auto &rules = pda_states[t._from]._rules;
                     for (size_t rule_id = 0; rule_id < rules.size(); ++rule_id) {
-                        auto &rule = rules[rule_id];
-                        if (!rule._labels.contains(t._label)) { continue; }
+                        const auto &[rule,labels] = rules[rule_id];
+                        if (!labels.contains(t._label)) { continue; }
                         auto trace = automaton.new_post_trace(t._from, rule_id, t._label);
                         auto wd = add(elem.weight, rule._weight);
                         auto wb = add(t_weight, rule._weight);
@@ -514,7 +513,7 @@ namespace pdaaal {
             //   Q' U= {q_p'y1}              (line 4)
             std::unordered_map<std::pair<size_t, uint32_t>, size_t, boost::hash<std::pair<size_t, uint32_t>>> q_prime{};
             for (auto &state : pda_states) {
-                for (auto &rule : state._rules) {
+                for (auto &[rule, labels] : state._rules) {
                     if (rule._operation == PUSH) {
                         auto res = q_prime.emplace(std::make_pair(rule._to, rule._op_label), automaton.next_state_id());
                         if (res.second) {
@@ -558,11 +557,11 @@ namespace pdaaal {
 
             // workset := ->_0 intersect (P x Gamma x Q)  (line 1)
             // rel := ->_0 \ workset (line 2)
-            for (auto &from : automaton.states()) {
-                for (auto &edge : from->_edges) {
-                    assert(!edge.has_epsilon()); // PostStar algorithm assumes no epsilon transitions in the NFA.
-                    for (auto &label : edge._labels) {
-                        insert_edge(from->_id, label._label, edge._to->_id, nullptr, from->_id >= n_pda_states);
+            for (const auto &from : automaton.states()) {
+                for (const auto &[to,labels] : from->_edges) {
+                    assert(!labels.contains(epsilon)); // PostStar algorithm assumes no epsilon transitions in the NFA.
+                    for (const auto &[label,_] : labels) {
+                        insert_edge(from->_id, label, to, nullptr, from->_id >= n_pda_states);
                     }
                 }
             }
@@ -588,8 +587,8 @@ namespace pdaaal {
                 if (t._label != epsilon) {
                     const auto &rules = pda_states[t._from]._rules;
                     for (size_t rule_id = 0; rule_id < rules.size(); ++rule_id) {
-                        auto &rule = rules[rule_id];
-                        if (!rule._labels.contains(t._label)) { continue; }
+                        const auto &[rule,labels] = rules[rule_id];
+                        if (!labels.contains(t._label)) { continue; }
                         auto trace = automaton.new_post_trace(t._from, rule_id, t._label);
                         switch (rule._operation) {
                             case POP: // (line 10-11)
@@ -667,7 +666,7 @@ namespace pdaaal {
 
                 if (trace_label->is_pre_trace()) {
                     // pre* trace
-                    auto &rule = automaton.pda().states()[from]._rules[trace_label->_rule_id];
+                    const auto &[rule,labels] = automaton.pda().states()[from]._rules[trace_label->_rule_id];
                     switch (rule._operation) {
                         case POP:
                             break;
@@ -693,7 +692,7 @@ namespace pdaaal {
 
                 } else {
                     // post* trace
-                    auto &rule = automaton.pda().states()[trace_label->_state]._rules[trace_label->_rule_id];
+                    const auto &[rule, labels] = automaton.pda().states()[trace_label->_state]._rules[trace_label->_rule_id];
                     switch (rule._operation) {
                         case POP:
                         case SWAP:

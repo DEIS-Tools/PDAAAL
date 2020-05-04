@@ -29,6 +29,7 @@
 #define PDAAAL_PDA_H
 
 #include "Weight.h"
+#include "fut_set.h"
 
 #include <cinttypes>
 #include <vector>
@@ -95,7 +96,6 @@ namespace pdaaal {
         size_t _to = 0;
         op_t _operation = PUSH;
         uint32_t _op_label = 0;
-        mutable labels_t _labels;
 
         bool operator<(const rule_t<W, C> &other) const {
             if (_to != other._to)
@@ -112,8 +112,9 @@ namespace pdaaal {
         bool operator!=(const rule_t<W, C> &other) const {
             return !(*this == other);
         }
+
         struct hasher {
-            size_t operator()(const pdaaal::rule_t<W,C>& rule) const {
+            size_t operator()(const pdaaal::rule_t<W, C> &rule) const noexcept {
                 size_t seed = 0;
                 boost::hash_combine(seed, rule._to);
                 boost::hash_combine(seed, rule._op_label);
@@ -129,7 +130,6 @@ namespace pdaaal {
         op_t _operation = PUSH;
         W _weight = zero<W>()();
         uint32_t _op_label = 0;
-        mutable labels_t _labels;
 
         bool operator<(const rule_t<W, C> &other) const {
             if (_to != other._to)
@@ -150,8 +150,9 @@ namespace pdaaal {
         bool operator!=(const rule_t<W, C> &other) const {
             return !(*this == other);
         }
+
         struct hasher {
-            size_t operator()(const pdaaal::rule_t<W,C>& rule) const {
+            size_t operator()(const pdaaal::rule_t<W, C> &rule) const noexcept {
                 size_t seed = 0;
                 boost::hash_combine(seed, rule._to);
                 boost::hash_combine(seed, rule._op_label);
@@ -161,73 +162,39 @@ namespace pdaaal {
             }
         };
     };
+}
 
-    template <typename W, typename C>
-    class TempPDA {
-    public:
-        struct state_t {
-            std::unordered_set<rule_t<W,C>, typename rule_t<W,C>::hasher> _rules;
-            std::vector<size_t> _pre_states;
-        };
-
-    public:
-        [[nodiscard]] virtual size_t number_of_labels() const = 0;
-        std::vector<state_t> move_states() {
-            return std::move(_states);
+namespace std {
+    template<typename W, typename C>
+    struct hash<pdaaal::rule_t<W, C>> {
+        size_t operator()(const pdaaal::rule_t<W,C>& rule) const noexcept {
+            typename pdaaal::rule_t<W,C>::hasher hasher;
+            return hasher(rule);
         }
-
-    protected:
-        // Handle both weighted and unweighted rules appropriately.
-        template <typename... Args>
-        void add_untyped_rule(Args&&... args) {
-            add_untyped_rule_<W>(std::forward<Args>(args)...);
-        }
-        void add_untyped_rule_impl(size_t from, rule_t<W,C> r, bool negated, const std::vector<uint32_t>& pre) {
-            auto mm = std::max(from, r._to);
-            if (mm >= _states.size()) {
-                _states.resize(mm + 1);
-            }
-
-            auto rule = _states[from]._rules.emplace(r);
-            rule.first->_labels.merge(negated, pre, number_of_labels());
-            auto& prestates = _states[r._to]._pre_states;
-            auto lpre = std::lower_bound(prestates.begin(), prestates.end(), from);
-            if (lpre == std::end(prestates) || *lpre != from) {
-                prestates.insert(lpre, from);
-            }
-        }
-
-    private:
-        template <typename WT, typename = std::enable_if_t<!is_weighted<WT>>>
-        void add_untyped_rule_(size_t from, size_t to, op_t op, uint32_t label, bool negated, const std::vector<uint32_t>& pre) {
-            add_untyped_rule_impl(from, {to, op, label}, negated, pre);
-        }
-        template <typename WT, typename = std::enable_if_t<is_weighted<WT>>>
-        void add_untyped_rule_(size_t from, size_t to, op_t op, uint32_t label, WT weight, bool negated, const std::vector<uint32_t>& pre) {
-            add_untyped_rule_impl(from, {to, op, weight, label}, negated, pre);
-        }
-
-        std::vector<state_t> _states;
     };
+}
 
-    template <typename W, typename C>
+namespace pdaaal {
+
+    template <typename W, typename C, fut::type Container = fut::type::vector>
     class PDA {
     public:
         struct state_t {
-            std::vector<rule_t<W,C>> _rules;
+            fut::set<std::tuple<rule_t<W,C>,labels_t>,Container> _rules;
             std::vector<size_t> _pre_states;
-            explicit state_t(typename TempPDA<W,C>::state_t&& temp_state)
-                    : _rules(std::make_move_iterator(temp_state._rules.begin()), std::make_move_iterator(temp_state._rules.end())),
-                      _pre_states(std::move(temp_state._pre_states)) {
-                std::sort(_rules.begin(), _rules.end());
-            }
+            explicit state_t(typename PDA<W,C,fut::type::hash>::state_t&& other_state)
+                    : _rules(std::move(other_state._rules)), _pre_states(std::move(other_state._pre_states)) {}
             state_t() = default;
         };
 
     public:
-        explicit PDA(std::vector<typename TempPDA<W,C>::state_t>&& temp_states)
-        : _states(std::make_move_iterator(temp_states.begin()), std::make_move_iterator(temp_states.end())) {};
+        template<fut::type OtherContainer>
+        explicit PDA(PDA<W,C,OtherContainer>&& other_pda)
+                : _states(std::make_move_iterator(other_pda.states_begin()), std::make_move_iterator(other_pda.states_end())) {}
         PDA() = default;
+
+        auto states_begin() noexcept { return _states.begin(); }
+        auto states_end() noexcept { return _states.end(); }
 
         [[nodiscard]] virtual size_t number_of_labels() const = 0;
         const std::vector<state_t>& states() const {
@@ -242,7 +209,7 @@ namespace pdaaal {
                 auto rit = _states[p]._rules.begin();
                 auto wit = rit;
                 for (; rit != std::end(_states[p]._rules); ++rit) {
-                    if (rit->_to != s) {
+                    if (rit->first._to != s) {
                         if (wit != rit)
                             *wit = *rit;
                         ++wit;
@@ -266,12 +233,9 @@ namespace pdaaal {
                 _states.resize(mm + 1);
             }
 
-            auto& rules = _states[from]._rules;
-            auto lb = std::lower_bound(rules.begin(), rules.end(), r);
-            if (lb == std::end(rules) || *lb != r) {
-                lb = rules.insert(lb, r);
-            }
-            lb->_labels.merge(negated, pre, number_of_labels());
+            auto [it,succeed] = _states[from]._rules.emplace(r, labels_t{});
+            it->second.merge(negated, pre, number_of_labels());
+
             auto& prestates = _states[r._to]._pre_states;
             auto lpre = std::lower_bound(prestates.begin(), prestates.end(), from);
             if (lpre == std::end(prestates) || *lpre != from) {
