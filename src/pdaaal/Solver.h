@@ -72,24 +72,40 @@ namespace pdaaal {
             }
         };
 
+        using early_termination_fn = std::function<bool(size_t,uint32_t,size_t)>;
+
     public:
-        // TODO: Implement early termination versions.
-        // bool _pre_star_accepts(size_t state, const std::vector<uint32_t> &stack);
-        // bool _post_star_accepts(size_t state, const std::vector<uint32_t> &stack);
 
         template <typename W, typename C, typename A>
-        static void pre_star(PAutomaton<W,C,A> &automaton) {
+        static bool pre_star_accepts(PAutomaton<W,C,A> &automaton, size_t state, const std::vector<uint32_t> &stack) {
+            if (stack.size() == 1) {
+                auto s_label = stack[0];
+                return pre_star<W,C,A,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to) -> bool {
+                    return from == state && label == s_label && automaton.states()[to]->_accepting;
+                });
+            } else {
+                return pre_star<W,C,A>(automaton) || automaton.accepts(state, stack);
+            }
+        }
+
+        template <typename W, typename C, typename A, bool ET=false>
+        static bool pre_star(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination = [](size_t f, uint32_t l, size_t t) -> bool { return false; }) {
             // This is an implementation of Algorithm 1 (figure 3.3) in:
             // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.
             // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 42)
-            auto& pda_states = automaton.pda().states();
-            const size_t n_pda_states = pda_states.size();
+            const auto& pda_states = automaton.pda().states();
+            const auto n_pda_states = pda_states.size();
+            const auto n_automaton_states = automaton.states().size();
 
             std::unordered_set<temp_edge_t, temp_edge_hasher> edges;
             std::stack<temp_edge_t> workset;
-            std::vector<std::vector<std::pair<size_t,uint32_t>>> rel(automaton.states().size());
+            std::vector<std::vector<std::pair<size_t,uint32_t>>> rel(n_automaton_states);
 
-            auto insert_edge = [&edges, &workset, &automaton](size_t from, uint32_t label, size_t to, const trace_t *trace) {
+            bool found = false;
+            const auto insert_edge = [&found, &early_termination, &edges, &workset, &automaton](size_t from, uint32_t label, size_t to, const trace_t *trace) {
+                if constexpr (ET) {
+                    found = found || early_termination(from, label, to);
+                }
                 auto res = edges.emplace(from, label, to);
                 if (res.second) { // New edge is not already in edges (rel U workset).
                     workset.emplace(from, label, to);
@@ -98,8 +114,8 @@ namespace pdaaal {
                     }
                 }
             };
-            const size_t n_pda_labels = automaton.number_of_labels();
-            auto insert_edge_bulk = [&insert_edge, n_pda_labels](size_t from, const labels_t &precondition, size_t to, const trace_t *trace) {
+            const auto n_pda_labels = automaton.number_of_labels();
+            const auto insert_edge_bulk = [&insert_edge, n_pda_labels](size_t from, const labels_t &precondition, size_t to, const trace_t *trace) {
                 if (precondition.wildcard()) {
                     for (uint32_t i = 0; i < n_pda_labels; i++) {
                         insert_edge(from, i, to, trace);
@@ -133,9 +149,15 @@ namespace pdaaal {
 
             // delta_prime[q] = [p,rule_id]    where states[p]._rules[rule_id]._labels.contains(y)    for each p, rule_id
             // corresponds to <p, y> --> <q, y>   (the y is the same, since we only have PUSH and not arbitrary <p, y> --> <q, y1 y2>, i.e. y==y2)
-            std::vector<std::vector<std::pair<size_t, size_t>>> delta_prime(automaton.states().size());
+            std::vector<std::vector<std::pair<size_t, size_t>>> delta_prime(n_automaton_states);
 
             while (!workset.empty()) { // (line 3)
+                if constexpr (ET) {
+                    if (found) {
+                        return true;
+                    }
+                }
+
                 // pop t = (q, y, q') from workset (line 4)
                 auto t = workset.top();
                 workset.pop();
@@ -176,9 +198,11 @@ namespace pdaaal {
                                 if (rule._op_label == t._label) {
                                     // (line 10)
                                     delta_prime[t._to].emplace_back(pre_state, rule_id);
+                                    const trace_t *trace = nullptr;
                                     for (auto rel_rule : rel[t._to]) { // (line 11-12)
                                         if (labels.contains(rel_rule.second)) {
-                                            insert_edge(pre_state, rel_rule.second, rel_rule.first, automaton.new_pre_trace(rule_id, t._to));
+                                            trace = trace == nullptr ? automaton.new_pre_trace(rule_id, t._to) : trace;
+                                            insert_edge(pre_state, rel_rule.second, rel_rule.first, trace);
                                         }
                                     }
                                 }
@@ -189,17 +213,30 @@ namespace pdaaal {
                     }
                 }
             }
+            return false;
         }
 
         template <Trace_Type trace_type = Trace_Type::Any, typename W, typename C, typename A>
-        static void post_star(PAutomaton<W,C,A> &automaton) {
-            static_assert(is_weighted<W> || trace_type != Trace_Type::Shortest, "Cannot do shorste-trace post* for PDA without weights."); // TODO: Consider: W=uin32_t, weight==1 as a default weight.
+        static bool post_star_accepts(PAutomaton<W,C,A> &automaton, size_t state, const std::vector<uint32_t> &stack) {
+            if (stack.size() == 1) {
+                auto s_label = stack[0];
+                return post_star<trace_type,W,C,A,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to) -> bool {
+                    return from == state && label == s_label && automaton.states()[to]->_accepting;
+                });
+            } else {
+                return post_star<trace_type,W,C,A>(automaton) || automaton.accepts(state, stack);
+            }
+        }
+
+        template <Trace_Type trace_type = Trace_Type::Any, typename W, typename C, typename A, bool ET = false>
+        static bool post_star(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination = [](size_t f, uint32_t l, size_t t) -> bool { return false; }) {
+            static_assert(is_weighted<W> || trace_type != Trace_Type::Shortest, "Cannot do shortest-trace post* for PDA without weights."); // TODO: Consider: W=uin32_t, weight==1 as a default weight.
             if constexpr (is_weighted<W> && trace_type == Trace_Type::Shortest) {
-                post_star_shortest<W,C,A,true>(automaton);
+                return post_star_shortest<W,C,A,true,ET>(automaton, early_termination);
             } else if constexpr (trace_type == Trace_Type::Any) {
-                post_star_any(automaton);
+                return post_star_any<W,C,A,ET>(automaton, early_termination);
             } else if constexpr (trace_type == Trace_Type::None) {
-                post_star_any(automaton); // TODO: Implement faster no-trace option.
+                return post_star_any<W,C,A,ET>(automaton, early_termination); // TODO: Implement faster no-trace option.
             }
         }
 
@@ -228,19 +265,12 @@ namespace pdaaal {
         }
 
     private:
-        template<typename W, typename C, typename A, bool E, typename = std::enable_if_t<E>>
-        static void post_star_shortest(PAutomaton<W,C,A> &automaton) {
+        template<typename W, typename C, typename A, bool Enable, bool ET, typename = std::enable_if_t<Enable>>
+        static bool post_star_shortest(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination) {
             static_assert(is_weighted<W>);
             const A add;
             const C less;
 
-            using weight_edge_pair = std::pair<W, temp_edge_t>;
-            struct weight_edge_pair_comp{
-                bool operator()(const weight_edge_pair &lhs, const weight_edge_pair &rhs){
-                    const C less;
-                    return less(rhs.first, lhs.first); // Used in a max-heap, so swap arguments to make it a min-heap.
-                }
-            };
             struct weight_edge_trace {
                 W weight;
                 temp_edge_t edge;
@@ -258,9 +288,9 @@ namespace pdaaal {
             // This is an implementation of Algorithm 2 (figure 3.4) in:
             // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.
             // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 48)
-            auto & pda_states = automaton.pda().states();
-            auto n_pda_states = pda_states.size();
-            auto n_Q = automaton.states().size();
+            const auto & pda_states = automaton.pda().states();
+            const auto n_pda_states = pda_states.size();
+            const auto n_Q = automaton.states().size();
 
             // for <p, y> -> <p', y1 y2> do
             //   Q' U= {q_p'y1}
@@ -275,7 +305,7 @@ namespace pdaaal {
                     }
                 }
             }
-            auto n_automata_states = automaton.states().size();
+            const auto n_automata_states = automaton.states().size();
             std::vector<W> minpath(n_automata_states - n_Q);
             for (size_t i = 0; i < minpath.size(); ++i) {
                 minpath[i] = pdaaal::max<W>()();
@@ -304,7 +334,7 @@ namespace pdaaal {
             };
             std::vector<std::vector<rel3_elem>> rel3(n_automata_states - n_Q);
 
-            auto update_edge_ = [&edge_weights](size_t from, uint32_t label, size_t to, W edge_weight, W workset_weight) -> std::pair<bool,bool> {
+            const auto update_edge_ = [&edge_weights](size_t from, uint32_t label, size_t to, W edge_weight, W workset_weight) -> std::pair<bool,bool> {
                 auto res = edge_weights.emplace(temp_edge_t{from, label, to}, std::make_pair(edge_weight, workset_weight));
                 if (!res.second) {
                     C less;
@@ -321,17 +351,23 @@ namespace pdaaal {
                 }
                 return std::make_pair(res.second, res.second);
             };
-            auto update_edge = [n_Q, &minpath, &workset, &update_edge_, &add](size_t from, uint32_t label, size_t to, W edge_weight, const trace_t* trace) {
+            const auto update_edge = [n_Q, &minpath, &workset, &update_edge_, &add](size_t from, uint32_t label, size_t to, W edge_weight, const trace_t* trace) {
                 auto workset_weight = to < n_Q ? edge_weight : add(minpath[to - n_Q], edge_weight);
                 if (update_edge_(from, label, to, edge_weight, workset_weight).second) {
                     workset.emplace(workset_weight, temp_edge_t{from, label, to}, trace);
                 }
             };
-            auto get_weight = [&edge_weights](size_t from, uint32_t label, size_t to) -> W {
+            const auto get_weight = [&edge_weights](size_t from, uint32_t label, size_t to) -> W {
                 return (*edge_weights.find(temp_edge_t{from, label, to})).second.first;
             };
-            // Adds to rel and inserts into the PAutomaton including the trace.
-            auto insert_rel = [&rel1, &rel2, n_Q](size_t from, uint32_t label, size_t to){
+
+            bool found = false;
+
+            // Adds to rel.
+            const auto insert_rel = [&found, &early_termination, &rel1, &rel2, n_Q](size_t from, uint32_t label, size_t to){
+                if constexpr (ET) {
+                    found = found || early_termination(from, label, to);
+                }
                 rel1[from].emplace_back(to, label);
                 if (label == epsilon && to >= n_Q) {
                     rel2[to - n_Q].push_back(from);
@@ -356,6 +392,11 @@ namespace pdaaal {
             }
 
             while (!workset.empty()) {
+                if constexpr (ET) {
+                    if (found) {
+                        break;
+                    }
+                }
                 // pop t = (q, y, q') from workset
                 auto elem = workset.top();
                 workset.pop();
@@ -421,21 +462,30 @@ namespace pdaaal {
                                     workset.emplace(wd, temp_edge_t{rule._to, rule._op_label, q_new}, trace);
                                 }
                             } else if (was_updated) {
-                                for (auto f : rel2[q_new - n_Q]) {
-                                    update_edge(f, t._label, t._to, add(get_weight(f, epsilon, q_new), wb), automaton.new_post_trace(q_new));
+                                if (!rel2[q_new - n_Q].empty()) {
+                                    auto trace_q_new = automaton.new_post_trace(q_new);
+                                    for (auto f : rel2[q_new - n_Q]) {
+                                        update_edge(f, t._label, t._to, add(get_weight(f, epsilon, q_new), wb), trace_q_new);
+                                    }
                                 }
                             }
                         }
                     }
                 } else {
                     if (t._to < n_Q) {
-                        for (auto e : rel1[t._to]) {
-                            assert(e.first >= n_pda_states);
-                            update_edge(t._from, e.second, e.first, add(get_weight(t._to, e.second, e.first), t_weight), automaton.new_post_trace(t._to));
+                        if (!rel1[t._to].empty()) {
+                            auto trace = automaton.new_post_trace(t._to);
+                            for (auto e : rel1[t._to]) {
+                                assert(e.first >= n_pda_states);
+                                update_edge(t._from, e.second, e.first, add(get_weight(t._to, e.second, e.first), t_weight), trace);
+                            }
                         }
                     } else {
-                        for (auto &e : rel3[t._to - n_Q]) {
-                            update_edge(t._from, e._label, e._to, add(get_weight(t._to, e._label, e._to), t_weight), automaton.new_post_trace(t._to));
+                        if (!rel3[t._to - n_Q].empty()) {
+                            auto trace = automaton.new_post_trace(t._to);
+                            for (auto &e : rel3[t._to - n_Q]) {
+                                update_edge(t._from, e._label, e._to, add(get_weight(t._to, e._label, e._to), t_weight), trace);
+                            }
                         }
                     }
                 }
@@ -447,15 +497,17 @@ namespace pdaaal {
                     automaton.add_edge(i, e._to, e._label, std::make_pair(e._trace, e._weight));
                 }
             }
+            return found;
         }
 
-        template<typename W, typename C, typename A>
-        static void post_star_any(PAutomaton<W,C,A> &automaton) {
+        template <typename W, typename C, typename A, bool ET>
+        static bool post_star_any(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination) {
             // This is an implementation of Algorithm 2 (figure 3.4) in:
             // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.
             // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 48)
-            auto & pda_states = automaton.pda().states();
-            auto n_pda_states = pda_states.size();
+            const auto & pda_states = automaton.pda().states();
+            const auto n_pda_states = pda_states.size();
+            const auto n_Q = automaton.states().size();
 
             // for <p, y> -> <p', y1 y2> do  (line 3)
             //   Q' U= {q_p'y1}              (line 4)
@@ -470,19 +522,25 @@ namespace pdaaal {
                     }
                 }
             }
+            const auto n_automata_states = automaton.states().size();
 
             std::unordered_set<temp_edge_t, temp_edge_hasher> edges;
             std::stack<temp_edge_t> workset;
-            std::vector<std::vector<std::pair<size_t,uint32_t>>> rel1(automaton.states().size()); // faster access for lookup _from -> (_to, _label)
-            std::vector<std::vector<size_t>> rel2(automaton.states().size()); // faster access for lookup _to -> _from  (when _label is uint32_t::max)
+            std::vector<std::vector<std::pair<size_t,uint32_t>>> rel1(n_automata_states); // faster access for lookup _from -> (_to, _label)
+            std::vector<std::vector<size_t>> rel2(n_automata_states - n_Q); // faster access for lookup _to -> _from  (when _label is uint32_t::max)
 
-            auto insert_edge = [&edges, &workset, &rel1, &rel2, &automaton](size_t from, uint32_t label, size_t to, const trace_t *trace, bool direct_to_rel = false) {
+            bool found = false;
+            const auto insert_edge = [&found, &early_termination, &edges, &workset, &rel1, &rel2, &automaton, n_Q]
+                    (size_t from, uint32_t label, size_t to, const trace_t *trace, bool direct_to_rel = false) {
                 auto res = edges.emplace(from, label, to);
                 if (res.second) { // New edge is not already in edges (rel U workset).
+                    if constexpr (ET) {
+                        found = found || early_termination(from, label, to);
+                    }
                     if (direct_to_rel) {
                         rel1[from].emplace_back(to, label);
-                        if (label == epsilon) {
-                            rel2[to].push_back(from);
+                        if (label == epsilon && to >= n_Q) {
+                            rel2[to - n_Q].push_back(from);
                         }
                     } else {
                         workset.emplace(from, label, to);
@@ -509,14 +567,20 @@ namespace pdaaal {
             }
 
             while (!workset.empty()) { // (line 5)
+                if constexpr (ET) {
+                    if (found) {
+                        return true;
+                    }
+                }
+
                 // pop t = (q, y, q') from workset (line 6)
                 temp_edge_t t;
                 t = workset.top();
                 workset.pop();
                 // rel = rel U {t} (line 8)   (membership test on line 7 is done in insert_edge).
                 rel1[t._from].emplace_back(t._to, t._label);
-                if (t._label == epsilon) {
-                    rel2[t._to].push_back(t._from);
+                if (t._label == epsilon && t._to >= n_Q) {
+                    rel2[t._to - n_Q].push_back(t._from);
                 }
 
                 // if y != epsilon (line 9)
@@ -541,18 +605,25 @@ namespace pdaaal {
                                 size_t q_new = q_prime[std::make_pair(rule._to, rule._op_label)];
                                 insert_edge(rule._to, rule._op_label, q_new, trace, false); // (line 15)
                                 insert_edge(q_new, t._label, t._to, trace, true); // (line 16)
-                                for (auto f : rel2[q_new]) { // (line 17)
-                                    insert_edge(f, t._label, t._to, automaton.new_post_trace(q_new), false); // (line 18)
+                                if (!rel2[q_new - n_Q].empty()) {
+                                    auto trace_q_new = automaton.new_post_trace(q_new);
+                                    for (auto f : rel2[q_new - n_Q]) { // (line 17)
+                                        insert_edge(f, t._label, t._to, trace_q_new, false); // (line 18)
+                                    }
                                 }
                                 break;
                         }
                     }
                 } else {
-                    for (auto e : rel1[t._to]) { // (line 20)
-                        insert_edge(t._from, e.second, e.first, automaton.new_post_trace(t._to), false); // (line 21)
+                    if (!rel1[t._to].empty()) {
+                        auto trace = automaton.new_post_trace(t._to);
+                        for (auto e : rel1[t._to]) { // (line 20)
+                            insert_edge(t._from, e.second, e.first, trace, false); // (line 21)
+                        }
                     }
                 }
             }
+            return false;
         }
 
         template <typename T, typename W, typename C, typename A>

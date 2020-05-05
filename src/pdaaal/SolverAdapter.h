@@ -50,16 +50,14 @@ namespace pdaaal {
         template<typename T, typename W, typename C, typename A = add<W>>
         res_type<W,C,A> pre_star(const PDAAdapter<T,W,C>& pda, bool build_trace) {
             auto automaton = std::make_unique<PAutomaton<W,C,A>>(pda, pda.terminal(), pda.initial_stack());
-            Solver::pre_star(*automaton); // automaton->pre_star(build_trace); // TODO: implement no-trace version.
-            bool result = automaton->accepts(pda.initial(), pda.initial_stack());
+            bool result = Solver::pre_star_accepts(*automaton, pda.initial(), pda.initial_stack()); // TODO: implement no-trace version. pre_star(build_trace)
             return std::make_pair(result, std::make_pair(std::move(automaton), pda.initial()));
         }
 
         template<Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A = add<W>>
         res_type<W,C,A> post_star(const PDAAdapter<T,W,C>& pda) {
             auto automaton = std::make_unique<PAutomaton<W,C,A>>(pda, pda.initial(), pda.initial_stack());
-            Solver::post_star<trace_type>(*automaton); // post_star<Trace_Type::None>(*automaton); // TODO: implement no-trace version.
-            bool result = automaton->accepts(pda.terminal(), pda.initial_stack());
+            bool result = Solver::post_star_accepts<trace_type>(*automaton, pda.terminal(), pda.initial_stack());
             return std::make_pair(result, std::make_pair(std::move(automaton), pda.terminal()));
         }
 
