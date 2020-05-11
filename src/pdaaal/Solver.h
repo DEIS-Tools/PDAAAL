@@ -29,6 +29,7 @@
 
 #include "PAutomaton.h"
 #include "TypedPDA.h"
+#include "StackSizeWeight.h"
 
 namespace pdaaal {
 
@@ -231,8 +232,11 @@ namespace pdaaal {
         template <Trace_Type trace_type = Trace_Type::Any, typename W, typename C, typename A, bool ET = false>
         static bool post_star(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination = [](size_t f, uint32_t l, size_t t) -> bool { return false; }) {
             static_assert(is_weighted<W> || trace_type != Trace_Type::Shortest, "Cannot do shortest-trace post* for PDA without weights."); // TODO: Consider: W=uin32_t, weight==1 as a default weight.
-            if constexpr (is_weighted<W> && trace_type == Trace_Type::Shortest) {
-                return post_star_shortest<W,C,A,true,ET>(automaton, early_termination);
+            if constexpr (is_weighted_total_order<W> && trace_type == Trace_Type::Shortest) {
+                return post_star_shortest<W, C, A, true, ET>(automaton, early_termination);
+            } else if constexpr (is_weighted_partial_order<W> && trace_type == Trace_Type::Shortest) {
+                post_star_shortest_stack_size(automaton);
+                return false;
             } else if constexpr (trace_type == Trace_Type::Any) {
                 return post_star_any<W,C,A,ET>(automaton, early_termination);
             } else if constexpr (trace_type == Trace_Type::None) {
@@ -267,7 +271,7 @@ namespace pdaaal {
     private:
         template<typename W, typename C, typename A, bool Enable, bool ET, typename = std::enable_if_t<Enable>>
         static bool post_star_shortest(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination) {
-            static_assert(is_weighted<W>);
+            static_assert(is_weighted_total_order<W>);
             const A add;
             const C less;
 
@@ -285,9 +289,6 @@ namespace pdaaal {
                 }
             };
 
-            // This is an implementation of Algorithm 2 (figure 3.4) in:
-            // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.
-            // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 48)
             const auto & pda_states = automaton.pda().states();
             const auto n_pda_states = pda_states.size();
             const auto n_Q = automaton.states().size();
@@ -624,6 +625,157 @@ namespace pdaaal {
                 }
             }
             return false;
+        }
+
+        static void post_star_shortest_stack_size(PAutomaton<StackSizeWeight> &automaton) {
+            // Algorithm 3 (Fig 17) in https://core.ac.uk/download/pdf/82193369.pdf
+
+            const auto & pda_states = automaton.pda().states();
+            const auto n_pda_states = pda_states.size();
+            const auto n_Q = automaton.states().size();
+
+            // for <p, y> -> <p', y1 y2> do
+            //   Q' U= {q_p'y1}
+            std::unordered_map<std::pair<size_t, uint32_t>, size_t, boost::hash<std::pair<size_t, uint32_t>>> q_prime{};
+            for (const auto &state : pda_states) {
+                for (const auto &[rule,labels] : state._rules) {
+                    if (rule._operation == PUSH) {
+                        auto res = q_prime.emplace(std::make_pair(rule._to, rule._op_label), automaton.next_state_id());
+                        if (res.second) {
+                            automaton.add_state(false, false);
+                        }
+                    }
+                }
+            }
+            const auto n_automata_states = automaton.states().size();
+
+            std::unordered_map<temp_edge_t, std::pair<bool,bool>, temp_edge_hasher> edges;
+            std::stack<temp_edge_t> workset;
+            std::vector<std::vector<std::tuple<size_t,uint32_t,const trace_t*>>> rel1(n_automata_states); // faster access for lookup _from -> (_to, _label)
+            std::vector<std::vector<size_t>> rel2(n_automata_states - n_Q); // faster access for lookup _to -> _from  (when _label is uint32_t::max)
+
+            std::unordered_map<temp_edge_t, StackSizeWeight, temp_edge_hasher> weights;
+
+            auto get_weight = [&weights](size_t from, uint32_t label, size_t to) -> StackSizeWeight {
+                temp_edge_t edge{from, label, to};
+                auto res = weights.find(edge);
+                return res == std::end(weights) ? StackSizeWeight::max() : res->second;
+            };
+            auto set_weight = [&weights](size_t from, uint32_t label, size_t to, StackSizeWeight&& weight) {
+                temp_edge_t edge{from, label, to};
+                weights[edge] = std::move(weight);
+            };
+            auto update = [&edges, &workset, &rel1, &rel2, &get_weight, &set_weight, n_Q](size_t from, uint32_t label, size_t to, const StackSizeWeight& weight, const trace_t* trace) {//,
+                    //const rule_t<StackSizeWeight, void>& rule, std::optional<std::pair<temp_edge_t,std::optional<temp_edge_t>>> transitions) {
+                temp_edge_t edge{from, label, to};
+                auto res = edges.emplace(edge, std::make_pair(false, false));
+                auto in_workset = !res.second && res.first->second.first;
+                auto in_rel = !res.second && res.first->second.second;
+                if (!in_rel) {
+                    rel1[from].emplace_back(to, label, trace);
+                    if (label == epsilon && to >= n_Q) {
+                        rel2[to - n_Q].push_back(from);
+                    }
+                }
+                auto oldValue = get_weight(from, label, to);
+                auto newValue = StackSizeWeight::extend(oldValue, weight);
+                bool changed = (newValue != oldValue);
+                if (!changed) {
+                    edges[edge] = std::make_pair(in_workset, true);
+                    return false;
+                }
+                if (!in_workset) {
+                    workset.emplace(from, label, to);
+                }
+                edges[edge] = std::make_pair(true, true);
+
+                // TODO: Implement trace info
+
+                set_weight(from, label, to, std::move(newValue));
+                return true;
+            };
+
+            // -> := ->_0; workset := ->_0
+            // l := \x. max
+            // for t : ->_0
+            //     l(t) = zero;
+            for (auto &from : automaton.states()) {
+                for (auto &[to,labels] : from->_edges) {
+                    assert(!labels.contains(epsilon)); // PostStar algorithm assumes no epsilon transitions in the NFA.
+                    for (auto &[label,_] : labels) {
+                        temp_edge_t edge{from->_id, label, to};
+                        edges.emplace(edge, std::make_pair(true, true));
+                        workset.emplace(from->_id, label, to);
+                        rel1[from->_id].emplace_back(to, label, nullptr);
+                        if (label == epsilon && to >= n_Q) {
+                            rel2[to - n_Q].push_back(from->_id);
+                        }
+                        set_weight(from->_id, label, to, StackSizeWeight::zero());
+                    }
+                }
+            }
+
+            while(!workset.empty()) {
+                auto t = workset.top();
+                workset.pop();
+                edges[t].first = false; // TODO: Optimize
+
+                if (t._label != epsilon) {
+                    if (t._from >= n_pda_states) continue;
+                    const auto &rules = pda_states[t._from]._rules;
+                    for (size_t rule_id = 0; rule_id < rules.size(); ++rule_id) {
+                        const auto &[rule,labels] = rules[rule_id];
+                        if (!labels.contains(t._label)) { continue; }
+                        auto trace = automaton.new_post_trace(t._from, rule_id, t._label);
+                        const auto w = StackSizeWeight::combine(get_weight(t._from, t._label, t._to), rule._weight);
+                        switch (rule._operation) {
+                            case POP: // (line 17)
+                                update(rule._to, epsilon, t._to, w, trace);
+                                break;
+                            case SWAP: // (line 18)
+                                update(rule._to, rule._op_label, t._to, w, trace);
+                                break;
+                            case NOOP:
+                                update(rule._to, t._label, t._to, w, trace);
+                                break;
+                            case PUSH: // (line 19)
+                                assert(q_prime.find(std::make_pair(rule._to, rule._op_label)) != std::end(q_prime));
+                                size_t q_new = q_prime[std::make_pair(rule._to, rule._op_label)];
+                                update(rule._to, rule._op_label, q_new, StackSizeWeight::zero(), trace); // (line 20)
+                                bool changed = update(q_new, t._label, t._to, w, trace); // (line 21)
+                                if (changed) {
+                                    if (!rel2[q_new - n_Q].empty()) {
+                                        auto trace_q_new = automaton.new_post_trace(q_new);
+                                        for (auto f : rel2[q_new - n_Q]) {
+                                            update(f, t._label, t._to, StackSizeWeight::combine(w, get_weight(f, epsilon, q_new)), trace_q_new);
+                                        }
+                                    }
+                                }
+                                break;
+                        }
+                    }
+                } else {
+                    if (!rel1[t._to].empty()) {
+                        auto t_weight = get_weight(t._from, t._label, t._to);
+                        auto trace = automaton.new_post_trace(t._to);
+                        for (auto [to, label, _] : rel1[t._to]) {
+                            update(t._from, label, to, StackSizeWeight::combine(get_weight(t._to, label, to), t_weight), trace);
+                        }
+                    }
+                }
+            }
+
+            for (size_t from = 0; from < n_automata_states; ++from) {
+                for (auto [to, label, trace] : rel1[from]) {
+                    auto weight = get_weight(from, label, to); // TODO: Optimize
+                    if (label == epsilon) {
+                        automaton.add_epsilon_edge(from, to, std::make_pair(trace, weight));
+                    } else {
+                        automaton.add_edge(from, to, label, std::make_pair(trace, weight));
+                    }
+                }
+            }
+
         }
 
         template <typename T, typename W, typename C, typename A>

@@ -26,8 +26,11 @@
 
 #define BOOST_TEST_MODULE StackSize
 
-#include <pdaaal/StackSizeWeight.h>
 #include <boost/test/unit_test.hpp>
+#include <pdaaal/StackSizeWeight.h>
+#include <pdaaal/PAutomaton.h>
+#include <pdaaal/TypedPDA.h>
+#include <pdaaal/Solver.h>
 
 using namespace pdaaal;
 
@@ -162,4 +165,140 @@ BOOST_AUTO_TEST_CASE(StackSizeWeightExtendCommutAssoc){
     std::cout << "(" << a1 << " \u2293 " << a2 << ") \u2293 " << a3 << ")) = " << a1.min(a2).min(a3) << std::endl;
     std::cout << "(" << a1 << " \u2293 (" << a2 << " \u2293 " << a3 << ")) = " << a1.min(a2.min(a3)) << std::endl;
     BOOST_CHECK_EQUAL(a1.min(a2).min(a3), a1.min(a2.min(a3)));
+}
+
+BOOST_AUTO_TEST_CASE(PostStarStackSizeWeight1){
+    const auto push = StackSizeWeight::push();
+    const auto pop = StackSizeWeight::pop();
+
+    std::unordered_set<char> labels{'A'};
+    TypedPDA<char, StackSizeWeight> pda(labels);
+
+    pda.add_rule(0, 1, PUSH, 'A', false, 'A', push);
+    pda.add_rule(1, 2, POP , 'A', false, 'A', pop);
+    pda.add_rule(1, 3, PUSH, 'A', false, 'A', push);
+    pda.add_rule(2, 4, PUSH, 'A', false, 'A', push);
+    pda.add_rule(3, 4, POP , 'A', false, 'A', pop);
+    pda.add_rule(4, 5, POP , 'A', false, 'A', pop);
+
+    std::vector<char> init_stack{'A'};
+    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+
+    Solver::post_star<Trace_Type::Shortest>(automaton);
+
+    std::vector<char> test_stack_reachableA{'A'};
+    //auto result = automaton.accept_path<Trace_Type::Shortest>(5, pda.encode_pre(test_stack_reachableA));
+    //auto distance = result.second;
+
+    //BOOST_CHECK_EQUAL(distance, 1);
+}
+
+BOOST_AUTO_TEST_CASE(PostStarStackSizeWeight2){
+    const auto push = StackSizeWeight::push();
+    const auto pop = StackSizeWeight::pop();
+    const auto swap = StackSizeWeight::swap();
+
+    std::unordered_set<char> labels{'A'};
+    TypedPDA<char, StackSizeWeight> pda(labels);
+
+    pda.add_rule( 0,  1, PUSH, 'A', false, 'A', push);
+    pda.add_rule( 1,  2, PUSH, 'A', false, 'A', push);
+    pda.add_rule( 2,  3, PUSH, 'A', false, 'A', push);
+    pda.add_rule( 3,  4, PUSH, 'A', false, 'A', push);
+    pda.add_rule( 3,  9, SWAP, 'A', false, 'A', swap);
+    pda.add_rule( 4,  5, PUSH, 'A', false, 'A', push);
+    pda.add_rule( 4,  8, POP , 'A', false, 'A', pop);
+    pda.add_rule( 5,  6, POP , 'A', false, 'A', pop);
+    pda.add_rule( 6,  7, POP , 'A', false, 'A', pop);
+    pda.add_rule( 7,  8, POP , 'A', false, 'A', pop);
+    pda.add_rule( 8,  9, POP , 'A', false, 'A', pop);
+    pda.add_rule( 9, 10, PUSH, 'A', false, 'A', push);
+    pda.add_rule( 9, 15, SWAP, 'A', false, 'A', swap);
+    pda.add_rule(10, 11, PUSH, 'A', false, 'A', push);
+    pda.add_rule(10, 14, PUSH, 'A', false, 'A', push);
+    pda.add_rule(11, 12, PUSH, 'A', false, 'A', push);
+    pda.add_rule(12, 13, PUSH, 'A', false, 'A', push);
+    pda.add_rule(13, 13, POP , 'A', false, 'A', pop);
+    pda.add_rule(14, 14, POP , 'A', false, 'A', pop);
+    pda.add_rule(15, 15, POP , 'A', false, 'A', pop);
+
+    std::vector<char> init_stack{'A'};
+    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+
+    Solver::post_star<Trace_Type::Shortest>(automaton);
+
+    std::vector<char> test_stack_reachableA{'A'};
+    //auto result1 = automaton.accept_path<Trace_Type::Shortest>(13, pda.encode_pre(test_stack_reachableA));
+    //auto result2 = automaton.accept_path<Trace_Type::Shortest>(14, pda.encode_pre(test_stack_reachableA));
+    //auto result3 = automaton.accept_path<Trace_Type::Shortest>(15, pda.encode_pre(test_stack_reachableA));
+
+    //BOOST_CHECK_EQUAL(result1.first.size(), 18);
+    //BOOST_CHECK_EQUAL(result2.first.size(), 12);
+    //BOOST_CHECK_EQUAL(result3.first.size(), 8);
+
+    //BOOST_CHECK_EQUAL(result1.second.final_value(), 5);
+    //BOOST_CHECK_EQUAL(result2.second.final_value(), 4);
+    //BOOST_CHECK_EQUAL(result3.second.final_value(), 3);
+}
+
+BOOST_AUTO_TEST_CASE(PostStarStackSizeWeight3){
+    const auto push = StackSizeWeight::push();
+    const auto pop = StackSizeWeight::pop();
+
+    std::unordered_set<char> labels{'A'};
+    TypedPDA<char, StackSizeWeight> pda(labels);
+
+    pda.add_rule(0, 1, PUSH, 'A', false, 'A', push);
+    pda.add_rule(1, 2, POP , 'A', false, 'A', pop);
+    pda.add_rule(1, 3, PUSH, 'A', false, 'A', push);
+    pda.add_rule(2, 5, PUSH, 'A', false, 'A', push);
+    pda.add_rule(3, 4, POP , 'A', false, 'A', pop);
+    pda.add_rule(4, 5, POP , 'A', false, 'A', pop);
+    pda.add_rule(5, 6, PUSH, 'A', false, 'A', push);
+    pda.add_rule(6, 7, PUSH, 'A', false, 'A', push);
+    pda.add_rule(7, 7, POP , 'A', false, 'A', pop);
+
+    std::vector<char> init_stack{'A'};
+    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+
+    Solver::post_star<Trace_Type::Shortest>(automaton);
+
+    std::vector<char> test_stack_reachableA{'A', 'A', 'A'};
+    //auto result = automaton.accept_path<Trace_Type::Shortest>(7, pda.encode_pre(test_stack_reachableA));
+    //auto distance = result.second;
+
+    //BOOST_CHECK_EQUAL(distance, 1);
+}
+
+BOOST_AUTO_TEST_CASE(PostStarStackSizeWeight4){
+    const auto push = StackSizeWeight::push();
+    const auto pop = StackSizeWeight::pop();
+
+    std::unordered_set<char> labels{'A', 'B', 'C'};
+    TypedPDA<char, StackSizeWeight> pda(labels);
+
+    pda.add_rule(0, 3, SWAP, 'A', false, 'A', StackSizeWeight(StackSizeWeight::elem_t{3,3}));
+    pda.add_rule(1, 3, SWAP, 'A', false, 'B', StackSizeWeight(StackSizeWeight::elem_t{4,2}));
+    pda.add_rule(2, 3, SWAP, 'A', false, 'C', StackSizeWeight(StackSizeWeight::elem_t{5,1}));
+    pda.add_rule(3, 4, SWAP, 'A', false, 'A', StackSizeWeight(StackSizeWeight::elem_t{0,0}));
+    pda.add_rule(3, 5, SWAP, 'A', false, 'A', StackSizeWeight(StackSizeWeight::elem_t{2,2}));
+    pda.add_rule(3, 6, SWAP, 'A', false, 'A', StackSizeWeight(StackSizeWeight::elem_t{4,4}));
+
+    std::vector<char> init_stack{'A'};
+    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    automaton.add_edge(1, 7, pda.encode_pre(std::vector<char>{'B'})[0]);
+    automaton.add_edge(2, 7, pda.encode_pre(std::vector<char>{'C'})[0]);
+
+    Solver::post_star<Trace_Type::Shortest>(automaton);
+
+    std::vector<char> test_stack_reachableA{'A'};
+    auto result1 = Solver::get_trace<Trace_Type::Shortest>(pda, automaton, 4, test_stack_reachableA);
+    auto result2 = Solver::get_trace<Trace_Type::Any>(pda, automaton, 5, test_stack_reachableA);
+    auto result3 = Solver::get_trace<Trace_Type::Any>(pda, automaton, 6, test_stack_reachableA);
+
+    bool temp = false;
+    //BOOST_CHECK_EQUAL(result1.second.final_value(), 3);
+    //BOOST_CHECK_EQUAL(result2.second.final_value(), 4);
+    //BOOST_CHECK_EQUAL(result3.second.final_value(), 5);
+    BOOST_CHECK_EQUAL(true, true);
 }

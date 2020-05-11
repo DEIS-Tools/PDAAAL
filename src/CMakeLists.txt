@@ -3,7 +3,7 @@ project(PDAAAL C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-add_library(pdaaal ${HEADER_FILES} pdaaal/PDA.cpp pdaaal/Reducer.cpp)
+add_library(pdaaal ${HEADER_FILES} pdaaal/PDA.cpp pdaaal/Reducer.cpp pdaaal/StackSizeWeight.cpp)
 
 if (NOT PTRIE_INSTALL_DIR)
     add_dependencies(pdaaal ptrie-ext)

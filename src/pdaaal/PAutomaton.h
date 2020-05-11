@@ -225,7 +225,7 @@ namespace pdaaal {
         [[nodiscard]] typename std::conditional_t<trace_type == Trace_Type::Shortest && is_weighted<W>,
                 std::pair<std::vector<size_t>, W>, std::vector<size_t>>
         accept_path(size_t state, const std::vector<uint32_t> &stack) const {
-            if constexpr (trace_type == Trace_Type::Shortest && is_weighted<W>) { // TODO: Consider unweighted shortest path.
+            if constexpr (trace_type == Trace_Type::Shortest && is_weighted_total_order<W>) { // TODO: Consider unweighted shortest path.
                 if (stack.empty()) {
                     if (_states[state]->_accepting) {
                         return std::make_pair(std::vector<size_t>{state}, zero<W>()());
@@ -300,6 +300,18 @@ namespace pdaaal {
                         }
                     }
                 }
+                return std::make_pair(std::vector<size_t>(), max<W>()());
+            } else if constexpr (trace_type == Trace_Type::Shortest && is_weighted_partial_order<W>) {
+                if (stack.empty()) {
+                    if (_states[state]->_accepting) {
+                        return std::make_pair(std::vector<size_t>{state}, zero<W>()());
+                    } else {
+                        return std::make_pair(std::vector<size_t>(), max<W>()());
+                    }
+                }
+
+                
+
                 return std::make_pair(std::vector<size_t>(), max<W>()());
             } else {
                 if (stack.empty()) {
