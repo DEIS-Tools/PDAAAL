@@ -241,27 +241,27 @@ namespace pdaaal {
         }
 
         template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
-        static std::vector<typename TypedPDA<T>::tracestate_t> get_trace(const TypedPDA<T,W,C>& pda, const PAutomaton<W,C,A>& automaton, size_t state, const std::vector<T>& stack) {
+        static auto get_trace(const TypedPDA<T,W,C>& pda, const PAutomaton<W,C,A>& automaton, size_t state, const std::vector<T>& stack) {
             static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
-            std::vector<size_t> path;
             auto stack_native = pda.encode_pre(stack);
             if constexpr (trace_type == Trace_Type::Shortest) {
-                path = automaton.template accept_path<trace_type>(state, stack_native).first;
+                auto [path, weight] = automaton.template accept_path<trace_type>(state, stack_native);
+                return std::make_pair(_get_trace(pda, automaton, path, stack_native), weight);
             } else {
-                path = automaton.template accept_path<trace_type>(state, stack_native);
+                auto path = automaton.template accept_path<trace_type>(state, stack_native);
+                return _get_trace(pda, automaton, path, stack_native);
             }
-            return _get_trace(pda, automaton, path, stack_native);
         }
         template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A, typename = std::enable_if_t<!std::is_same_v<T,uint32_t>>>
-        static std::vector<typename TypedPDA<T>::tracestate_t> get_trace(const TypedPDA<T,W,C>& pda, const PAutomaton<W,C,A>& automaton, size_t state, const std::vector<uint32_t>& stack_native) {
+        static auto get_trace(const TypedPDA<T,W,C>& pda, const PAutomaton<W,C,A>& automaton, size_t state, const std::vector<uint32_t>& stack_native) {
             static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
-            std::vector<size_t> path;
             if constexpr (trace_type == Trace_Type::Shortest) {
-                path = automaton.template accept_path<trace_type>(state, stack_native).first;
+                auto [path, weight] = automaton.template accept_path<trace_type>(state, stack_native);
+                return std::make_pair(_get_trace(pda, automaton, path, stack_native),weight);
             } else {
-                path = automaton.template accept_path<trace_type>(state, stack_native);
+                auto path = automaton.template accept_path<trace_type>(state, stack_native);
+                return _get_trace(pda, automaton, path, stack_native);
             }
-            return _get_trace(pda, automaton, path, stack_native);
         }
 
     private:
