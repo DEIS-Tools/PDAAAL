@@ -50,7 +50,7 @@ BOOST_AUTO_TEST_CASE(SolverTest1)
     Solver::post_star<Trace_Type::Shortest>(automaton);
 
     std::vector<char> test_stack_reachable{'B', 'A', 'A', 'A'};
-    auto trace = Solver::get_trace<Trace_Type::Shortest>(pda, automaton, 1, test_stack_reachable);
+    auto [trace,weight] = Solver::get_trace<Trace_Type::Shortest>(pda, automaton, 1, test_stack_reachable);
     BOOST_CHECK_EQUAL(trace.size(), 7);
 }
 
@@ -73,7 +73,7 @@ BOOST_AUTO_TEST_CASE(SolverTest2)
     Solver::post_star<Trace_Type::Shortest>(automaton);
 
     std::vector<uint32_t> test_stack_reachable{3, 2, 2, 2};
-    auto trace = Solver::get_trace<Trace_Type::Shortest>(pda, automaton, 1, test_stack_reachable);
+    auto [trace,weight] = Solver::get_trace<Trace_Type::Shortest>(pda, automaton, 1, test_stack_reachable);
     BOOST_CHECK_EQUAL(trace.size(), 7);
 }
 
@@ -97,7 +97,7 @@ BOOST_AUTO_TEST_CASE(SolverTest3)
 
     std::vector<char> test_stack_reachable{'B', 'A', 'A', 'A'};
     auto stack_native = pda.encode_pre(test_stack_reachable);
-    auto trace = Solver::get_trace<Trace_Type::Shortest>(pda, automaton, 1, stack_native);
+    auto [trace,weight] = Solver::get_trace<Trace_Type::Shortest>(pda, automaton, 1, stack_native);
     BOOST_CHECK_EQUAL(trace.size(), 7);
 }
 
