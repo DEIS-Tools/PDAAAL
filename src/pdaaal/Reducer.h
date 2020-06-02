@@ -71,7 +71,7 @@ namespace pdaaal {
             Reducer::forwards_prune(pda, initial_id);
             Reducer::backwards_prune(pda, terminal_id);
             std::queue<size_t> waiting;
-            auto ds = (aggresivity >= 2);
+            auto ds = (aggresivity >= 2 && aggresivity <= 3);
             std::vector<tos_t> approximation(pda.states().size());
             // initialize
             for (const auto& [r,labels] : pda.states()[initial_id]._rules) {
@@ -89,7 +89,7 @@ namespace pdaaal {
                     ss._tos.insert(lb, r._op_label);
             }
 
-            if (aggresivity == 3) {
+            if (aggresivity >= 3) {
                 Reducer::target_tos_prune(pda, terminal_id);
             }
             // saturate
@@ -158,7 +158,7 @@ namespace pdaaal {
             }
 
             Reducer::backwards_prune(pda, terminal_id);
-            if (aggresivity == 3) {
+            if (aggresivity >= 3) {
                 // it could potentially work as fixpoint; not sure if it has any effect.
                 Reducer::target_tos_prune(pda, terminal_id);
             }
