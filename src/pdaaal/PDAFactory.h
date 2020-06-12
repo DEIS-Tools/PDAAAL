@@ -71,10 +71,8 @@ namespace pdaaal {
         
     public:
 
-        PDAFactory(NFA<T>& prestack, NFA<T>& poststack, std::unordered_set<T>&& all_labels)
-        : _cons_stack(prestack), _des_stack(poststack), _all_labels(all_labels),
-        _dummy{*_all_labels.begin()} // any label will work as the dummy-label.
-        {
+        PDAFactory(NFA<T>& prestack, NFA<T>& poststack, std::unordered_set<T>&& all_labels, const T& dummy_label)
+        : _cons_stack(prestack), _des_stack(poststack), _all_labels(all_labels), _dummy{dummy_label} {
             _cons_stack.compile();
             _des_stack.compile();
         };
