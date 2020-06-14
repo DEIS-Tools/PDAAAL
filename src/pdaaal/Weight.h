@@ -32,6 +32,9 @@
 #include <array>
 #include <algorithm>
 #include <numeric>
+#include <vector>
+#include <optional>
+#include <functional>
 
 namespace pdaaal {
 
