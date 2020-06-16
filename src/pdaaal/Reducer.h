@@ -71,7 +71,7 @@ namespace pdaaal {
             Reducer::forwards_prune(pda, initial_id);
             Reducer::backwards_prune(pda, terminal_id);
             std::queue<size_t> waiting;
-            auto ds = (aggresivity >= 2 && aggresivity <= 3);
+            auto ds = (aggresivity == 2 || aggresivity == 4);
             std::vector<tos_t> approximation(pda.states().size());
             // initialize
             for (const auto& [r,labels] : pda.states()[initial_id]._rules) {
