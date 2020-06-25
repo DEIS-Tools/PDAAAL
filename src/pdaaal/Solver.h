@@ -525,7 +525,7 @@ namespace pdaaal {
             const auto n_automata_states = automaton.states().size();
 
             std::unordered_set<temp_edge_t, temp_edge_hasher> edges;
-            std::stack<temp_edge_t> workset;
+            std::queue<temp_edge_t> workset;
             std::vector<std::vector<std::pair<size_t,uint32_t>>> rel1(n_automata_states); // faster access for lookup _from -> (_to, _label)
             std::vector<std::vector<size_t>> rel2(n_automata_states - n_Q); // faster access for lookup _to -> _from  (when _label is uint32_t::max)
 
@@ -575,7 +575,7 @@ namespace pdaaal {
 
                 // pop t = (q, y, q') from workset (line 6)
                 temp_edge_t t;
-                t = workset.top();
+                t = workset.front();
                 workset.pop();
                 // rel = rel U {t} (line 8)   (membership test on line 7 is done in insert_edge).
                 rel1[t._from].emplace_back(t._to, t._label);
