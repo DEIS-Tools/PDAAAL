@@ -3,6 +3,9 @@ project(PDAAAL C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
+find_package(Boost 1.66 REQUIRED)
+include_directories(${Boost_INCLUDE_DIR})
+
 add_library(pdaaal ${HEADER_FILES} pdaaal/PDA.cpp pdaaal/Reducer.cpp)
 
 if (NOT PTRIE_INSTALL_DIR)
