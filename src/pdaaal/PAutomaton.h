@@ -27,8 +27,9 @@
 #ifndef PDAAAL_PAUTOMATON_H
 #define PDAAAL_PAUTOMATON_H
 
-#include "PDA.h"
+#include "TypedPDA.h"
 #include "fut_set.h"
+#include "NFA.h"
 
 #include <memory>
 #include <functional>
@@ -131,6 +132,73 @@ namespace pdaaal {
                 last_state = state;
             }
         };
+
+        // Construct a PAutomaton that accepts a configuration <p,w> iff states contains p and nfa accepts w.
+        template<typename T>
+        PAutomaton(const TypedPDA<T,W,C>& pda, const NFA<T>& nfa, const std::vector<size_t>& states) : _pda(pda) {
+            using nfastate_t = typename NFA<T>::state_t;
+            assert(std::is_sorted(states.begin(), states.end()));
+            const size_t size = pda.states().size();
+            bool empty_accept = nfa.empty_accept();
+            size_t j = 0;
+            for (size_t i = 0; i < size; ++i) {
+                if (j < states.size() && states[j] == i) {
+                    add_state(true, empty_accept);
+                    ++j;
+                } else {
+                    add_state(true, false);
+                }
+            }
+            std::unordered_map<const nfastate_t*, size_t> nfastate_to_id;
+            std::vector<std::pair<const nfastate_t*,size_t>> waiting;
+            auto get_nfastate_id = [this, &waiting, &nfastate_to_id](const nfastate_t* n) -> size_t {
+                // Adds nfastate if not yet seen.
+                size_t n_id;
+                auto it = nfastate_to_id.find(n);
+                if (it != nfastate_to_id.end()) {
+                    n_id = it->second;
+                } else {
+                    n_id = add_state(false, n->accepting);
+                    nfastate_to_id.emplace(n, n_id);
+                    waiting.emplace_back(n, n_id);
+                }
+                return n_id;
+            };
+
+            for (const auto& i : nfa.initial()) {
+                for (const auto& e : i->_edges) {
+                    for (const nfastate_t* n : e.follow_epsilon()) {
+                        size_t n_id = get_nfastate_id(n);
+                        add_edges(states, n_id, e._negated, pda.encode_pre(e._symbols));
+                    }
+                }
+            }
+            while (!waiting.empty()) {
+                auto [top, top_id] = waiting.back();
+                waiting.pop_back();
+                for (const auto& e : top->_edges) {
+                    for (const nfastate_t* n : e.follow_epsilon()) {
+                        size_t n_id = get_nfastate_id(n);
+                        add_edges(top_id, n_id, e._negated, pda.encode_pre(e._symbols));
+                    }
+                }
+            }
+        }
+
+        PAutomaton(const PDA<W,C>& pda, const std::vector<size_t>& initial_accepting_states) : _pda(pda) {
+            assert(std::is_sorted(initial_accepting_states.begin(), initial_accepting_states.end()));
+            const size_t size = pda.states().size();
+            size_t j = 0;
+            for (size_t i = 0; i < size; ++i) {
+                if (j < initial_accepting_states.size() && initial_accepting_states[j] == i) {
+                    add_state(true, true);
+                    ++j;
+                } else {
+                    add_state(true, false);
+                }
+            }
+        }
+
 
         PAutomaton(PAutomaton &&) noexcept = default;
 
@@ -368,6 +436,55 @@ namespace pdaaal {
         void add_edge(size_t from, size_t to, uint32_t label, trace_ptr<W> trace = default_trace_ptr<W>()) {
             assert(label < std::numeric_limits<uint32_t>::max() - 1);
             _states[from]->_edges.emplace(to, label, trace);
+        }
+
+        void add_edges(size_t from, size_t to, bool negated, std::vector<uint32_t>&& labels) {
+            if (negated) {
+                assert(std::is_sorted(labels.begin(), labels.end()));
+                //std::sort(labels.begin(), labels.end());
+                size_t i = 0;
+                for (auto label : labels) {
+                    for (; i < label; ++i){
+                        add_edge(from, to, i);
+                    }
+                    ++i;
+                }
+                auto max = number_of_labels();
+                for (; i < max; ++i) {
+                    add_edge(from, to, i);
+                }
+            } else {
+                for (auto label : labels) {
+                    add_edge(from, to, label);
+                }
+            }
+        }
+        void add_edges(const std::vector<size_t>& from, size_t to, bool negated, std::vector<uint32_t>&& labels) {
+            if (negated) {
+                assert(std::is_sorted(labels.begin(), labels.end()));
+                //std::sort(labels.begin(), labels.end());
+                size_t i = 0;
+                for (auto label : labels) {
+                    for (; i < label; ++i){
+                        for (auto f : from) {
+                            add_edge(f, to, i);
+                        }
+                    }
+                    ++i;
+                }
+                auto max = number_of_labels();
+                for (; i < max; ++i) {
+                    for (auto f : from) {
+                        add_edge(f, to, i);
+                    }
+                }
+            } else {
+                for (auto f : from) {
+                    for (auto label : labels) {
+                        add_edge(f, to, label);
+                    }
+                }
+            }
         }
 
         const trace_t *new_pre_trace(size_t rule_id) {
