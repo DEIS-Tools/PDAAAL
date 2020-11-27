@@ -351,7 +351,7 @@ namespace pdaaal {
                         if (less(*lb, current)) {
                             *lb = current;
                         } else {
-                            break;
+                            continue;
                         }
                     } else {
                         lb = visited.insert(lb, current);
