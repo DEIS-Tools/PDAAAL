@@ -387,7 +387,7 @@ namespace pdaaal {
                     auto current_state = current.first;
                     auto stack_index = current.second;
                     path[stack_index] = current_state;
-                    for (auto &[to,labels] : _states[current_state]->_edges) {
+                    for (const auto &[to,labels] : _states[current_state]->_edges) {
                         if (labels.contains(stack[stack_index])) {
                             if (stack_index + 1 < stack.size()) {
                                 search_stack.emplace(to, stack_index + 1);
@@ -413,6 +413,10 @@ namespace pdaaal {
         }
 
         [[nodiscard]] size_t number_of_labels() const { return _pda.number_of_labels(); }
+
+        [[nodiscard]] bool has_accepting_state() const {
+            return !_accepting.empty();
+        };
 
         size_t add_state(bool initial, bool accepting) {
             auto id = next_state_id();

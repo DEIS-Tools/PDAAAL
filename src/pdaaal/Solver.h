@@ -29,6 +29,7 @@
 
 #include "PAutomaton.h"
 #include "TypedPDA.h"
+#include "SolverInstance.h"
 
 namespace pdaaal {
 
@@ -72,7 +73,8 @@ namespace pdaaal {
             }
         };
 
-        using early_termination_fn = std::function<bool(size_t,uint32_t,size_t)>;
+        template <typename W>
+        using early_termination_fn = std::function<bool(size_t,uint32_t,size_t,trace_ptr<W> trace)>;
 
     public:
 
@@ -80,7 +82,7 @@ namespace pdaaal {
         static bool pre_star_accepts(PAutomaton<W,C,A> &automaton, size_t state, const std::vector<uint32_t> &stack) {
             if (stack.size() == 1) {
                 auto s_label = stack[0];
-                return pre_star<W,C,A,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to) -> bool {
+                return pre_star<W,C,A,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
                     return from == state && label == s_label && automaton.states()[to]->_accepting;
                 });
             } else {
@@ -89,7 +91,7 @@ namespace pdaaal {
         }
 
         template <typename W, typename C, typename A, bool ET=false>
-        static bool pre_star(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination = [](size_t f, uint32_t l, size_t t) -> bool { return false; }) {
+        static bool pre_star(PAutomaton<W,C,A> &automaton, const early_termination_fn<W>& early_termination = [](size_t f, uint32_t l, size_t t, trace_ptr<W> trace) -> bool { return false; }) {
             // This is an implementation of Algorithm 1 (figure 3.3) in:
             // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.
             // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 42)
@@ -104,7 +106,7 @@ namespace pdaaal {
             bool found = false;
             const auto insert_edge = [&found, &early_termination, &edges, &workset, &automaton](size_t from, uint32_t label, size_t to, const trace_t *trace) {
                 if constexpr (ET) {
-                    found = found || early_termination(from, label, to);
+                    found = found || early_termination(from, label, to, trace_ptr_from<W>(trace));
                 }
                 auto res = edges.emplace(from, label, to);
                 if (res.second) { // New edge is not already in edges (rel U workset).
@@ -220,7 +222,7 @@ namespace pdaaal {
         static bool post_star_accepts(PAutomaton<W,C,A> &automaton, size_t state, const std::vector<uint32_t> &stack) {
             if (stack.size() == 1) {
                 auto s_label = stack[0];
-                return post_star<trace_type,W,C,A,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to) -> bool {
+                return post_star<trace_type,W,C,A,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
                     return from == state && label == s_label && automaton.states()[to]->_accepting;
                 });
             } else {
@@ -228,8 +230,28 @@ namespace pdaaal {
             }
         }
 
+        template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
+        static bool post_star_accepts(SolverInstance<T,W,C,A>& instance) {
+            instance.initialize_product();
+            return post_star<trace_type,W,C,A,true>(instance.initial_automaton(), [&instance](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
+                return instance.add_edge_product(from, label, to, trace);
+            });
+        }
+
+        template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
+        static auto get_trace(SolverInstance<T,W,C,A>& instance) {
+            static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
+            if constexpr (trace_type == Trace_Type::Shortest) {
+                auto [path, stack, weight] = instance.template find_path<trace_type>();
+                return std::make_pair(_get_trace(instance.pda(), instance.automaton(), path, stack), weight);
+            } else {
+                auto [path, stack] = instance.template find_path<trace_type>();
+                return _get_trace(instance.pda(), instance.automaton(), path, stack);
+            }
+        }
+
         template <Trace_Type trace_type = Trace_Type::Any, typename W, typename C, typename A, bool ET = false>
-        static bool post_star(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination = [](size_t f, uint32_t l, size_t t) -> bool { return false; }) {
+        static bool post_star(PAutomaton<W,C,A> &automaton, const early_termination_fn<W>& early_termination = [](size_t f, uint32_t l, size_t t, trace_ptr<W> trace) -> bool { return false; }) {
             static_assert(is_weighted<W> || trace_type != Trace_Type::Shortest, "Cannot do shortest-trace post* for PDA without weights."); // TODO: Consider: W=uin32_t, weight==1 as a default weight.
             if constexpr (is_weighted<W> && trace_type == Trace_Type::Shortest) {
                 return post_star_shortest<W,C,A,true,ET>(automaton, early_termination);
@@ -266,7 +288,7 @@ namespace pdaaal {
 
     private:
         template<typename W, typename C, typename A, bool Enable, bool ET, typename = std::enable_if_t<Enable>>
-        static bool post_star_shortest(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination) {
+        static bool post_star_shortest(PAutomaton<W,C,A> &automaton, const early_termination_fn<W>& early_termination) {
             static_assert(is_weighted<W>);
             const A add;
             const C less;
@@ -364,10 +386,7 @@ namespace pdaaal {
             bool found = false;
 
             // Adds to rel.
-            const auto insert_rel = [&found, &early_termination, &rel1, &rel2, n_Q](size_t from, uint32_t label, size_t to){
-                if constexpr (ET) {
-                    found = found || early_termination(from, label, to);
-                }
+            const auto insert_rel = [&rel1, &rel2, n_Q](size_t from, uint32_t label, size_t to){
                 rel1[from].emplace_back(to, label);
                 if (label == epsilon && to >= n_Q) {
                     rel2[to - n_Q].push_back(from);
@@ -379,13 +398,16 @@ namespace pdaaal {
             for (auto &from : automaton.states()) {
                 for (auto &[to,labels] : from->_edges) {
                     assert(!labels.contains(epsilon)); // PostStar algorithm assumes no epsilon transitions in the NFA.
-                    for (auto &[label,_] : labels) {
+                    for (auto &[label,trace] : labels) {
                         temp_edge_t temp_edge{from->_id, label, to};
                         edge_weights.emplace(temp_edge, std::make_pair(zero<W>()(), zero<W>()()));
                         if (from->_id < n_pda_states) {
                             workset.emplace(zero<W>()(), temp_edge, nullptr);
                         } else {
                             insert_rel(from->_id, label, to);
+                            if constexpr (ET) {
+                                found = found || early_termination(from->_id, label, to, trace);
+                            }
                         }
                     }
                 }
@@ -413,6 +435,9 @@ namespace pdaaal {
                     automaton.add_epsilon_edge(t._from, t._to, std::make_pair(elem.trace, t_weight));
                 } else {
                     automaton.add_edge(t._from, t._to, t._label, std::make_pair(elem.trace, t_weight));
+                }
+                if constexpr (ET) {
+                    found = found || early_termination(t._from, t._label, t._to, std::make_pair(elem.trace, t_weight));
                 }
 
                 // if y != epsilon
@@ -495,13 +520,16 @@ namespace pdaaal {
                 for (auto &e : rel3[i - n_Q]) {
                     assert(e._label != epsilon);
                     automaton.add_edge(i, e._to, e._label, std::make_pair(e._trace, e._weight));
+                    if constexpr (ET) {
+                        found = found || early_termination(i, e._label, e._to, std::make_pair(e._trace, e._weight));
+                    }
                 }
             }
             return found;
         }
 
         template <typename W, typename C, typename A, bool ET>
-        static bool post_star_any(PAutomaton<W,C,A> &automaton, const early_termination_fn& early_termination) {
+        static bool post_star_any(PAutomaton<W,C,A> &automaton, const early_termination_fn<W>& early_termination) {
             // This is an implementation of Algorithm 2 (figure 3.4) in:
             // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.
             // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 48)
@@ -534,9 +562,6 @@ namespace pdaaal {
                     (size_t from, uint32_t label, size_t to, const trace_t *trace, bool direct_to_rel = false) {
                 auto res = edges.emplace(from, label, to);
                 if (res.second) { // New edge is not already in edges (rel U workset).
-                    if constexpr (ET) {
-                        found = found || early_termination(from, label, to);
-                    }
                     if (direct_to_rel) {
                         rel1[from].emplace_back(to, label);
                         if (label == epsilon && to >= n_Q) {
@@ -551,6 +576,9 @@ namespace pdaaal {
                         } else {
                             automaton.add_edge(from, to, label, trace_ptr_from<W>(trace));
                         }
+                    }
+                    if constexpr (ET) {
+                        found = found || early_termination(from, label, to, trace_ptr_from<W>(trace));
                     }
                 }
             };
