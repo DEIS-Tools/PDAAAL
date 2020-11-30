@@ -85,7 +85,11 @@ namespace pdaaal {
         SWAP = 4,
         NOOP = 8
     };
+}
 
+namespace pdaaal::details {
+    // Implementation details of PDA structure. Should not be accessed by user.
+    // PDAFactory defines rule_t to be used by users.
 
     // Define rules with and without weights.
     template<typename W, typename C, typename = void>
@@ -114,7 +118,7 @@ namespace pdaaal {
         }
 
         struct hasher {
-            size_t operator()(const pdaaal::rule_t<W, C> &rule) const noexcept {
+            size_t operator()(const pdaaal::details::rule_t<W, C> &rule) const noexcept {
                 size_t seed = 0;
                 boost::hash_combine(seed, rule._to);
                 boost::hash_combine(seed, rule._op_label);
@@ -152,7 +156,7 @@ namespace pdaaal {
         }
 
         struct hasher {
-            size_t operator()(const pdaaal::rule_t<W, C> &rule) const noexcept {
+            size_t operator()(const pdaaal::details::rule_t<W, C> &rule) const noexcept {
                 size_t seed = 0;
                 boost::hash_combine(seed, rule._to);
                 boost::hash_combine(seed, rule._op_label);
@@ -166,9 +170,9 @@ namespace pdaaal {
 
 namespace std {
     template<typename W, typename C>
-    struct hash<pdaaal::rule_t<W, C>> {
-        size_t operator()(const pdaaal::rule_t<W,C>& rule) const noexcept {
-            typename pdaaal::rule_t<W,C>::hasher hasher;
+    struct hash<pdaaal::details::rule_t<W, C>> {
+        size_t operator()(const pdaaal::details::rule_t<W,C>& rule) const noexcept {
+            typename pdaaal::details::rule_t<W,C>::hasher hasher;
             return hasher(rule);
         }
     };
@@ -179,8 +183,10 @@ namespace pdaaal {
     template <typename W, typename C, fut::type Container = fut::type::vector>
     class PDA {
     public:
+        using rule_t = typename details::rule_t<W,C>;
+
         struct state_t {
-            fut::set<std::tuple<rule_t<W,C>,labels_t>,Container> _rules;
+            fut::set<std::tuple<rule_t,labels_t>,Container> _rules;
             std::vector<size_t> _pre_states;
             explicit state_t(typename PDA<W,C,fut::type::hash>::state_t&& other_state)
                     : _rules(std::move(other_state._rules)), _pre_states(std::move(other_state._pre_states)) {}
@@ -227,7 +233,7 @@ namespace pdaaal {
         void add_untyped_rule(Args&&... args) {
             add_untyped_rule_<W>(std::forward<Args>(args)...);
         }
-        void add_untyped_rule_impl(size_t from, rule_t<W,C> r, bool negated, const std::vector<uint32_t>& pre) {
+        void add_untyped_rule_impl(size_t from, rule_t r, bool negated, const std::vector<uint32_t>& pre) {
             auto mm = std::max(from, r._to);
             if (mm >= _states.size()) {
                 _states.resize(mm + 1);

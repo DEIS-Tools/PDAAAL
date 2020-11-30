@@ -178,7 +178,7 @@ namespace pdaaal {
                 if (t._from >= n_pda_states) { continue; }
                 for (auto pre_state : pda_states[t._from]._pre_states) {
                     const auto &rules = pda_states[pre_state]._rules;
-                    auto lb = rules.lower_bound(rule_t<W,C>{t._from});
+                    auto lb = rules.lower_bound(details::rule_t<W,C>{t._from});
                     while (lb != rules.end() && lb->first._to == t._from) {
                         const auto &[rule, labels] = *lb;
                         size_t rule_id = lb - rules.begin();

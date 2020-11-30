@@ -42,6 +42,9 @@ namespace pdaaal {
 
     template<typename T, typename W = void, typename C = std::less<W>, fut::type Container = fut::type::vector>
     class TypedPDA : public PDA<W, C, Container> {
+    protected:
+        using rule_t = typename PDA<W, C, Container>::rule_t;
+
     public:
         struct tracestate_t {
             size_t _pdastate = 0;
@@ -116,7 +119,7 @@ namespace pdaaal {
             return std::numeric_limits<uint32_t>::max();
         }
 
-        void add_rules_impl(size_t from, rule_t <W, C> rule, bool negated, const std::vector<T> &labels, bool negated_pre, const std::vector<T> &pre) {
+        void add_rules_impl(size_t from, rule_t rule, bool negated, const std::vector<T> &labels, bool negated_pre, const std::vector<T> &pre) {
             auto tpre = encode_pre(pre);
             if (negated) {
                 size_t last = 0;
