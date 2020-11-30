@@ -62,9 +62,9 @@ namespace pdaaal {
             std::vector<size_t> waiting;
             auto from_states = _id_fast_lookup[from]; // Copy here, since loop-body might alter _id_fast_lookup[from].
             for (auto [final_from, product_from] : from_states) { // Iterate through reachable 'from-states'.
-                for (const auto& [final_to,final_labels] : final.states()[final_from]->edges) {
+                for (const auto& [final_to,final_labels] : final.states()[final_from]->_edges) {
                     if (final_labels.contains(label)) {
-                        auto [fresh, product_to] = get_product_state(initial.states()[to], final.states()[final_to]);
+                        auto [fresh, product_to] = get_product_state(initial.states()[to].get(), final.states()[final_to].get());
                         _product.add_edge(product_from, product_to, label, trace);
                         if (_product.has_accepting_state()) {
                             return true; // Early termination
@@ -75,7 +75,7 @@ namespace pdaaal {
                     }
                 }
             }
-            return construct_reachable(waiting);
+            return construct_reachable(waiting, initial, final);
         }
 
         automaton_t& automaton() {
@@ -139,7 +139,7 @@ namespace pdaaal {
                     if (_product.states()[current.state]->_accepting) {
                         std::vector<size_t> path(current.stack_index + 1);
                         std::vector<uint32_t> label_stack(current.stack_index);
-                        auto p = &current;
+                        const queue_elem* p = &current;
                         while (p->stack_index > 0) {
                             path[p->stack_index] = p->state;
                             label_stack[p->stack_index - 1] = p->label;
@@ -164,8 +164,8 @@ namespace pdaaal {
                     pointers.push_back(std::move(u_pointer));
                     for (const auto &[to,labels] : _product.states()[current.state]->_edges) {
                         if (!labels.empty()) {
-                            auto label = labels[0].first;
-                            search_queue.emplace(add(current.weight, label->second), to, label, current.stack_index + 1, pointer);
+                            auto label = std::min_element(labels.begin(), labels.end(), [](const auto& a, const auto& b){ return C{}(a.second.second, b.second.second); });
+                            search_queue.emplace(add(current.weight, label->second.second), to, label->first, current.stack_index + 1, pointer);
                         }
                     }
                 }
@@ -217,10 +217,11 @@ namespace pdaaal {
                 waiting.pop_back();
                 auto [i_from,f_from] = get_original_ids(top);
                 for (const auto& [i_to,i_labels] : initial.states()[i_from]->_edges) {
-                    for (const auto& [f_to,f_labels] : final.states()[f_from]->edges) {
-                        auto labels = intersect_vector(i_labels, f_labels);
+                    for (const auto& [f_to,f_labels] : final.states()[f_from]->_edges) {
+                        std::vector<typename decltype(i_labels)::value_type> labels;
+                        std::set_intersection(i_labels.begin(), i_labels.end(), f_labels.begin(), f_labels.end(), std::back_inserter(labels));
                         if (!labels.empty()) {
-                            auto [fresh, to_id] = get_product_state(initial.states()[i_to], final.states()[f_to]);
+                            auto [fresh, to_id] = get_product_state(initial.states()[i_to].get(), final.states()[f_to].get());
                             for (const auto & [label, trace] : labels) {
                                 _product.add_edge(top, to_id, label, trace);
                             }
@@ -246,26 +247,31 @@ namespace pdaaal {
             return result;
         }
 
-        std::pair<size_t,size_t> get_original_ids(size_t id) {
+        struct pair_size_t { // ptrie does not work with std::pair, so we make struct here.
+            size_t first;    // We need std::has_unique_object_representations_v<pair_size_t> to be true.
+            size_t second;
+        };
+
+        pair_size_t get_original_ids(size_t id) {
             if (id < _pda_size) {
                 return {id,id};
             }
-            std::pair<size_t,size_t> res;
+            pair_size_t res;
             _id_map.unpack(id - _pda_size, &res);
             return res;
         }
-        std::pair<bool,size_t> get_product_state(state_t a, state_t b) {
-            if (a._id == b._id && a._id < _pda_size) {
-                return {false,a._id};
+        std::pair<bool,size_t> get_product_state(const state_t* a, const state_t* b) {
+            if (a->_id == b->_id && a->_id < _pda_size) {
+                return {false, a->_id};
             }
-            auto [fresh, id] = _id_map.insert(std::make_pair(a._id, b._id));
+            auto [fresh, id] = _id_map.insert(pair_size_t{a->_id, b->_id});
             if (fresh) {
-                size_t state_id = _product.add_state(false, a._accepting && b._accepting);
+                size_t state_id = _product.add_state(false, a->_accepting && b->_accepting);
                 assert(state_id == id + _pda_size);
-                if (a._id >= _id_fast_lookup.size()) {
-                    _id_fast_lookup.resize(a._id + 1);
+                if (a->_id >= _id_fast_lookup.size()) {
+                    _id_fast_lookup.resize(a->_id + 1);
                 }
-                _id_fast_lookup[a._id].emplace_back(b._id, state_id);
+                _id_fast_lookup[a->_id].emplace_back(b->_id, state_id);
                 return {true, state_id};
             } else {
                 return {false ,id + _pda_size};
@@ -278,7 +284,7 @@ namespace pdaaal {
         automaton_t _final;
         automaton_t _product;
         bool _swap_initial_final = false;
-        ptrie::set_stable<std::pair<size_t,size_t>> _id_map;
+        ptrie::set_stable<pair_size_t> _id_map;
         std::vector<std::vector<std::pair<size_t,size_t>>> _id_fast_lookup;
     };
 }

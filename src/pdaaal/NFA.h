@@ -194,7 +194,7 @@ namespace pdaaal {
         [[nodiscard]] bool empty_accept() const {
             assert(std::is_sorted(_initial.begin(), _initial.end()));
             // Also assume that follow_epsilon(_initial) has been executed (e.g. in compile()).
-            return std::any_of(_initial.begin(), _initial.end(), [](const state_t* s){ return s->accepting; });
+            return std::any_of(_initial.begin(), _initial.end(), [](const state_t* s){ return s->_accepting; });
         }
 
         template<typename C>
@@ -397,8 +397,8 @@ namespace pdaaal {
             out << "}\n";
         }
 
-        const std::vector<state_t*>& initial() { return _initial; }
-        const std::vector<state_t*>& accepting() { return _accepting; }
+        const std::vector<state_t*>& initial() const { return _initial; }
+        const std::vector<state_t*>& accepting() const { return _accepting; }
         const std::vector<std::unique_ptr<state_t>>& states() { return _states; }
         
     private:

@@ -48,8 +48,8 @@ namespace pdaaal {
     public:
         using rule_t = typename Temp_PDA::rule_t;
 
-        NewPDAFactory(NFA<T>&& initial_headers, NFA<T>&& final_headers, std::unordered_set<T>&& all_labels)
-        : _initial_headers(std::move(initial_headers)), _final_headers(std::move(final_headers)), _all_labels(std::move(all_labels)) {
+        NewPDAFactory(std::unordered_set<T>&& all_labels, NFA<T>&& initial_headers, NFA<T>&& final_headers)
+        : _all_labels(std::move(all_labels)), _initial_headers(std::move(initial_headers)), _final_headers(std::move(final_headers)) {
             _initial_headers.compile();
             _final_headers.compile();
         };
@@ -90,9 +90,10 @@ namespace pdaaal {
         virtual bool accepting(size_t) = 0;
         virtual std::vector<rule_t> rules(size_t) = 0;
 
+        std::unordered_set<T> _all_labels;
+
     private:
         NFA<T> _initial_headers, _final_headers;
-        std::unordered_set<T> _all_labels;
         std::vector<size_t> accepting_states;
     };
 

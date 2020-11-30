@@ -233,7 +233,7 @@ namespace pdaaal {
         template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
         static bool post_star_accepts(SolverInstance<T,W,C,A>& instance) {
             instance.initialize_product();
-            return post_star<trace_type,W,C,A,true>(instance.initial_automaton(), [&instance](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
+            return post_star<trace_type,W,C,A,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
                 return instance.add_edge_product(from, label, to, trace);
             });
         }

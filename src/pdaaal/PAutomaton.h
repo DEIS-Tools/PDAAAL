@@ -158,7 +158,7 @@ namespace pdaaal {
                 if (it != nfastate_to_id.end()) {
                     n_id = it->second;
                 } else {
-                    n_id = add_state(false, n->accepting);
+                    n_id = add_state(false, n->_accepting);
                     nfastate_to_id.emplace(n, n_id);
                     waiting.emplace_back(n, n_id);
                 }
