@@ -89,7 +89,7 @@ namespace pdaaal {
 
 namespace pdaaal::details {
     // Implementation details of PDA structure. Should not be accessed by user.
-    // PDAFactory defines rule_t to be used by users.
+    // TypedPDA defines a rule_t to be used by users.
 
     // Define rules with and without weights.
     template<typename W, typename C, typename = void>

@@ -43,7 +43,29 @@ namespace pdaaal {
     template<typename T, typename W = void, typename C = std::less<W>, fut::type Container = fut::type::vector>
     class TypedPDA : public PDA<W, C, Container> {
     protected:
-        using rule_t = typename PDA<W, C, Container>::rule_t;
+        using impl_rule_t = typename PDA<W, C, Container>::rule_t; // This rule type is used internally.
+
+    private:
+        template <typename WT, typename = void> struct rule_t_;
+        template <typename WT>
+        struct rule_t_<WT, std::enable_if_t<!is_weighted<WT>>> {
+            size_t _from = std::numeric_limits<size_t>::max();
+            T _pre;
+            size_t _to = std::numeric_limits<size_t>::max();
+            op_t _op = POP;
+            T _op_label;
+        };
+        template <typename WT>
+        struct rule_t_<WT, std::enable_if_t<is_weighted<WT>>> {
+            size_t _from = std::numeric_limits<size_t>::max();
+            T _pre;
+            size_t _to = std::numeric_limits<size_t>::max();
+            op_t _op = POP;
+            T _op_label;
+            WT _weight;
+        };
+    public:
+        using rule_t = rule_t_<W>; // This rule type can be used by users of the library.
 
     public:
         struct tracestate_t {
@@ -86,6 +108,14 @@ namespace pdaaal {
             add_rules_<W>(std::forward<Args>(args)...);
         }
 
+        void add_rule(const rule_t& r) {
+            if constexpr (is_weighted<W>) {
+                add_rule(r._from, r._to, r._op, r._op_label, r._pre, r._weight);
+            } else {
+                add_rule(r._from, r._to, r._op, r._op_label, r._pre);
+            }
+        }
+
         template<typename... Args>
         void add_rule(Args &&... args) {
             add_rule_<W>(std::forward<Args>(args)...);
@@ -119,7 +149,7 @@ namespace pdaaal {
             return std::numeric_limits<uint32_t>::max();
         }
 
-        void add_rules_impl(size_t from, rule_t rule, bool negated, const std::vector<T> &labels, bool negated_pre, const std::vector<T> &pre) {
+        void add_rules_impl(size_t from, impl_rule_t rule, bool negated, const std::vector<T> &labels, bool negated_pre, const std::vector<T> &pre) {
             auto tpre = encode_pre(pre);
             if (negated) {
                 size_t last = 0;
