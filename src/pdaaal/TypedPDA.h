@@ -170,15 +170,15 @@ namespace pdaaal {
         }
 
         template<typename WT, typename = std::enable_if_t<!is_weighted<WT>>>
-        void add_rule_(size_t from, size_t to, op_t op, T label, bool negated, T pre) {
+        void add_rule_(size_t from, size_t to, op_t op, T label, T pre) {
             std::vector<T> _pre{pre};
-            add_rule(from, to, op, label, negated, _pre);
+            add_rule(from, to, op, label, false, _pre);
         }
 
         template<typename WT, typename = std::enable_if_t<is_weighted<WT>>>
-        void add_rule_(size_t from, size_t to, op_t op, T label, bool negated, T pre, WT weight = zero<WT>()()) {
+        void add_rule_(size_t from, size_t to, op_t op, T label, T pre, WT weight = zero<WT>()()) {
             std::vector<T> _pre{pre};
-            add_rule(from, to, op, label, negated, _pre, weight);
+            add_rule(from, to, op, label, false, _pre, weight);
         }
 
         ptrie::set_stable<T> _label_map;
