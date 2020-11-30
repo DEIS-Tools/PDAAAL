@@ -90,6 +90,15 @@ namespace pdaaal {
             }
         }
 
+        template <typename T, typename W, typename C, typename A>
+        static bool pre_star_accepts(SolverInstance<T,W,C,A>& instance) {
+            instance.enable_pre_star();
+            return instance.initialize_product() ||
+                   pre_star<W,C,A,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
+                       return instance.add_edge_product(from, label, to, trace);
+                   });
+        }
+
         template <typename W, typename C, typename A, bool ET=false>
         static bool pre_star(PAutomaton<W,C,A> &automaton, const early_termination_fn<W>& early_termination = [](size_t f, uint32_t l, size_t t, trace_ptr<W> trace) -> bool { return false; }) {
             // This is an implementation of Algorithm 1 (figure 3.3) in:
@@ -105,13 +114,13 @@ namespace pdaaal {
 
             bool found = false;
             const auto insert_edge = [&found, &early_termination, &edges, &workset, &automaton](size_t from, uint32_t label, size_t to, const trace_t *trace) {
-                if constexpr (ET) {
-                    found = found || early_termination(from, label, to, trace_ptr_from<W>(trace));
-                }
                 auto res = edges.emplace(from, label, to);
                 if (res.second) { // New edge is not already in edges (rel U workset).
                     workset.emplace(from, label, to);
                     if (trace != nullptr) { // Don't add existing edges
+                        if constexpr (ET) {
+                            found = found || early_termination(from, label, to, trace_ptr_from<W>(trace));
+                        }
                         automaton.add_edge(from, to, label, trace_ptr_from<W>(trace));
                     }
                 }
@@ -215,7 +224,7 @@ namespace pdaaal {
                     }
                 }
             }
-            return false;
+            return found;
         }
 
         template <Trace_Type trace_type = Trace_Type::Any, typename W, typename C, typename A>
@@ -232,8 +241,8 @@ namespace pdaaal {
 
         template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
         static bool post_star_accepts(SolverInstance<T,W,C,A>& instance) {
-            instance.initialize_product();
-            return post_star<trace_type,W,C,A,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
+            return instance.initialize_product() ||
+            post_star<trace_type,W,C,A,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
                 return instance.add_edge_product(from, label, to, trace);
             });
         }
@@ -651,7 +660,7 @@ namespace pdaaal {
                     }
                 }
             }
-            return false;
+            return found;
         }
 
         template <typename T, typename W, typename C, typename A>
