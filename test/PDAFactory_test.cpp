@@ -28,6 +28,7 @@
 
 #include <boost/test/unit_test.hpp>
 #include <pdaaal/PDAFactory.h>
+#include <pdaaal/NewPDAFactory.h>
 
 using namespace pdaaal;
 

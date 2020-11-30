@@ -234,7 +234,7 @@ namespace pdaaal {
                     }
                 }
             }
-            return false;
+            return _product.has_accepting_state();
         }
 
         template<typename Elem>
