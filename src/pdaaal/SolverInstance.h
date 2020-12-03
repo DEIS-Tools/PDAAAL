@@ -144,11 +144,11 @@ namespace pdaaal {
                         std::vector<uint32_t> label_stack(current.stack_index);
                         const queue_elem* p = &current;
                         while (p->stack_index > 0) {
-                            path[p->stack_index] = p->state;
+                            path[p->stack_index] = get_original_ids(p->state).first;
                             label_stack[p->stack_index - 1] = p->label;
                             p = p->back_pointer;
                         }
-                        path[p->stack_index] = p->state;
+                        path[p->stack_index] = get_original_ids(p->state).first;
                         return {path, label_stack, current.weight};
                     }
 
@@ -197,10 +197,10 @@ namespace pdaaal {
                             uint32_t label = labels[0].first;
                             path.resize(stack_index + 2);
                             label_stack.resize(stack_index + 1);
-                            path[stack_index] = current;
+                            path[stack_index] = get_original_ids(current).first;
                             label_stack[stack_index] = label;
                             if (_product.states()[to]->_accepting) {
-                                path[stack_index + 1] = to;
+                                path[stack_index + 1] = get_original_ids(to).first;
                                 return {path, label_stack};
                             }
                             waiting.emplace_back(to, stack_index + 1);
