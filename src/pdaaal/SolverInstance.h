@@ -56,11 +56,14 @@ namespace pdaaal {
             const automaton_t& initial = _swap_initial_final ? _final : _initial;
             const automaton_t& final = _swap_initial_final ? _initial : _final;
 
-            if (from >= _id_fast_lookup.size()) { // Avoid out-of-bounds.
-                return false; // From is not yet reachable.
+            std::vector<std::pair<size_t,size_t>> from_states;
+            if (from < _id_fast_lookup.size()) { // Avoid out-of-bounds.
+                from_states = _id_fast_lookup[from]; // Copy here, since loop-body might alter _id_fast_lookup[from].
+            }
+            if (from < _pda_size) {
+                from_states.emplace_back(from, from); // Initial states are not stored in _id_fast_lookup.
             }
             std::vector<size_t> waiting;
-            auto from_states = _id_fast_lookup[from]; // Copy here, since loop-body might alter _id_fast_lookup[from].
             for (auto [final_from, product_from] : from_states) { // Iterate through reachable 'from-states'.
                 for (const auto& [final_to,final_labels] : final.states()[final_from]->_edges) {
                     if (final_labels.contains(label)) {
@@ -211,7 +214,7 @@ namespace pdaaal {
     private:
 
         // Returns whether an accepting state in the product automaton was reached.
-        bool construct_reachable(std::vector<size_t> waiting, const automaton_t& initial, const automaton_t& final) {
+        bool construct_reachable(std::vector<size_t>& waiting, const automaton_t& initial, const automaton_t& final) {
             while (!waiting.empty()) {
                 size_t top = waiting.back();
                 waiting.pop_back();
