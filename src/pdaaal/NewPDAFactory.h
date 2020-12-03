@@ -48,16 +48,13 @@ namespace pdaaal {
     public:
         using rule_t = typename Temp_PDA::rule_t;
 
-        NewPDAFactory(std::unordered_set<T>&& all_labels, NFA<T>&& initial_headers, NFA<T>&& final_headers)
-        : _all_labels(std::move(all_labels)), _initial_headers(std::move(initial_headers)), _final_headers(std::move(final_headers)) {
-            _initial_headers.compile();
-            _final_headers.compile();
-        };
+        explicit NewPDAFactory(std::unordered_set<T>&& all_labels) : _all_labels(std::move(all_labels)) { };
 
-        SolverInstance<T,W,C,A> compile() {
+        // NFAs must be already compiled before passing them to this function.
+        SolverInstance<T,W,C,A> compile(const NFA<T>& initial_headers, const NFA<T>& final_headers) {
             Temp_PDA temp_pda(_all_labels);
             build_pda(temp_pda);
-            return SolverInstance<T,W,C,A>{Result_PDA{std::move(temp_pda)}, _initial_headers, initial(), _final_headers, accepting_states};
+            return SolverInstance<T,W,C,A>{Result_PDA{std::move(temp_pda)}, initial_headers, initial(), final_headers, accepting_states};
         }
 
         void build_pda(Temp_PDA& pda) {
@@ -93,7 +90,6 @@ namespace pdaaal {
         std::unordered_set<T> _all_labels;
 
     private:
-        NFA<T> _initial_headers, _final_headers;
         std::vector<size_t> accepting_states;
     };
 
