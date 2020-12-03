@@ -692,14 +692,10 @@ namespace pdaaal {
             std::vector<tracestate_t> trace;
             trace.push_back(decode_edges(edges));
             while (true) {
-                auto &edge = edges.back();
+                auto [from, label, to] = edges.back();
                 edges.pop_back();
-                const trace_t *trace_label = automaton.get_trace_label(edge);
+                const trace_t *trace_label = automaton.get_trace_label(from, label, to);
                 if (trace_label == nullptr) break;
-
-                auto from = std::get<0>(edge);
-                auto label = std::get<1>(edge);
-                auto to = std::get<2>(edge);
 
                 if (trace_label->is_pre_trace()) {
                     // pre* trace
@@ -737,10 +733,10 @@ namespace pdaaal {
                             edges.emplace_back(trace_label->_state, trace_label->_label, to);
                             break;
                         case PUSH:
-                            auto &edge2 = edges.back();
+                            auto [from, label, to] = edges.back();
                             edges.pop_back();
-                            auto trace_label2 = automaton.get_trace_label(edge2);
-                            edges.emplace_back(trace_label2->_state, trace_label2->_label, std::get<2>(edge2));
+                            auto trace_label2 = automaton.get_trace_label(from, label, to);
+                            edges.emplace_back(trace_label2->_state, trace_label2->_label, to);
                             break;
                     }
                     trace.push_back(decode_edges(edges));
