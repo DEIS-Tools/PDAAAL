@@ -57,6 +57,7 @@ namespace pdaaal {
             return SolverInstance<T,W,C,A>{Result_PDA{std::move(temp_pda)}, initial_headers, initial(), final_headers, accepting_states};
         }
 
+    private:
         void build_pda(Temp_PDA& pda) {
             // Build up PDA by searching through reachable states from initial states.
             // Derived class must define initial states, successor function (rules), and accepting state predicate.

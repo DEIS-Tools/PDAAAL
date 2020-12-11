@@ -733,10 +733,10 @@ namespace pdaaal {
                             edges.emplace_back(trace_label->_state, trace_label->_label, to);
                             break;
                         case PUSH:
-                            auto [from, label, to] = edges.back();
+                            auto [from2, label2, to2] = edges.back();
                             edges.pop_back();
-                            auto trace_label2 = automaton.get_trace_label(from, label, to);
-                            edges.emplace_back(trace_label2->_state, trace_label2->_label, to);
+                            auto trace_label2 = automaton.get_trace_label(from2, label2, to2);
+                            edges.emplace_back(trace_label2->_state, trace_label2->_label, to2);
                             break;
                     }
                     trace.push_back(decode_edges(edges));
