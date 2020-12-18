@@ -200,7 +200,7 @@ namespace pdaaal {
         details::rule_t<W,C> to_impl_rule() const {
             return details::rule_t<W,C>{_to, _op, _op_label};
         }
-    }; // TODO: Do we need the following:  __attribute__((packed)); // packed is needed to make this work fast with ptries
+    } __attribute__((packed)); // packed is used to make this work fast with ptries
     template<typename W, typename C>
     struct user_rule_t<W, C, std::enable_if_t<is_weighted<W>>> {
         size_t _from = std::numeric_limits<size_t>::max();
