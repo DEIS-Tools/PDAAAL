@@ -135,20 +135,9 @@ namespace pdaaal {
 
         // Construct a PAutomaton that accepts a configuration <p,w> iff states contains p and nfa accepts w.
         template<typename T>
-        PAutomaton(const TypedPDA<T,W,C>& pda, const NFA<T>& nfa, const std::vector<size_t>& states) : _pda(pda) {
+        PAutomaton(const TypedPDA<T,W,C>& pda, const NFA<T>& nfa, const std::vector<size_t>& states)
+        : PAutomaton(pda, states, nfa.empty_accept()) {
             using nfastate_t = typename NFA<T>::state_t;
-            assert(std::is_sorted(states.begin(), states.end()));
-            const size_t size = pda.states().size();
-            bool empty_accept = nfa.empty_accept();
-            size_t j = 0;
-            for (size_t i = 0; i < size; ++i) {
-                if (j < states.size() && states[j] == i) {
-                    add_state(true, empty_accept);
-                    ++j;
-                } else {
-                    add_state(true, false);
-                }
-            }
             std::unordered_map<const nfastate_t*, size_t> nfastate_to_id;
             std::vector<std::pair<const nfastate_t*,size_t>> waiting;
             auto get_nfastate_id = [this, &waiting, &nfastate_to_id](const nfastate_t* n) -> size_t {
@@ -185,13 +174,13 @@ namespace pdaaal {
             }
         }
 
-        PAutomaton(const PDA<W,C>& pda, const std::vector<size_t>& initial_accepting_states) : _pda(pda) {
-            assert(std::is_sorted(initial_accepting_states.begin(), initial_accepting_states.end()));
+        PAutomaton(const PDA<W,C>& pda, const std::vector<size_t>& special_initial_states, bool special_accepting = true) : _pda(pda) {
+            assert(std::is_sorted(special_initial_states.begin(), special_initial_states.end()));
             const size_t size = pda.states().size();
             size_t j = 0;
             for (size_t i = 0; i < size; ++i) {
-                if (j < initial_accepting_states.size() && initial_accepting_states[j] == i) {
-                    add_state(true, true);
+                if (j < special_initial_states.size() && special_initial_states[j] == i) {
+                    add_state(true, special_accepting);
                     ++j;
                 } else {
                     add_state(true, false);

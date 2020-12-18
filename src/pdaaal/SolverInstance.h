@@ -28,17 +28,17 @@
 #define PDAAAL_SOLVERINSTANCE_H
 
 #include "PAutomaton.h"
+#include "AbstractionPDA.h"
+#include "AbstractionPAutomaton.h"
 
 namespace pdaaal {
 
-    template <typename T, typename W = void, typename C = std::less<W>, typename A = add<W>>
-    class SolverInstance {
-        using pda_t = TypedPDA<T,W,C,fut::type::vector>;
-        using automaton_t = PAutomaton<W,C,A>;
+    template <typename pda_t, typename automaton_t, typename T, typename W, typename C, typename A>
+    class SolverInstance_impl {
         using state_t = typename automaton_t::state_t;
     public:
-        SolverInstance(pda_t&& pda, const NFA<T>& initial_nfa, const std::vector<size_t>& initial_states,
-                                    const NFA<T>& final_nfa,   const std::vector<size_t>& final_states)
+        SolverInstance_impl(pda_t&& pda, const NFA<T>& initial_nfa, const std::vector<size_t>& initial_states,
+                                          const NFA<T>& final_nfa,   const std::vector<size_t>& final_states)
         : _pda(std::move(pda)), _pda_size(_pda.states().size()), _initial(_pda, initial_nfa, initial_states),
           _final(_pda, final_nfa, final_states), _product(_pda, intersect_vector(initial_states, final_states)) { };
 
@@ -84,7 +84,18 @@ namespace pdaaal {
         automaton_t& automaton() {
             return _swap_initial_final ? _final : _initial;
         }
-        const pda_t& pda() {
+        const automaton_t& automaton() const {
+            return _swap_initial_final ? _final : _initial;
+        }
+
+        const automaton_t& initial_automaton() const {
+            return _initial;
+        }
+        const automaton_t& final_automaton() const {
+            return _final;
+        }
+
+        const pda_t& pda() const {
             return _pda;
         }
 
@@ -92,11 +103,14 @@ namespace pdaaal {
             _swap_initial_final = true;
         }
 
-        template<Trace_Type trace_type = Trace_Type::Any>
+        template<bool abstraction>
+        using path_state = std::conditional_t<abstraction, std::pair<size_t,size_t>, size_t>;
+
+        template<Trace_Type trace_type = Trace_Type::Any, bool abstraction = false>
         [[nodiscard]] typename std::conditional_t<trace_type == Trace_Type::Shortest && is_weighted<W>,
-                std::tuple<std::vector<size_t>, std::vector<uint32_t>, W>,
-                std::tuple<std::vector<size_t>, std::vector<uint32_t>>>
-        find_path() {
+                std::tuple<std::vector<path_state<abstraction>>, std::vector<uint32_t>, W>,
+                std::tuple<std::vector<path_state<abstraction>>, std::vector<uint32_t>>>
+        find_path() const {
             if constexpr (trace_type == Trace_Type::Shortest && is_weighted<W>) { // TODO: Consider unweighted shortest path.
                 // Dijkstra.
                 struct queue_elem {
@@ -140,7 +154,7 @@ namespace pdaaal {
                     search_queue.pop();
 
                     if (_product.states()[current.state]->_accepting) {
-                        std::vector<size_t> path(current.stack_index + 1);
+                        std::vector<path_state<abstraction>> path(current.stack_index + 1);
                         std::vector<uint32_t> label_stack(current.stack_index);
                         const queue_elem* p = &current;
                         while (p->stack_index > 0) {
@@ -148,7 +162,11 @@ namespace pdaaal {
                             label_stack[p->stack_index - 1] = p->label;
                             p = p->back_pointer;
                         }
-                        path[p->stack_index] = get_original_ids(p->state).first;
+                        if constexpr (abstraction) {
+                            path[p->stack_index] = get_original_ids(p->state).to_pair();
+                        } else {
+                            path[p->stack_index] = get_original_ids(p->state).first;
+                        }
                         return {path, label_stack, current.weight};
                     }
 
@@ -172,7 +190,7 @@ namespace pdaaal {
                         }
                     }
                 }
-                return {std::vector<size_t>(), std::vector<uint32_t>(), max<W>()()};
+                return {std::vector<path_state<abstraction>>(), std::vector<uint32_t>(), max<W>()()};
             } else {
                 // DFS search.
                 std::vector<size_t> path;
@@ -253,6 +271,9 @@ namespace pdaaal {
         struct pair_size_t { // ptrie does not work with std::pair, so we make struct here.
             size_t first;    // We need std::has_unique_object_representations_v<pair_size_t> to be true.
             size_t second;
+            [[nodiscard]] std::pair<size_t,size_t> to_pair() const {
+                return std::make_pair(first, second);
+            }
         };
 
         pair_size_t get_original_ids(size_t id) {
@@ -290,6 +311,13 @@ namespace pdaaal {
         ptrie::set_stable<pair_size_t> _id_map;
         std::vector<std::vector<std::pair<size_t,size_t>>> _id_fast_lookup;
     };
+
+    template <typename T, typename W = void, typename C = std::less<W>, typename A = add<W>>
+    class SolverInstance : public SolverInstance_impl<TypedPDA<T,W,C,fut::type::vector>, PAutomaton<W,C,A>, T, W, C, A> {};
+
+    template <typename T, typename W = void, typename C = std::less<W>, typename A = add<W>>
+    class AbstractionSolverInstance : public SolverInstance_impl<AbstractionPDA<T,W,C,fut::type::vector>, AbstractionPAutomaton<T,W,C,A>, T, W, C, A> {};
+
 }
 
 #endif //PDAAAL_SOLVERINSTANCE_H

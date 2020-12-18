@@ -179,6 +179,50 @@ namespace std {
 }
 
 namespace pdaaal {
+    template<typename W, typename C, typename = void>
+    struct user_rule_t;
+    template<typename W, typename C>
+    struct user_rule_t<W, C, std::enable_if_t<!is_weighted<W>>> {
+        size_t _from = std::numeric_limits<size_t>::max();
+        size_t _to = std::numeric_limits<size_t>::max();
+        uint32_t _pre = std::numeric_limits<uint32_t>::max();
+        uint32_t _op_label = std::numeric_limits<uint32_t>::max();
+        op_t _op = POP;
+        // Use max as default value, so we will notice if it has not been set.
+        user_rule_t() = default;
+        user_rule_t(size_t from, uint32_t pre, size_t to, op_t op, uint32_t op_label)
+        : _from(from), _to(to), _pre(pre), _op_label(op_label), _op(op) {};
+        user_rule_t(size_t from, uint32_t pre, const details::rule_t<W,C>& rule)
+        : _from(from), _to(rule._to), _pre(pre),
+          _op_label((rule._operation == PUSH || rule._operation == SWAP) ? rule._op_label : std::numeric_limits<uint32_t>::max()),
+          _op(rule._operation) {};
+
+        details::rule_t<W,C> to_impl_rule() const {
+            return details::rule_t<W,C>{_to, _op, _op_label};
+        }
+    }; // TODO: Do we need the following:  __attribute__((packed)); // packed is needed to make this work fast with ptries
+    template<typename W, typename C>
+    struct user_rule_t<W, C, std::enable_if_t<is_weighted<W>>> {
+        size_t _from = std::numeric_limits<size_t>::max();
+        size_t _to = std::numeric_limits<size_t>::max();
+        uint32_t _pre = std::numeric_limits<uint32_t>::max();
+        uint32_t _op_label = std::numeric_limits<uint32_t>::max();
+        op_t _op = POP;
+        W _weight = zero<W>()();
+        // Use max as default value for most values, so we will notice if it has not been set.
+        user_rule_t() = default;
+        user_rule_t(size_t from, uint32_t pre, size_t to, op_t op, uint32_t op_label, W weight)
+                : _from(from), _to(to), _pre(pre), _op_label(op_label), _op(op), _weight(weight) {};
+        user_rule_t(size_t from, uint32_t pre, const details::rule_t<W,C>& rule)
+                : _from(from), _to(rule._to), _pre(pre),
+                  _op_label((rule._operation == PUSH || rule._operation == SWAP) ? rule._op_label : std::numeric_limits<uint32_t>::max()),
+                  _op(rule._operation), _weight(rule._weight) {};
+
+        details::rule_t<W,C> to_impl_rule() const {
+            return details::rule_t<W,C>{_to, _op, _weight, _op_label};
+        }
+    };
+
 
     template <typename W, typename C, fut::type Container = fut::type::vector>
     class PDA {
@@ -224,6 +268,10 @@ namespace pdaaal {
                 _states[p]._rules.resize(wit - std::begin(_states[p]._rules));
             }
             _states[s]._pre_states.clear();
+        }
+
+        void add_rule(user_rule_t<W,C> rule) {
+            add_untyped_rule_impl(rule._from, rule.to_impl_rule(), false, std::vector<uint32_t>{rule._pre});
         }
 
     protected:

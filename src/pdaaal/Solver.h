@@ -248,7 +248,7 @@ namespace pdaaal {
         }
 
         template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
-        static auto get_trace(SolverInstance<T,W,C,A>& instance) {
+        static auto get_trace(const SolverInstance<T,W,C,A>& instance) {
             static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
             if constexpr (trace_type == Trace_Type::Shortest) {
                 auto [path, stack, weight] = instance.template find_path<trace_type>();
@@ -256,6 +256,17 @@ namespace pdaaal {
             } else {
                 auto [path, stack] = instance.template find_path<trace_type>();
                 return _get_trace(instance.pda(), instance.automaton(), path, stack);
+            }
+        }
+        template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
+        static auto get_rule_trace_and_paths(const AbstractionSolverInstance<T,W,C,A>& instance) {
+            static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
+            if constexpr (trace_type == Trace_Type::Shortest) {
+                auto [paths, stack, weight] = instance.template find_path<trace_type, true>();
+                return std::make_pair(_get_rule_trace_and_paths(instance.automaton(), paths, stack), weight);
+            } else {
+                auto [paths, stack] = instance.template find_path<trace_type, true>();
+                return _get_rule_trace_and_paths(instance.automaton(), paths, stack);
             }
         }
 
@@ -749,6 +760,109 @@ namespace pdaaal {
             return trace;
         }
 
+
+        template <typename W, typename C, typename A>
+        static std::tuple<
+                size_t, // Initial state. (State is size_t::max if no trace exists.)
+                std::vector<user_rule_t<W,C>>, // Sequence of rules applied to the initial configuration to reach the final configuration.
+                std::vector<uint32_t>, // Initial stack
+                std::vector<uint32_t>, // Final stack
+                std::vector<size_t>, // Path in initial PAutomaton (accepting initial stack)
+                std::vector<size_t>  // Path in final PAutomaton (accepting final stack) (independent of whether pre* or post* was used)
+                > _get_rule_trace_and_paths(const PAutomaton<W,C,A> &automaton, // The PAutomaton that has been build up (either A_pre* or A_post*)
+                                           const std::vector<std::pair<size_t,size_t>>& paths, // The paths as retrieved from the product automaton. First number is the state in @automaton (A_pre* or A_post*), second number is state in goal automaton.
+                                           const std::vector<uint32_t>& stack) {
+            using rule_t = user_rule_t<W,C>;
+
+            if (paths.empty()) {
+                return {std::numeric_limits<size_t>::max(), std::vector<rule_t>(), std::vector<uint32_t>(), std::vector<uint32_t>(), std::vector<size_t>(), std::vector<size_t>()};
+            }
+            assert(stack.size() + 1 == paths.size());
+            // Get path in goal automaton (returned in the end).
+            std::vector<size_t> goal_path;
+            goal_path.reserve(paths.size());
+            for (auto [a,b] : paths) {
+                goal_path.push_back(b);
+            }
+            // Build up stack of edges in the PAutomaton. Each PDA rule corresponds to changing some of the top edges.
+            std::deque<std::tuple<size_t, uint32_t, size_t>> edges;
+            for (size_t i = stack.size(); i > 0; --i) {
+                edges.emplace_back(paths[i - 1].first, stack[i - 1], paths[i].first);
+            }
+
+            bool post = false;
+
+            std::vector<rule_t> trace;
+            while (true) {
+                auto [from, label, to] = edges.back();
+                const trace_t *trace_label = automaton.get_trace_label(from, label, to);
+                if (trace_label == nullptr) break;
+                edges.pop_back();
+
+                if (trace_label->is_pre_trace()) {
+                    // pre* trace
+                    const auto &[rule,labels] = automaton.pda().states()[from]._rules[trace_label->_rule_id];
+                    switch (rule._operation) {
+                        case POP:
+                            break;
+                        case SWAP:
+                            edges.emplace_back(rule._to, rule._op_label, to);
+                            break;
+                        case NOOP:
+                            edges.emplace_back(rule._to, label, to);
+                            break;
+                        case PUSH:
+                            edges.emplace_back(trace_label->_state, label, to);
+                            edges.emplace_back(rule._to, rule._op_label, trace_label->_state);
+                            break;
+                    }
+                    trace.emplace_back(from, label, rule);
+                } else if (trace_label->is_post_epsilon_trace()) {
+                    // Intermediate post* trace
+                    // Current edge is the result of merging with an epsilon edge.
+                    // Reconstruct epsilon edge and the other edge.
+                    edges.emplace_back(trace_label->_state, label, to);
+                    edges.emplace_back(from, std::numeric_limits<uint32_t>::max(), trace_label->_state);
+
+                } else { // post* trace
+                    post = true;
+                    const auto &[rule, labels] = automaton.pda().states()[trace_label->_state]._rules[trace_label->_rule_id];
+                    switch (rule._operation) {
+                        case POP:
+                        case SWAP:
+                        case NOOP:
+                            edges.emplace_back(trace_label->_state, trace_label->_label, to);
+                            break;
+                        case PUSH:
+                            auto [from2, label2, to2] = edges.back();
+                            edges.pop_back();
+                            auto trace_label2 = automaton.get_trace_label(from2, label2, to2);
+                            edges.emplace_back(trace_label2->_state, trace_label2->_label, to2);
+                            break;
+                    }
+                    assert(from == rule._to);
+                    trace.emplace_back(trace_label->_state, trace_label->_label, rule);
+                }
+            }
+
+            // Get accepting path of initial stack (and the initial stack itself - for post*)
+            std::vector<uint32_t> start_stack;
+            start_stack.reserve(edges.size());
+            std::vector<size_t> start_path;
+            start_path.reserve(edges.size() + 1);
+            start_path.push_back(std::get<2>(edges.back()));
+            for (auto it = edges.crbegin(); it != edges.crend(); ++it) {
+                start_path.push_back(std::get<0>(*it));
+                start_stack.push_back(std::get<1>(*it));
+            }
+
+            if (post) { // post* was used
+                std::reverse(trace.begin(), trace.end());
+                return {trace[0]._from, trace, start_stack, stack, start_path, goal_path};
+            } else { // pre* was used
+                return {paths[0].first, trace, stack, start_stack, goal_path, start_path};
+            }
+        }
     };
 }
 

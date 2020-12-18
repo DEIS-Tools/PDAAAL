@@ -75,6 +75,11 @@ namespace pdaaal {
                 else //if(!_negated)
                     return _symbols.size() == n;
             }
+            bool contains(const T& symbol) const {
+                auto lb = std::lower_bound(_symbols.begin(), _symbols.end(), symbol);
+                bool found = lb != std::end(_symbols) && *lb == symbol;
+                return _negated ? !found : found;
+            }
 
             std::vector<state_t*> follow_epsilon() const {
                 std::vector<state_t*> next{_destination};
@@ -88,20 +93,22 @@ namespace pdaaal {
             std::vector<edge_t> _edges;
             std::vector<std::pair<state_t*,size_t>> _backedges;
             bool _accepting = false;
-            state_t(bool accepting) : _accepting(accepting) {};
+            explicit state_t(bool accepting) : _accepting(accepting) {};
             state_t(const state_t& other) = default;
-            bool has_non_epsilon() const 
-            {
-                for(auto& e : _edges)
-                {
-                    if(!e._negated && !e._symbols.empty())
+            [[nodiscard]] bool has_non_epsilon() const {
+                for(auto& e : _edges) {
+                    if(e._negated || !e._symbols.empty()) {
                         return true;
-                    else if(e._negated) 
-                        return true;
+                    }
                 }
                 return false;
             }
-            
+
+            void add_epsilon_edge(state_t* to) {
+                auto id = _edges.size();
+                _edges.emplace_back(to, this, id, true);
+            }
+
             std::vector<T> prelabels(const std::unordered_set<T>& all_labels) const
             {
                 std::unordered_set<const state_t*> seen{this};
@@ -160,13 +167,13 @@ namespace pdaaal {
         
     public:
 
-        NFA(bool initially_accepting = true) {
+        explicit NFA(bool initially_accepting = true) {
             _states.emplace_back(std::make_unique<state_t>(initially_accepting));
             _accepting.push_back(_states.back().get());
             _initial.push_back(_states.back().get());
         }
 
-        NFA(std::unordered_set<T>&& initial_accepting, bool negated = false) {
+        explicit NFA(std::unordered_set<T>&& initial_accepting, bool negated = false) {
             if (initial_accepting.size() > 0 || negated) {
                 _states.emplace_back(std::make_unique<state_t>(false));
                 _initial.push_back(_states[0].get());
@@ -184,10 +191,9 @@ namespace pdaaal {
             std::sort(_states.begin(), _states.end());
         }
         
-        NFA(NFA&&) = default;
-        NFA& operator=(NFA&&) = default;
-        NFA(const NFA& other )
-        {
+        NFA(NFA&&) noexcept = default;
+        NFA& operator=(NFA&&) noexcept = default;
+        NFA(const NFA& other) {
             (*this) = other;
         }
 
@@ -222,49 +228,101 @@ namespace pdaaal {
             states.erase(res, states.end());
         }
         
-        static std::vector<const state_t*> successor(std::vector<const state_t*>& states, const T& label)
-        {
+        static std::vector<const state_t*> successor(const std::vector<const state_t*>& states, const T& label) {
             std::vector<const state_t*> next;
-            for(auto& s : states)
-            {
-                for(auto& e : s->_edges)
-                {
-                    auto lb = std::lower_bound(e._symbols.begin(), e._symbols.end(), label);
-                    auto match = lb != std::end(e._symbols) && *lb == label;
-                    if(match == e._negated)
-                    {
+            for(const auto& s : states) {
+                for(const auto& e : s->_edges) {
+                    //auto lb = std::lower_bound(e._symbols.begin(), e._symbols.end(), label);
+                    //auto match = lb != std::end(e._symbols) && *lb == label;
+                    if(e.contains(label)) {
                         auto slb = std::lower_bound(next.begin(), next.end(), e._destination);
-                        if(slb == std::end(next) || *slb != e._destination)
+                        if(slb == std::end(next) || *slb != e._destination) {
                             next.insert(slb, e._destination);
+                        }
                     }
                 }
             }
             follow_epsilon(next);
             return next;
         }
+
+        static bool has_as_successor(const std::vector<const state_t*>& states, const T& label, const state_t* goal_successor_state) {
+            std::vector<const state_t*> successor_states = successor(states, label);
+            auto lb = std::lower_bound(successor_states.begin(), successor_states.end(), goal_successor_state); // Since successor_states vector is sorted, we can use binary search.
+            return lb != successor_states.end() && *lb == goal_successor_state;
+        }
+        static bool has_as_successor(const state_t* state, const T& label, const state_t* goal_successor_state) {
+            return has_as_successor(std::vector<const state_t*>{state}, label, goal_successor_state);
+        }
+        static bool leads_to_by_epsilon(const state_t* from, const state_t* to) { // More efficient (specialized) than using follow_epsilon naively
+            if (from == to) return true;
+            std::vector<const state_t*> waiting{from};
+            std::vector<const state_t*> seen{from};
+            while(!waiting.empty()) {
+                auto s = waiting.back();
+                waiting.pop_back();
+                for(auto& e : s->_edges) {
+                    if(e._epsilon) {
+                        if (e._destination == to) return true;
+                        auto lb = std::lower_bound(seen.begin(), seen.end(), e._destination);
+                        if(lb == std::end(seen) || *lb != e._destination) {
+                            seen.insert(lb, e._destination); // FIXME: Vector.insert is usually slow for large vectors.
+                            waiting.push_back(e._destination);
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+        static std::vector<T> intersect_edge_labels(const std::vector<const state_t*>& from_states, const state_t* to_state, const std::vector<T>& labels) {
+            // Find all the labels l in 'labels', such that has_as_successor(from_states, l, to_state) is true.
+            assert(std::is_sorted(labels.begin(), labels.end()));
+            std::unordered_set<T> result_set;
+            for (const auto& from_state : from_states) {
+                for (const auto& e: from_state->_edges) {
+                    if (!leads_to_by_epsilon(e._destination, to_state)) continue;
+
+                    if (e.wildcard()) {
+                        return labels;
+                    }
+                    if (e._negated) {
+                        std::set_difference(labels.begin(), labels.end(), e._symbols.begin(), e._symbols.end(), std::inserter(result_set));
+                    } else {
+                        std::set_intersection(labels.begin(), labels.end(), e._symbols.begin(), e._symbols.end(), std::inserter(result_set));
+                    }
+                    if (result_set.size() == labels.size()) {
+                        return labels; // Possibly early terminate.
+                    }
+                }
+            }
+            std::vector<T> result(result_set.begin(), result_set.end());
+            std::sort(result.begin(), result.end());
+            return result;
+        }
+        static std::vector<T> intersect_edge_labels(const state_t* from_state, const state_t* to_state, const std::vector<T>& labels) {
+            return intersect_edge_labels(std::vector<const state_t*>{from_state}, to_state, labels);
+        }
+
         
-        NFA& operator=(const NFA& other)
-        {
+        NFA& operator=(const NFA& other) {
             std::unordered_map<state_t*, state_t*> indir;
-            for(auto& s : other._states)
-            {
+            for(auto& s : other._states) {
                 _states.emplace_back(std::make_unique<state_t>(*s));
                 indir[s.get()] = _states.back().get();
             }     
             // fix links
-            for(auto& s : _states)
-            {
-                for(auto& e : s->_edges)
-                {
+            for(auto& s : _states) {
+                for(auto& e : s->_edges) {
                     e._destination = indir[e._destination];
                 }
+                for(auto& e : s->_backedges) {
+                    e.first = indir[e.first];
+                }
             }
-            for(auto& s : other._accepting)
-            {
+            for(auto& s : other._accepting) {
                 _accepting.push_back(indir[s]);
             }
-            for(auto& s : other._initial)
-            {
+            for(auto& s : other._initial) {
                 _initial.push_back(indir[s]);
             }
             return *this;
@@ -272,28 +330,22 @@ namespace pdaaal {
 
 
         // construction from regex
-        void concat(NFA&& other)
-        {
-            for(auto& s : other._states)
+        void concat(NFA&& other) {
+            for(auto& s : other._states) {
                 _states.emplace_back(s.release());
-            for(auto& sa : _accepting)
-            {
-                for(auto& s : other._initial)
-                {
-                    auto id = sa->_edges.size();
-                    sa->_edges.emplace_back(s, sa, id, true);
+            }
+            for(auto& sa : _accepting) {
+                for(auto& s : other._initial) {
+                    sa->add_epsilon_edge(s);
                 }
                 sa->_accepting = false;
             }
             _accepting = std::move(other._accepting);
         }
         
-        void question_extend()
-        {
-            for(auto s : _initial)
-            {
-                if(!s->_accepting)
-                {
+        void question_extend() {
+            for(auto s : _initial) {
+                if(!s->_accepting) {
                     s->_accepting = true;
                     _accepting.push_back(s);
                 }
@@ -301,20 +353,17 @@ namespace pdaaal {
         }
         
         void plus_extend() {
-            for(auto s : _accepting)
-            {
-                for(auto si : _initial)
-                {
+            for(auto s : _accepting) {
+                for(auto si : _initial) {
                     bool found = false;
-                    for(auto& e : s->_edges)
-                    {
-                        if(e._destination == si)
+                    for(auto& e : s->_edges) {
+                        if(e._destination == si) {
                             e._epsilon = true;
+                            found = true;
+                        }
                     }
-                    if(!found)
-                    {
-                        auto id = s->_edges.size();
-                        s->_edges.emplace_back(si, s, id, true);
+                    if(!found) {
+                        s->add_epsilon_edge(si);
                     }
                 }
             }
@@ -330,19 +379,17 @@ namespace pdaaal {
             throw std::logic_error("conjunction for NFAs are not yet implemented");
         }
 
-        void or_extend(NFA&& other) 
-        {
-            for(auto& s : other._states)
-                _states.emplace_back(s.release());            
+        void or_extend(NFA&& other) {
+            for(auto& s : other._states) {
+                _states.emplace_back(s.release());
+            }
             _states.emplace_back(std::make_unique<state_t>(false));
             auto initial = _states.back().get();
-            for(auto& i : _initial)
-            {
-                initial->_edges.emplace_back(i, initial, 0, true);
+            for(auto& i : _initial) {
+                initial->add_epsilon_edge(i);
             }
-            for(auto& i : other._initial)
-            {
-                initial->_edges.emplace_back(i, initial, 0, true);
+            for(auto& i : other._initial) {
+                initial->add_epsilon_edge(i);
             }            
             _initial = {initial};
             _accepting.insert(_accepting.end(), other._accepting.begin(), other._accepting.end());

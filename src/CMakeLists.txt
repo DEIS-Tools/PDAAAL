@@ -17,4 +17,5 @@ install(TARGETS pdaaal
         ARCHIVE DESTINATION lib)
 install (FILES pdaaal/vector_set.h pdaaal/fut_set.h pdaaal/NFA.h pdaaal/Weight.h pdaaal/PDA.h pdaaal/PDAAdapter.h pdaaal/PDAFactory.h
         pdaaal/NewPDAFactory.h pdaaal/SolverInstance.h
+        pdaaal/AbstractionMapping.h pdaaal/AbstractionPDA.h pdaaal/CegarPdaFactory.h pdaaal/ptrie_interface.h
         pdaaal/SimplePDAFactory.h pdaaal/TypedPDA.h pdaaal/PAutomaton.h pdaaal/Solver.h pdaaal/SolverAdapter.h pdaaal/Reducer.h DESTINATION include/pdaaal)
