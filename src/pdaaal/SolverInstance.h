@@ -35,7 +35,8 @@ namespace pdaaal {
 
     template <typename pda_t, typename automaton_t, typename T, typename W, typename C, typename A>
     class SolverInstance_impl {
-        using state_t = typename automaton_t::state_t;
+        using product_automaton_t = PAutomaton<W,C,A>; // No explicit abstraction on product automaton - this is covered by _initial and _final.
+        using state_t = typename product_automaton_t::state_t;
     public:
         SolverInstance_impl(pda_t&& pda, const NFA<T>& initial_nfa, const std::vector<size_t>& initial_states,
                                           const NFA<T>& final_nfa,   const std::vector<size_t>& final_states)
@@ -167,7 +168,7 @@ namespace pdaaal {
                         } else {
                             path[p->stack_index] = get_original_ids(p->state).first;
                         }
-                        return {path, label_stack, current.weight};
+                        return std::make_tuple(path, label_stack, current.weight);
                     }
 
                     auto lb = std::lower_bound(visited.begin(), visited.end(), current);
@@ -190,18 +191,22 @@ namespace pdaaal {
                         }
                     }
                 }
-                return {std::vector<path_state<abstraction>>(), std::vector<uint32_t>(), max<W>()()};
+                return std::make_tuple(std::vector<path_state<abstraction>>(), std::vector<uint32_t>(), max<W>()());
             } else {
                 // DFS search.
-                std::vector<size_t> path;
+                std::vector<path_state<abstraction>> path;
                 std::vector<uint32_t> label_stack;
 
                 std::vector<std::pair<size_t,size_t>> waiting; // state_id, stack_index
                 waiting.reserve(_pda_size);
                 for (size_t i = 0; i < _pda_size; ++i) {
                     if (_product.states()[i]->_accepting) { // Initial accepting state
-                        path.push_back(i);
-                        return {path, label_stack};
+                        if constexpr (abstraction) {
+                            path.emplace_back(i,i);
+                        } else {
+                            path.push_back(i);
+                        }
+                        return std::make_tuple(path, label_stack);
                     }
                     waiting.emplace_back(i,0); // Add all initial states in _product.
                 }
@@ -215,17 +220,25 @@ namespace pdaaal {
                             uint32_t label = labels[0].first;
                             path.resize(stack_index + 2);
                             label_stack.resize(stack_index + 1);
-                            path[stack_index] = get_original_ids(current).first;
+                            if constexpr (abstraction) {
+                                path[stack_index] = get_original_ids(current).to_pair();
+                            } else {
+                                path[stack_index] = get_original_ids(current).first;
+                            }
                             label_stack[stack_index] = label;
                             if (_product.states()[to]->_accepting) {
-                                path[stack_index + 1] = get_original_ids(to).first;
-                                return {path, label_stack};
+                                if constexpr (abstraction) {
+                                    path[stack_index + 1] = get_original_ids(to).to_pair();
+                                } else {
+                                    path[stack_index + 1] = get_original_ids(to).first;
+                                }
+                                return std::make_tuple(path, label_stack);
                             }
                             waiting.emplace_back(to, stack_index + 1);
                         }
                     }
                 }
-                return {std::vector<size_t>(), std::vector<uint32_t>()};
+                return std::make_tuple(std::vector<path_state<abstraction>>(), std::vector<uint32_t>());
             }
         }
 
@@ -276,7 +289,7 @@ namespace pdaaal {
             }
         };
 
-        pair_size_t get_original_ids(size_t id) {
+        pair_size_t get_original_ids(size_t id) const {
             if (id < _pda_size) {
                 return {id,id};
             }
@@ -286,7 +299,7 @@ namespace pdaaal {
         }
         std::pair<bool,size_t> get_product_state(const state_t* a, const state_t* b) {
             if (a->_id == b->_id && a->_id < _pda_size) {
-                return {false, a->_id};
+                return std::make_pair(false, a->_id);
             }
             auto [fresh, id] = _id_map.insert(pair_size_t{a->_id, b->_id});
             if (fresh) {
@@ -296,9 +309,9 @@ namespace pdaaal {
                     _id_fast_lookup.resize(a->_id + 1);
                 }
                 _id_fast_lookup[a->_id].emplace_back(b->_id, state_id);
-                return {true, state_id};
+                return std::make_pair(true, state_id);
             } else {
-                return {false ,id + _pda_size};
+                return std::make_pair(false ,id + _pda_size);
             }
         }
 
@@ -306,17 +319,33 @@ namespace pdaaal {
         const size_t _pda_size;
         automaton_t _initial;
         automaton_t _final;
-        automaton_t _product;
+        product_automaton_t _product;
         bool _swap_initial_final = false;
         ptrie::set_stable<pair_size_t> _id_map;
         std::vector<std::vector<std::pair<size_t,size_t>>> _id_fast_lookup;
     };
 
     template <typename T, typename W = void, typename C = std::less<W>, typename A = add<W>>
-    class SolverInstance : public SolverInstance_impl<TypedPDA<T,W,C,fut::type::vector>, PAutomaton<W,C,A>, T, W, C, A> {};
+    class SolverInstance : public SolverInstance_impl<TypedPDA<T,W,C,fut::type::vector>, PAutomaton<W,C,A>, T, W, C, A> {
+    public:
+        using pda_t = TypedPDA<T,W,C,fut::type::vector>;
+        using pautomaton_t = PAutomaton<W,C,A>;
+        SolverInstance(pda_t&& pda,
+                       const NFA<T>& initial_nfa, const std::vector<size_t>& initial_states,
+                       const NFA<T>& final_nfa,   const std::vector<size_t>& final_states)
+        : SolverInstance_impl<pda_t, pautomaton_t, T, W, C, A>(std::move(pda), initial_nfa, initial_states, final_nfa, final_states) { };
+    };
 
     template <typename T, typename W = void, typename C = std::less<W>, typename A = add<W>>
-    class AbstractionSolverInstance : public SolverInstance_impl<AbstractionPDA<T,W,C,fut::type::vector>, AbstractionPAutomaton<T,W,C,A>, T, W, C, A> {};
+    class AbstractionSolverInstance : public SolverInstance_impl<AbstractionPDA<T,W,C,fut::type::vector>, AbstractionPAutomaton<T,W,C,A>, T, W, C, A> {
+    public:
+        using pda_t = AbstractionPDA<T,W,C,fut::type::vector>;
+        using pautomaton_t = AbstractionPAutomaton<T,W,C,A>;
+        AbstractionSolverInstance(pda_t&& pda,
+                                  const NFA<T>& initial_nfa, const std::vector<size_t>& initial_states,
+                                  const NFA<T>& final_nfa,   const std::vector<size_t>& final_states)
+        : SolverInstance_impl<pda_t, pautomaton_t, T, W, C, A>(std::move(pda), initial_nfa, initial_states, final_nfa, final_states) { };
+    };
 
 }
 

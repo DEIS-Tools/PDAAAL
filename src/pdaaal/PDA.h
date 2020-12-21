@@ -197,6 +197,10 @@ namespace pdaaal {
           _op_label((rule._operation == PUSH || rule._operation == SWAP) ? rule._op_label : std::numeric_limits<uint32_t>::max()),
           _op(rule._operation) {};
 
+        size_t from() const {
+            return _from;
+        }
+
         details::rule_t<W,C> to_impl_rule() const {
             return details::rule_t<W,C>{_to, _op, _op_label};
         }

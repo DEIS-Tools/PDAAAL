@@ -37,7 +37,7 @@ namespace pdaaal {
         using nfastate_t = typename NFA<T>::state_t;
     public:
         // TODO: This one is mostly copy-paste from PAutomaton. Clean up later...
-        AbstractionPAutomaton(const AbstractionPDA<W,C>& pda, const NFA<T>& nfa, const std::vector<size_t>& states)
+        AbstractionPAutomaton(const AbstractionPDA<T,W,C>& pda, const NFA<T>& nfa, const std::vector<size_t>& states)
         : PAutomaton<W,C,A>(pda, states, nfa.empty_accept()) {
             std::unordered_map<const nfastate_t*, size_t> nfastate_to_id;
             std::vector<std::pair<const nfastate_t*,size_t>> waiting;
@@ -76,9 +76,9 @@ namespace pdaaal {
             }
         }
 
-        const nfastate_t* get_nfastate(size_t pautomaton_state_id) {
-            auto [exists, it] = _pautomaton_to_nfastate_map.find(pautomaton_state_id);
-            return exists ? it.second : nullptr;
+        const nfastate_t* get_nfastate(size_t pautomaton_state_id) const {
+            auto it = _pautomaton_to_nfastate_map.find(pautomaton_state_id);
+            return it != _pautomaton_to_nfastate_map.end() ? it->second : nullptr;
         }
 
     private:

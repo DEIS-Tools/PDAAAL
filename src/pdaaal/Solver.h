@@ -246,6 +246,13 @@ namespace pdaaal {
                 return instance.add_edge_product(from, label, to, trace);
             });
         }
+        template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
+        static bool post_star_accepts(AbstractionSolverInstance<T,W,C,A>& instance) {
+            return instance.initialize_product() ||
+                   post_star<trace_type,W,C,A,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
+                       return instance.add_edge_product(from, label, to, trace);
+                   });
+        }
 
         template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
         static auto get_trace(const SolverInstance<T,W,C,A>& instance) {
@@ -775,7 +782,7 @@ namespace pdaaal {
             using rule_t = user_rule_t<W,C>;
 
             if (paths.empty()) {
-                return {std::numeric_limits<size_t>::max(), std::vector<rule_t>(), std::vector<uint32_t>(), std::vector<uint32_t>(), std::vector<size_t>(), std::vector<size_t>()};
+                return std::make_tuple(std::numeric_limits<size_t>::max(), std::vector<rule_t>(), std::vector<uint32_t>(), std::vector<uint32_t>(), std::vector<size_t>(), std::vector<size_t>());
             }
             assert(stack.size() + 1 == paths.size());
             // Get path in goal automaton (returned in the end).
@@ -858,9 +865,9 @@ namespace pdaaal {
 
             if (post) { // post* was used
                 std::reverse(trace.begin(), trace.end());
-                return {trace[0]._from, trace, start_stack, stack, start_path, goal_path};
+                return std::make_tuple(trace[0].from(), trace, start_stack, stack, start_path, goal_path);
             } else { // pre* was used
-                return {paths[0].first, trace, stack, start_stack, goal_path, start_path};
+                return std::make_tuple(paths[0].first, trace, stack, start_stack, goal_path, start_path);
             }
         }
     };
