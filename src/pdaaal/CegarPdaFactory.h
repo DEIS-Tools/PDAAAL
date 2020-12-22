@@ -173,6 +173,15 @@ namespace pdaaal {
             return res;
         }
 
+        /*
+        std::vector<Label> get_concrete_labels(size_t label) const {
+            return _pda.get_concrete_labels(label);
+        }
+        auto get_concrete_labels_range(size_t label) const {
+            return _pda.get_concrete_labels_range(label);
+        }
+        */
+
     private:
         std::variant<header_t, std::pair<std::vector<Label>,std::vector<Label>>> concreterize_wildcards(header_t&& header) const {
             assert(header.concrete_part.empty());
@@ -237,48 +246,23 @@ namespace pdaaal {
     class CegarPdaFactory {
     private:
         using builder_pda_t = AbstractionPDA<Label,W,C,fut::type::hash>; // We optimize for set insertion while building,
-        using pda_t = AbstractionPDA<Label,W,C,fut::type::vector>;       // and then optimize for iteration when analyzing.
         using nfa_state_t = typename NFA<Label>::state_t;
         using automaton_t = AbstractionPAutomaton<Label,W,C,A>;
     protected:
+        using pda_t = AbstractionPDA<Label,W,C,fut::type::vector>;       // and then optimize for iteration when analyzing.
         using configuration_t = typename std::iterator_traits<conf_it>::value_type;
         using header_wrapper_t = wildcard_header<Label,W,C>;
-        using header_t = typename header_wrapper_t::header_t;
     public:
+        using header_t = typename header_wrapper_t::header_t;
+        using label_refinement_info_t = std::pair<std::vector<Label>, std::vector<Label>>;
+        using state_refinement_info_t = std::pair<std::vector<State>, std::vector<State>>;
+        using refinement_info_t = std::pair<label_refinement_info_t, state_refinement_info_t>;
         using abstract_rule_t = user_rule_t<W,C>; // FIXME: This does not yet work for weighted rules.
 
-        // Who needs structs, when you can have tuples? :-D
-        // It simplifies conversion to/from byte-vector for using with ptrie, so this is how we do it for now.
-        using concrete_rule_t = std::tuple<State, Label, State, op_t, Label>;
-        static constexpr concrete_rule_t concrete_rule(State _from, Label _pre, State _to, op_t _op, Label _op_label) {
-            return {_from,_pre,_to,_op,_op_label};
-        }
-        static constexpr const State& from(const concrete_rule_t& rule) noexcept { return std::get<0>(rule); }
-        static constexpr const Label& pre(const concrete_rule_t& rule) noexcept { return std::get<1>(rule); }
-        static constexpr const State& to(const concrete_rule_t& rule) noexcept { return std::get<2>(rule); }
-        static constexpr const op_t& op(const concrete_rule_t& rule) noexcept { return std::get<3>(rule); }
-        static constexpr const Label& op_label(const concrete_rule_t& rule) noexcept { return std::get<4>(rule); }
-
-    private:
-        //using rule_iterator = typename AbstractionMapping<concrete_rule_t, abstract_rule_t>::iterator;
-        //using label_iterator = typename AbstractionMapping<Label, uint32_t>::iterator;
     public:
 
-        // Requirements:
-        // if state_abstraction_fn(a) == state_abstraction_fn(b) then accepting(a) == accepting(b)
-        explicit CegarPdaFactory(std::function<uint32_t(const Label&)>&& label_abstraction_fn/*,
-                        std::function<AbstractState(const State&)>&& state_abstraction_fn*/)
+        explicit CegarPdaFactory(std::function<uint32_t(const Label&)>&& label_abstraction_fn)
                 : _temp_pda(std::move(label_abstraction_fn)) { };
-                /*, _state_abstraction(std::move(state_abstraction_fn)),
-                  _rule_abstraction([this](const concrete_rule_t& r) {
-                      abstract_rule_t res;
-                      res._from = this->_state_abstraction.insert(from(r)).second;
-                      res._to = this->_state_abstraction.insert(to(r)).second;
-                      res._pre = this->_temp_pda.insert_label(pre(r)).second;
-                      res._op_label = (op(r) == PUSH || op(r) == SWAP) ? this->_temp_pda.insert_label(op_label(r)).second : std::numeric_limits<uint32_t>::max();
-                      res._op = op(r);
-                      return res;
-                  }) { };*/
 
         // NFAs must be already compiled before passing them to this function.
         AbstractionSolverInstance<Label,W,C,A> compile(const NFA<Label>& initial_headers, const NFA<Label>& final_headers) {
@@ -286,7 +270,9 @@ namespace pdaaal {
             return AbstractionSolverInstance<Label,W,C,A>(pda_t{std::move(_temp_pda)}, initial_headers, initial(), final_headers, accepting());
         }
 
-        void reconstruct_trace(const AbstractionSolverInstance<Label,W,C,A>& instance, const NFA<Label>& initial_headers, const NFA<Label>& final_headers) {
+        std::variant<header_t, // TODO: Also concrete trace!
+                    refinement_info_t>
+        reconstruct_trace(const AbstractionSolverInstance<Label,W,C,A>& instance, const NFA<Label>& initial_headers, const NFA<Label>& final_headers) {
             static_assert(!is_weighted<W>, "Not yet supported.");
             if constexpr (is_weighted<W>) {
                 assert(false); // Not yet supported.
@@ -330,7 +316,7 @@ namespace pdaaal {
                 };
                 std::vector<search_state_t> search_stack;
                 // Initialize
-                search_stack.emplace_back(first_confs(header_handler, initial_abstract_stack, trace[0]), 0);
+                search_stack.emplace_back(first_confs(trace[0], initial_abstract_stack, header_handler), 0);
                 // Search
                 while (!search_stack.empty()) {
                     if (search_stack.back().end()) { // No more rules at this level
@@ -354,7 +340,7 @@ namespace pdaaal {
 
                     if (next_trace_id < trace.size()) {
                         // Search at next level
-                        search_stack.emplace_back(next_confs(header_handler, conf, trace[next_trace_id]), next_trace_id);
+                        search_stack.emplace_back(next_confs(trace[next_trace_id], conf, header_handler), next_trace_id);
                         continue;
                     } else {
                         // Done with trace, see if the final header can be valid.
@@ -379,65 +365,22 @@ namespace pdaaal {
 
                     } else {
                         // TODO: Refine...
-                        find_refinement(current_deepest_states, trace[max_depth]);
-
+                        return find_refinement(current_deepest_states, trace[max_depth]);
                     }
                 } else if (final_header) {
-                    // TODO: Success. What to return??
-                    auto header = final_header.value();
-
+                    // Success
+                    // TODO: Backtrack to make concrete trace and return it (maybe together with final_header.value()).
+                    return final_header.value();
                 } else if (header_refinement_info) {
-                    // TODO: Perform label refinement...
-                    auto[label_set1, label_set2] = header_refinement_info.value();
-
+                    // Return Label refinement info. And empty State refinement info. TODO: Should this case have a separate return value, or be generalized like this?
+                    return std::make_pair(header_refinement_info.value(), std::make_pair(std::vector<State>(), std::vector<State>()));
                 } else {
                     assert(false); // If we got through the trace, but have no final header, we must have header_refinement_info.
                 }
-
             }
+            // I don't know, sort of an empty return on failure...
+            return std::make_pair(std::make_pair(std::vector<Label>(), std::vector<Label>()), std::make_pair(std::vector<State>(), std::vector<State>()));
         }
-
-
-    private:
-        /*void build_pda(builder_pda_t& pda) {
-            // Build up PDA by searching through reachable states from initial states.
-            // Derived class must define initial states, successor function (rules), and accepting state predicate.
-
-            std::vector<State> waiting = initial();
-            std::unordered_set<State> seen(waiting.begin(), waiting.end());
-            for (const auto& concrete_initial_state : waiting) {
-                auto [fresh, id] = _state_abstraction.insert(concrete_initial_state);
-                if (fresh) {
-                    _initial_states.emplace(id);
-                }
-            }
-            std::unordered_set<size_t> accepting_states_set;
-            while (!waiting.empty()) {
-                auto from = waiting.back();
-                waiting.pop_back();
-                if (accepting(from)) {
-                    auto [exists, from_id] = _state_abstraction.exists(from);
-                    assert(exists);
-                    accepting_states_set.emplace(from_id);
-                }
-                for (const auto& [ignore_concrete, r] : rules(from)) {
-                    assert(from == r._from);
-
-                    auto [fresh,ar_id] = _rule_abstraction.insert(r, ignore_concrete);
-                    if (fresh) {
-                        auto abstract_r = _rule_abstraction.get_abstract_value(ar_id);
-                        pda.add_rule(abstract_r);
-                    }
-
-                    if (seen.emplace(r._to).second) {
-                        waiting.push_back(r._to);
-                    }
-                }
-            }
-            std::sort(_initial_states.begin(), _initial_states.end());
-            _accepting_states.assign(accepting_states_set.begin(), accepting_states_set.end());
-            std::sort(_accepting_states.begin(), _accepting_states.end());
-        }*/
 
     protected:
 
@@ -447,48 +390,19 @@ namespace pdaaal {
         std::pair<bool,size_t> insert_label(const Label& label){
             return _temp_pda.insert_label(label);
         }
-        std::vector<Label> get_concrete_labels(size_t label) const {
-            return _temp_pda.get_concrete_labels(label);
-        }
-        auto get_concrete_labels_range(size_t label) const {
-            return _temp_pda.get_concrete_labels_range(label);
-        }
 
         virtual void build_pda() = 0;
         virtual const std::vector<size_t>& initial() = 0;
         virtual const std::vector<size_t>& accepting() = 0;
 
-        /*abstract_rule_t make_abstract_rule(const concrete_rule_t& r) {
-            abstract_rule_t res;
-            res._from = _state_abstraction.insert(r._from).second;
-            res._to = _state_abstraction.insert(r._to).second;
-            res._pre = _temp_pda.insert_label(r._pre).second;
-            res._op_label = (r._op == PUSH || r._op == SWAP) ? _temp_pda.insert_label(r._op_label).second : std::numeric_limits<uint32_t>::max();
-            res._op = r._op;
-            return res;
-        }*/
-
-        //virtual const std::vector<State>& initial() = 0;
-        //virtual bool accepting(const State&) = 0;
-        //virtual std::vector<std::pair<bool,concrete_rule_t>> rules(const State&) = 0;
-
-        //virtual bool is_initial(const State&) = 0;
-
-
-        virtual std::pair<conf_it,conf_it> first_confs(const header_wrapper_t&, const std::vector<uint32_t>&, const abstract_rule_t&) = 0;
-        virtual std::pair<conf_it,conf_it> next_confs(const header_wrapper_t&, const configuration_t&, const abstract_rule_t&) = 0;
-        virtual void // TODO: What should be return type of this?
-        find_refinement(const std::vector<configuration_t>&, const abstract_rule_t&) = 0;
+        virtual std::pair<conf_it,conf_it> first_confs(const abstract_rule_t&, const std::vector<uint32_t>&, const header_wrapper_t&) = 0;
+        virtual std::pair<conf_it,conf_it> next_confs(const abstract_rule_t&, const configuration_t&, const header_wrapper_t&) = 0;
+        virtual refinement_info_t find_refinement(const std::vector<configuration_t>&, const abstract_rule_t&) = 0;
         virtual header_t get_header(const configuration_t&) = 0;
 
 
     private:
         builder_pda_t _temp_pda;
-        //AbstractionMapping<State, AbstractState> _state_abstraction;
-        //AbstractionMapping<concrete_rule_t, abstract_rule_t> _rule_abstraction;
-
-        //std::vector<size_t> _initial_states;
-        //std::vector<size_t> _accepting_states;
     };
 
 }
