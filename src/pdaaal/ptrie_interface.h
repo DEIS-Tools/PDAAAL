@@ -271,11 +271,13 @@ namespace pdaaal::utils {
 
     // Next we define ptrie_set and ptrie_map which makes using ptrie_interface seamless (except now you should use 'at' instead of 'unpack').
     template <typename KEY>
-    class ptrie_set : public ptrie::set_stable<ptrie_interface_elem<KEY>> {
+    class ptrie_set : private ptrie::set_stable<ptrie_interface_elem<KEY>> {
         static_assert(has_ptrie_interface_v<KEY>, "KEY does not provide a specialization for ptrie_interface.");
         static_assert(std::is_same_v<KEY, typename ptrie_interface<KEY>::external_type>, "KEY not matching ptrie_interface<KEY>::external_type.");
         using pt = ptrie::set_stable<ptrie_interface_elem<KEY>>;
     public:
+        using pt::size;
+
         std::pair<bool, size_t> insert(const KEY& key) {
             return pt::insert(ptrie_interface<KEY>::to_ptrie(key));
         }
@@ -291,11 +293,17 @@ namespace pdaaal::utils {
     };
 
     template <typename KEY, typename T>
-    class ptrie_map : public ptrie::map<ptrie_interface_elem<KEY>, T>, public ptrie_set<KEY> {
+    class ptrie_map : private ptrie::map<ptrie_interface_elem<KEY>, T>, public ptrie_set<KEY> {
         static_assert(has_ptrie_interface_v<KEY>, "KEY does not provide a specialization for ptrie_interface.");
         static_assert(std::is_same_v<KEY, typename ptrie_interface<KEY>::external_type>, "KEY not matching ptrie_interface<KEY>::external_type.");
         using pt = ptrie::map<ptrie_interface_elem<KEY>, T>;
+        using ps = ptrie_set<KEY>;
     public:
+        using ps::insert;
+        using ps::exists;
+        using ps::erase;
+        using pt::get_data;
+
         T& operator[](const KEY& key) {
             return pt::operator[](ptrie_interface<KEY>::to_ptrie(key));
         }
@@ -330,7 +338,7 @@ namespace pdaaal::utils {
         ptrie_access_iterator(const _inner_iterator& i, const ptrie_set<T>& ptrie) noexcept: _inner(i), _ptrie(ptrie) {};
 
         value_type operator*() const { // Note this gives a value_type not a reference.
-            return _ptrie->at(*_inner);
+            return _ptrie.at(*_inner);
         }
 
         // Forward iterator requirements
@@ -361,7 +369,7 @@ namespace pdaaal::utils {
 
         // Random access iterator requirements
         value_type operator[](difference_type n) const { // Note this gives a value_type not a reference.
-            return _ptrie->at(_inner[n]);
+            return _ptrie.at(_inner[n]);
         }
 
         ptrie_access_iterator& operator+=(difference_type n) noexcept {

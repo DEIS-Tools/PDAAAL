@@ -200,7 +200,7 @@ namespace pdaaal {
             return _map_fn(concrete_value);
         }
 
-        std::vector<size_t> encode_many(const std::vector<ConcreteType>& concrete_values) {
+        std::vector<size_t> encode_many(const std::vector<ConcreteType>& concrete_values) const {
             std::unordered_set<size_t> res_set;
             for (const auto& concrete_value : concrete_values) {
                 auto [exists, value] = _many_to_one_map.exists(concrete_value);
@@ -217,7 +217,7 @@ namespace pdaaal {
         }
 
         // Construct vector
-        std::vector<ConcreteType> get_concrete_values(const AbstractType& value) const {
+        std::vector<ConcreteType> get_concrete_values_from_abstract(const AbstractType& value) const {
             auto [exists, id] = _abstract_values.exists(value);
             return get_concrete_values(exists ? id : _one_to_many_ids.size());
         }
@@ -232,8 +232,8 @@ namespace pdaaal {
             return result;
         }
 
-        /* TODO: Determine design and relevance later...
-         * TODO: Use C++20 ranges::view when available.
+        // TODO: Determine design and relevance later...
+        // TODO: Use C++20 ranges::view when available.
         // Return range structure with begin and end defined.
         struct concrete_value_range {
             explicit concrete_value_range(const ptrie_map<ConcreteType, size_t>& map, const std::vector<size_t>* range = nullptr)
@@ -250,16 +250,16 @@ namespace pdaaal {
             const std::vector<size_t>* _range;
         };
 
-        concrete_value_range get_concrete_values_range(const AbstractType& value) const {
+        concrete_value_range get_concrete_values_range_from_abstract(const AbstractType& value) const {
             auto [exists, id] = _abstract_values.exists(value);
             return get_concrete_values_range(exists ? id : _one_to_many_ids.size());
         }
         concrete_value_range get_concrete_values_range(size_t abstract_value) const {
             if (abstract_value < _one_to_many_ids.size()) {
-                return concrete_value_range(&_one_to_many_ids[abstract_value], _many_to_one_map);
+                return concrete_value_range(_many_to_one_map, &_one_to_many_ids[abstract_value]);
             }
             return concrete_value_range(_many_to_one_map);
-        }*/
+        }
 
         [[nodiscard]] size_t size() const {
             return _abstract_values.size();

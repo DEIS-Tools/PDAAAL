@@ -49,10 +49,9 @@ void print_trace(std::vector<typename TypedPDA<T>::tracestate_t> trace, std::ost
     s << std::endl;
 }
 
-BOOST_AUTO_TEST_CASE(ParsingPDAFactory_Test_1)
+BOOST_AUTO_TEST_CASE(NewPDAFactory_Test)
 {
-    std::istringstream i_stream(
-R"(
+    std::istringstream i_stream(R"(
 # You can make a comment like this
 
 # Labels
@@ -72,13 +71,18 @@ A,B
 # PUSH rules use +LABEL
 # SWAP rules use LABEL
 )");
-    auto factory = ParsingPDAFactory<>::make_parsing_pda_factory(i_stream);
+    auto factory = ParsingPDAFactory<>::create(i_stream);
 
+    // initial stack: [A,B]
     NFA<std::string> initial(std::unordered_set<std::string>{"A"});
     NFA<std::string> temp(std::unordered_set<std::string>{"B"});
     initial.concat(std::move(temp));
+    // final stack: [A]
     NFA<std::string> final(std::unordered_set<std::string>{"A"});
+    // Yeah, a small regex -> NFA parser could be nice here...
+
     auto instance = factory.compile(initial, final);
+
     bool result = Solver::post_star_accepts(instance);
     BOOST_CHECK(result);
 
@@ -89,30 +93,33 @@ A,B
     print_trace<std::string>(trace);
 }
 
-BOOST_AUTO_TEST_CASE(ParsingPDAFactory_Test_2)
+BOOST_AUTO_TEST_CASE(NewPDAFactory_Weighted_Test)
 {
-    std::istringstream i_stream(
-            R"(
+    std::istringstream i_stream(R"(
 # Labels
 A,B
 # Initial states
 0
 # Accepting states
 0
-# Rules
+# Rules | with weights
 0 A -> 2 B | 3
 0 B -> 0 A | 1
 0 A -> 1 - | 1
 1 B -> 2 +B | 1
 2 B -> 0 - | 1
 )");
-    auto factory = ParsingPDAFactory<unsigned int>::make_parsing_pda_factory(i_stream);
+    auto factory = ParsingPDAFactory<unsigned int>::create(i_stream);
 
+    // initial stack: [A,B]
     NFA<std::string> initial(std::unordered_set<std::string>{"A"});
     NFA<std::string> temp(std::unordered_set<std::string>{"B"});
     initial.concat(std::move(temp));
+    // final stack: [A]
     NFA<std::string> final(std::unordered_set<std::string>{"A"});
+
     auto instance = factory.compile(initial, final);
+
     bool result = Solver::post_star_accepts<Trace_Type::Shortest>(instance);
     BOOST_CHECK(result);
 
@@ -121,4 +128,48 @@ A,B
     BOOST_CHECK_EQUAL(trace.size(), 5);
 
     print_trace<std::string>(trace);
+}
+
+
+BOOST_AUTO_TEST_CASE(CegarPdaFactory_Test)
+{
+    std::istringstream i_stream(R"(
+# You can make a comment like this
+
+# Labels
+A,B
+# Initial states
+0
+# Accepting states
+0
+# Rules
+0 A -> 2 B
+0 B -> 0 A
+0 A -> 1 -
+1 B -> 2 +B
+2 B -> 0 -
+
+# POP  rules use -
+# PUSH rules use +LABEL
+# SWAP rules use LABEL
+)");
+    auto factory = ParsingCegarPdaFactory<>::create(i_stream);
+
+    // initial stack: [A,B]
+    NFA<std::string> initial(std::unordered_set<std::string>{"A"});
+    NFA<std::string> temp(std::unordered_set<std::string>{"B"});
+    initial.concat(std::move(temp));
+    // final stack: [A]
+    NFA<std::string> final(std::unordered_set<std::string>{"A"});
+    // Yeah, a small regex -> NFA parser could be nice here...
+
+    auto instance = factory.compile(initial, final);
+
+    bool result = Solver::post_star_accepts(instance);
+    BOOST_CHECK(result);
+
+    factory.reconstruct_trace(instance, initial, final);
+
+    // TODO: Implement reconstruct_trace properly and then test it here.
+
 }

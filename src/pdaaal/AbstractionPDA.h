@@ -65,7 +65,7 @@ namespace pdaaal {
                     return std::includes(labels.begin(), labels.end(), concrete.begin(), concrete.end());
                 }), abstract_labels.end());
             }
-            return abstract_labels;
+            return std::vector<uint32_t>(abstract_labels.begin(), abstract_labels.end()); // TODO: This is not optimal. Label type in PDA should be size_t instead of uint32_t. This is a change many places...
         }
 
         std::vector<T> get_concrete_labels(size_t label) const {

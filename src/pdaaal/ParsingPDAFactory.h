@@ -28,6 +28,7 @@
 #define PDAAAL_PARSINGPDAFACTORY_H
 
 #include "NewPDAFactory.h"
+#include "CegarPdaFactory.h"
 #include <istream>
 #include <algorithm>
 #include <vector>
@@ -122,12 +123,12 @@ namespace pdaaal {
     template <typename W = void, typename C = std::less<W>, typename A = add<W>>
     class ParsingPDAFactory : public NewPDAFactory<std::string, W, C, A> {
     public:
-        static ParsingPDAFactory<W,C,A> make_parsing_pda_factory(std::istream& input) {
+        static ParsingPDAFactory<W,C,A> create(std::istream& input) {
             auto all_labels = PDAParser::parse_all_labels(input);
             return ParsingPDAFactory<W,C,A>(input, std::move(all_labels));
         }
     private:
-        explicit ParsingPDAFactory(std::istream& input, std::unordered_set<std::string>&& all_labels)
+        ParsingPDAFactory(std::istream& input, std::unordered_set<std::string>&& all_labels)
                 : NewPDAFactory<std::string, W, C, A>(std::move(all_labels)), _input(input) {
             initialize();
         };
@@ -165,6 +166,155 @@ namespace pdaaal {
         std::vector<size_t> _initial;
         std::vector<size_t> _accepting;
         std::vector<std::vector<rule_t>> _rules;
+    };
+
+
+    template <typename W, typename C>
+    using ParsingCegarPdaFactory_configuration = std::pair<size_t, typename wildcard_header<std::string,W,C>::header_t>;
+    template <typename W = void, typename C = std::less<W>, typename A = add<W>>
+    class ParsingCegarPdaFactory : public CegarPdaFactory<std::string, size_t /* State */, size_t /* AbstractState */,
+            typename std::vector<ParsingCegarPdaFactory_configuration<W,C>>::iterator /* conf_it */, W, C, A> {
+    public:
+        static ParsingCegarPdaFactory<W,C,A> create(std::istream& input) {
+            auto all_labels = PDAParser::parse_all_labels(input);
+            return ParsingCegarPdaFactory<W,C,A>(input, std::move(all_labels));
+        }
+    private:
+        using state_t = size_t;
+        using abstract_state_t = size_t;
+        using conf_it = typename std::vector<ParsingCegarPdaFactory_configuration<W,C>>::iterator;
+        using parent_t = CegarPdaFactory<std::string, state_t, abstract_state_t, conf_it, W, C, A>;
+        using configuration_t = typename parent_t::configuration_t;
+        using header_wrapper_t = typename parent_t::header_wrapper_t;
+        using header_t = typename parent_t::header_t;
+
+        ParsingCegarPdaFactory(std::istream& input, std::unordered_set<std::string>&& all_labels)
+        : parent_t([](const std::string& label){ return (uint32_t)label[0]; }), // Cast first character... TODO: Stuff
+          _input(input), _all_labels(std::move(all_labels)), _state_abstraction([](size_t s){ return s; }) {  // No state abstraction either, for now...
+            initialize();
+        };
+        using rule_t = typename TypedPDA<std::string, W, C>::rule_t; // For concrete rules we just use this one.
+        using abstract_rule_t = typename parent_t::abstract_rule_t;
+    protected:
+
+        void build_pda() override {
+            for (const auto& rule : _rules) {
+                this->add_rule(abstract_rule(rule));
+            }
+        }
+        const std::vector<size_t>& initial() override {
+            return _initial;
+        }
+        const std::vector<size_t>& accepting() override {
+            return _accepting;
+        }
+
+        // TODO: Coroutines might make this a lot simpler...
+        std::pair<conf_it,conf_it> first_confs(const header_wrapper_t& header_handler, const std::vector<uint32_t>& initial_abstract_stack, const abstract_rule_t& rule) override {
+            auto from_states = _state_abstraction.get_concrete_values(rule._from);
+            auto header = header_handler.initial_header();
+            _temps.emplace_back(); // We store all configurations in _temps. TODO: Make efficient range implementation. That was the hole point of returning iterators.
+            make_configurations(_temps.back(), header_handler, header, from_states, rule);
+            return std::make_pair(_temps.back().begin(), _temps.back().end());
+        }
+        std::pair<conf_it,conf_it> next_confs(const header_wrapper_t& header_handler, const configuration_t& conf, const abstract_rule_t& rule) override {
+            _temps.emplace_back(); // We store all configurations in _temps. TODO: Make efficient range implementation. That was the hole point of returning iterators.
+            make_configurations(_temps.back(), header_handler, conf.second, std::vector<state_t>{conf.first}, rule);
+            return std::make_pair(_temps.back().begin(), _temps.back().end());
+        }
+        void // TODO: What should be return type of this?
+        find_refinement(const std::vector<configuration_t>&, const abstract_rule_t&) override {
+            // TODO:: Implement
+        }
+        header_t get_header(const configuration_t& conf) override {
+            return conf.second;
+        }
+
+    private:
+        void make_configurations(std::vector<configuration_t>& result, const header_wrapper_t& header_handler, const header_t& header, const std::vector<state_t>& from_states, const abstract_rule_t& rule) {
+            auto pre_labels = this->get_concrete_labels(rule._pre); // TODO: consider range (here and above)
+            for (const state_t& from_state : from_states) {
+                for (const auto& pre_label : pre_labels) {
+                    std::vector<std::string> pre{pre_label}; // Here only one label, but we support multiple pre labels - useful e.g. if concrete rule translates to multiple abstract rules.
+                    switch (rule._op) {
+                        case POP: {
+                            auto new_header = header_handler.update(header, pre, std::vector<std::string>{});
+                            if (new_header) {
+                                result.emplace_back(from_state, new_header.value());
+                            }
+                            break;
+                        }
+                        case NOOP: {
+                            auto new_header = header_handler.update(header, pre, pre);
+                            if (new_header) {
+                                result.emplace_back(from_state, new_header.value());
+                            }
+                            break;
+                        }
+                        case SWAP: {
+                            for (const auto& op_label : this->get_concrete_labels(rule._op_label)) {
+                                std::vector<std::string> post{op_label};
+                                auto new_header = header_handler.update(header, pre, post);
+                                if (new_header) {
+                                    result.emplace_back(from_state, new_header.value());
+                                }
+                            }
+                            break;
+                        }
+                        case PUSH: {
+                            for (const auto& op_label : this->get_concrete_labels(rule._op_label)) {
+                                std::vector<std::string> post{pre_label, op_label};
+                                auto new_header = header_handler.update(header, pre, post);
+                                if (new_header) {
+                                    result.emplace_back(from_state, new_header.value());
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        void initialize() {
+            _initial = abstract_states(PDAParser::parse_states(_input));
+            _accepting = abstract_states(PDAParser::parse_states(_input));
+
+            while (true) {
+                auto [keep_going, rule] = PDAParser::parse_rule<rule_t, W>(_input);
+                if (!keep_going) break;
+                _rules.push_back(rule);
+            }
+        }
+        std::vector<size_t> abstract_states(std::vector<state_t>&& concrete_states) {
+            std::vector<size_t> abstract_states;
+            for (const auto& state : concrete_states) {
+                auto [fresh, id] = _state_abstraction.insert(state);
+                abstract_states.push_back(id);
+            }
+            std::sort(abstract_states.begin(), abstract_states.end());
+            abstract_states.erase(std::unique(abstract_states.begin(), abstract_states.end()), abstract_states.end());
+            return abstract_states;
+        }
+        abstract_rule_t abstract_rule(const rule_t& r) {
+            abstract_rule_t res;
+            res._from = _state_abstraction.insert(r._from).second;
+            res._to = _state_abstraction.insert(r._to).second;
+            res._pre = this->insert_label(r._pre).second;
+            res._op_label = (r._op == PUSH || r._op == SWAP) ? this->insert_label(r._op_label).second
+                                                             : std::numeric_limits<uint32_t>::max();
+            res._op = r._op;
+            return res;
+        }
+
+    private:
+        std::istream& _input;
+        std::unordered_set<std::string> _all_labels;
+        AbstractionMapping<state_t, abstract_state_t> _state_abstraction; // <size_t, size_t> is kind of a simple case, but fine for now
+        std::vector<size_t> _initial; // Abstracted initial states
+        std::vector<size_t> _accepting; // Abstracted final states
+        std::vector<rule_t> _rules; // Concrete rules. Here stored explicitly, but CegarPdaFactory supports generating them on the fly.
+
+        std::vector<std::vector<configuration_t>> _temps; // This is where all configurations are stored. Super inefficient, but I don't have better option yet. Implementing ranges would take some time...
     };
 
 }

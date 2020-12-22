@@ -183,13 +183,13 @@ namespace pdaaal {
                 std::vector<Label> final_ok_labels;
                 auto abstract_label = _initial_abstract_stack[_initial_abstract_stack.size() - header.count_wildcards];
                 assert(abstract_label == _final_abstract_stack[_final_abstract_stack.size() - header.count_wildcards]); // This position is wildcard in concrete_stack, so the trace did not touch this part of the stack, hence they must be equal.
-                auto&[label_it, label_end] = _pda.get_concrete_labels_range(abstract_label);
-                Label label;
-                for (; label_it == label_end; ++label_it) {
-                    label = *label_it;
+                bool found = false;
+                for (const auto& label : _pda.get_concrete_labels_range(abstract_label)) {
                     bool initial_found = check_nfa_path(_initial_nfa, _initial_path, label, _initial_path.size() - header.count_wildcards);
                     bool final_found = check_nfa_path(_final_nfa, _final_path, label, _final_path.size() - header.count_wildcards);
                     if (initial_found && final_found) {
+                        found = true;
+                        concrete_stack.push_back(label);
                         break;
                     }
                     if (initial_found) {
@@ -199,15 +199,13 @@ namespace pdaaal {
                         final_ok_labels.push_back(label);
                     }
                 }
-                if (label_it == label_end) {
+                if (!found) {
                     assert(!initial_ok_labels.empty());
                     assert(!final_ok_labels.empty()); // Both initial and final PAutomaton contains an edge here. Some concrete label must correspond to this.
                     // Failed.
                     // initial_ok_labels and final_ok_labels are disjoint, but all map to the same abstract label.
                     // Use this split for refinement.
                     return std::make_pair(initial_ok_labels, final_ok_labels);
-                } else {
-                    concrete_stack.push_back(label);
                 }
             }
             return header_t{0, std::vector<Label>(concrete_stack.rbegin(), concrete_stack.rend())}; // Reverse stack to make it bottom to top.
@@ -446,6 +444,16 @@ namespace pdaaal {
         void add_rule(const abstract_rule_t& rule) {
             _temp_pda.add_rule(rule);
         }
+        std::pair<bool,size_t> insert_label(const Label& label){
+            return _temp_pda.insert_label(label);
+        }
+        std::vector<Label> get_concrete_labels(size_t label) const {
+            return _temp_pda.get_concrete_labels(label);
+        }
+        auto get_concrete_labels_range(size_t label) const {
+            return _temp_pda.get_concrete_labels_range(label);
+        }
+
         virtual void build_pda() = 0;
         virtual const std::vector<size_t>& initial() = 0;
         virtual const std::vector<size_t>& accepting() = 0;
@@ -467,7 +475,7 @@ namespace pdaaal {
         //virtual bool is_initial(const State&) = 0;
 
 
-        virtual std::pair<conf_it,conf_it> first_confs(const header_wrapper_t&, std::vector<uint32_t>, const abstract_rule_t&) = 0;
+        virtual std::pair<conf_it,conf_it> first_confs(const header_wrapper_t&, const std::vector<uint32_t>&, const abstract_rule_t&) = 0;
         virtual std::pair<conf_it,conf_it> next_confs(const header_wrapper_t&, const configuration_t&, const abstract_rule_t&) = 0;
         virtual void // TODO: What should be return type of this?
         find_refinement(const std::vector<configuration_t>&, const abstract_rule_t&) = 0;

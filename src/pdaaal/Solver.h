@@ -857,9 +857,9 @@ namespace pdaaal {
             start_stack.reserve(edges.size());
             std::vector<size_t> start_path;
             start_path.reserve(edges.size() + 1);
-            start_path.push_back(std::get<2>(edges.back()));
+            start_path.push_back(std::get<0>(edges.back()));
             for (auto it = edges.crbegin(); it != edges.crend(); ++it) {
-                start_path.push_back(std::get<0>(*it));
+                start_path.push_back(std::get<2>(*it));
                 start_stack.push_back(std::get<1>(*it));
             }
 

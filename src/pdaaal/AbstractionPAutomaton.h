@@ -60,7 +60,7 @@ namespace pdaaal {
                 for (const auto& e : i->_edges) {
                     for (const nfastate_t* n : e.follow_epsilon()) {
                         size_t n_id = get_nfastate_id(n);
-                        add_edges(states, n_id, e._negated, pda.encode_labels(e._symbols, e._negated));
+                        this->add_edges(states, n_id, e._negated, pda.encode_labels(e._symbols, e._negated));
                     }
                 }
             }
@@ -70,7 +70,7 @@ namespace pdaaal {
                 for (const auto& e : top->_edges) {
                     for (const nfastate_t* n : e.follow_epsilon()) {
                         size_t n_id = get_nfastate_id(n);
-                        add_edges(top_id, n_id, e._negated, pda.encode_labels(e._symbols, e._negated));
+                        this->add_edges(top_id, n_id, e._negated, pda.encode_labels(e._symbols, e._negated));
                     }
                 }
             }
