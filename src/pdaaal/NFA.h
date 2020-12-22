@@ -27,7 +27,6 @@
 #ifndef NFA_H
 #define NFA_H
 
-#include <inttypes.h>
 #include <vector>
 #include <unordered_set>
 #include <memory>
@@ -35,7 +34,6 @@
 #include <ostream>
 #include <functional>
 #include <iostream>
-
 
 namespace pdaaal {
 
@@ -64,12 +62,12 @@ namespace pdaaal {
                 _destination->_backedges.emplace_back(source, id);
             };
             edge_t(const edge_t& other) = default;
-            bool empty(size_t n) const {
+            [[nodiscard]] bool empty(size_t n) const {
                 if(!_negated)
                     return _symbols.empty();
                 return _symbols.size() == n;
             }
-            bool wildcard(size_t n) const {
+            [[nodiscard]] bool wildcard(size_t n) const {
                 if(_negated)
                     return _symbols.empty();
                 else //if(!_negated)
@@ -204,7 +202,8 @@ namespace pdaaal {
         }
 
         template<typename C>
-        static void follow_epsilon(std::vector<C>& states)
+        static std::enable_if_t<std::is_same_v<state_t*, C> || std::is_same_v<const state_t*, C>, void>
+        follow_epsilon(std::vector<C>& states)
         {
             std::vector<C> waiting = states;
             while(!waiting.empty())
@@ -227,13 +226,13 @@ namespace pdaaal {
             auto res = std::remove_if(states.begin(), states.end(), [](const state_t* s){ return !(s->_accepting || s->has_non_epsilon());});
             states.erase(res, states.end());
         }
-        
-        static std::vector<const state_t*> successor(const std::vector<const state_t*>& states, const T& label) {
-            std::vector<const state_t*> next;
+
+        template<typename C>
+        static std::enable_if_t<std::is_same_v<state_t*, C> || std::is_same_v<const state_t*, C>, std::vector<C>>
+        successor(const std::vector<C>& states, const T& label) {
+            std::vector<C> next;
             for(const auto& s : states) {
                 for(const auto& e : s->_edges) {
-                    //auto lb = std::lower_bound(e._symbols.begin(), e._symbols.end(), label);
-                    //auto match = lb != std::end(e._symbols) && *lb == label;
                     if(e.contains(label)) {
                         auto slb = std::lower_bound(next.begin(), next.end(), e._destination);
                         if(slb == std::end(next) || *slb != e._destination) {
@@ -246,8 +245,10 @@ namespace pdaaal {
             return next;
         }
 
-        static bool has_as_successor(const std::vector<const state_t*>& states, const T& label, const state_t* goal_successor_state) {
-            std::vector<const state_t*> successor_states = successor(states, label);
+        template<typename C>
+        static std::enable_if_t<std::is_same_v<state_t*, C> || std::is_same_v<const state_t*, C>, bool>
+        has_as_successor(const std::vector<C>& states, const T& label, const state_t* goal_successor_state) {
+            std::vector<C> successor_states = successor(states, label);
             auto lb = std::lower_bound(successor_states.begin(), successor_states.end(), goal_successor_state); // Since successor_states vector is sorted, we can use binary search.
             return lb != successor_states.end() && *lb == goal_successor_state;
         }
@@ -274,29 +275,38 @@ namespace pdaaal {
             }
             return false;
         }
-        static std::vector<T> intersect_edge_labels(const std::vector<const state_t*>& from_states, const state_t* to_state, const std::vector<T>& labels) {
+        template<typename C>
+        static std::enable_if_t<std::is_same_v<state_t*, C> || std::is_same_v<const state_t*, C>, std::vector<T>>
+        intersect_edge_labels(const std::vector<C>& from_states, const state_t* to_state, const std::vector<T>& labels) {
             // Find all the labels l in 'labels', such that has_as_successor(from_states, l, to_state) is true.
             assert(std::is_sorted(labels.begin(), labels.end()));
-            std::unordered_set<T> result_set;
+            std::vector<T> result;
+            std::vector<T> temp_union;
+            std::vector<T> temp;
             for (const auto& from_state : from_states) {
                 for (const auto& e: from_state->_edges) {
                     if (!leads_to_by_epsilon(e._destination, to_state)) continue;
 
-                    if (e.wildcard()) {
+                    if (e._negated && e._symbols.empty()) { // Wildcard. Note: we cannot use e.wildcard(labels.size()) since labels is only a subset of all labels.
                         return labels;
                     }
+                    // Only reserve if needed (result and temp_union actually used). These reserve calls in subsequent iterations does nothing (cheap).
+                    result.reserve(labels.size());
+                    temp_union.reserve(labels.size());
+                    temp.reserve(labels.size());
                     if (e._negated) {
-                        std::set_difference(labels.begin(), labels.end(), e._symbols.begin(), e._symbols.end(), std::inserter(result_set));
+                        std::set_difference(labels.begin(), labels.end(), e._symbols.begin(), e._symbols.end(), std::back_inserter(temp));
                     } else {
-                        std::set_intersection(labels.begin(), labels.end(), e._symbols.begin(), e._symbols.end(), std::inserter(result_set));
+                        std::set_intersection(labels.begin(), labels.end(), e._symbols.begin(), e._symbols.end(), std::back_inserter(temp));
                     }
-                    if (result_set.size() == labels.size()) {
-                        return labels; // Possibly early terminate.
+                    temp_union.clear();
+                    std::set_union(result.begin(), result.end(), temp.begin(), temp.end(), std::back_inserter(temp_union));
+                    std::swap(result, temp_union);
+                    if (result.size() == labels.size()) {
+                        return result; // Possibly early terminate.
                     }
                 }
             }
-            std::vector<T> result(result_set.begin(), result_set.end());
-            std::sort(result.begin(), result.end());
             return result;
         }
         static std::vector<T> intersect_edge_labels(const state_t* from_state, const state_t* to_state, const std::vector<T>& labels) {
@@ -398,7 +408,7 @@ namespace pdaaal {
         void to_dot(std::ostream& out, std::function<void(std::ostream&, const T&)> printer = [](auto& s, auto& e){ s << e ;}) const
         {
             out << "digraph NFA {\n";
-            for(auto& s : _states)
+            for(const auto& s : _states)
             {
                 out << "\"" << s.get() << "\" [shape=";
                 if(s->_accepting)
@@ -435,7 +445,7 @@ namespace pdaaal {
                     out << "\"];\n";
                 }
             }
-            for(auto& i : _initial)
+            for(const auto& i : _initial)
             {
                 out << "\"I" << i << "\" -> \"" << i << "\";\n";
                 out << "\"I" << i << "\" [style=invisible];\n";
@@ -453,7 +463,6 @@ namespace pdaaal {
         std::vector<std::unique_ptr<state_t>> _states;
         std::vector<state_t*> _initial;
         std::vector<state_t*> _accepting;
-
     };
 
 
