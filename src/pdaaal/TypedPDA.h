@@ -28,6 +28,7 @@
 #define TPDA_H
 
 #include "PDA.h"
+#include "ptrie_interface.h"
 
 #include <vector>
 #include <queue>
@@ -36,7 +37,6 @@
 #include <set>
 #include <cassert>
 #include <iostream>
-#include <ptrie/ptrie_map.h>
 
 namespace pdaaal {
 
@@ -98,9 +98,7 @@ namespace pdaaal {
         }
 
         T get_symbol(size_t i) const {
-            T res;
-            _label_map.unpack(i, &res);
-            return res;
+            return _label_map.at(i);
         }
 
         template<typename... Args>
@@ -214,7 +212,7 @@ namespace pdaaal {
             add_rule(from, to, op, label, false, _pre, weight);
         }
 
-        ptrie::set_stable<T> _label_map;
+        utils::ptrie_set<T> _label_map;
 
     };
 }

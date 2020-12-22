@@ -32,8 +32,8 @@
 
 namespace pdaaal::utils {
     // This file defines interfacing functionality for using more types with ptrie.
-    // ptrie_interface provides a unified interface for already supported types and types that get
-    // support from its specialization of ptrie_interface by conversion to/from std::vector<std::byte>.
+    // ptrie_interface provides a unified interface for already supported types, std::vector of such types, std::string,
+    // and types that get support from its specialization of ptrie_interface by conversion to/from std::vector<std::byte>.
     //
     // This file provides specializations for KEY where:
     //  a) std::has_unique_object_representations_v<KEY> is true or ptrie::byte_iterator<KEY> is explicitly defined
@@ -65,8 +65,8 @@ namespace pdaaal::utils {
         using elem_type = KEY;
         using insert_type = KEY;
         using external_type = KEY;
-        static constexpr insert_type to_ptrie(external_type&& key) {
-            return std::move(key);
+        static constexpr insert_type to_ptrie(const external_type& key) {
+            return key;
         }
         template<uint16_t H, uint16_t S, size_t A, typename T, typename I>
         static constexpr external_type unpack(const ptrie::set_stable<elem_type,H,S,A,T,I>& p, size_t id) {
@@ -80,12 +80,26 @@ namespace pdaaal::utils {
         using elem_type = KEY;
         using insert_type = std::vector<KEY>;
         using external_type = std::vector<KEY>;
-        static insert_type to_ptrie(external_type&& key) {
+        static insert_type to_ptrie(const external_type& key) {
             return std::move(key);
         }
         template<uint16_t H, uint16_t S, size_t A, typename T, typename I>
         static external_type unpack(const ptrie::set_stable<elem_type,H,S,A,T,I>& p, size_t id) {
             return p.unpack(id);
+        }
+    };
+    template<>
+    struct ptrie_interface<std::string> {
+        using elem_type = char;
+        using insert_type = std::pair<const char*, size_t>;
+        using external_type = std::string;
+        static insert_type to_ptrie(const external_type& key) {
+            return std::make_pair(key.data(), key.length());
+        }
+        template<uint16_t H, uint16_t S, size_t A, typename T, typename I>
+        static external_type unpack(const ptrie::set_stable<elem_type,H,S,A,T,I>& p, size_t id) {
+            auto vector = p.unpack(id);
+            return std::string(vector.data(), vector.size());
         }
     };
 
