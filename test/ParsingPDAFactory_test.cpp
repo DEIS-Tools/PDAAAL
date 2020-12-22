@@ -88,3 +88,37 @@ A,B
 
     print_trace<std::string>(trace);
 }
+
+BOOST_AUTO_TEST_CASE(ParsingPDAFactory_Test_2)
+{
+    std::istringstream i_stream(
+            R"(
+# Labels
+A,B
+# Initial states
+0
+# Accepting states
+0
+# Rules
+0 A -> 2 B | 3
+0 B -> 0 A | 1
+0 A -> 1 - | 1
+1 B -> 2 +B | 1
+2 B -> 0 - | 1
+)");
+    auto factory = ParsingPDAFactory<unsigned int>::make_parsing_pda_factory(i_stream);
+
+    NFA<std::string> initial(std::unordered_set<std::string>{"A"});
+    NFA<std::string> temp(std::unordered_set<std::string>{"B"});
+    initial.concat(std::move(temp));
+    NFA<std::string> final(std::unordered_set<std::string>{"A"});
+    auto instance = factory.compile(initial, final);
+    bool result = Solver::post_star_accepts<Trace_Type::Shortest>(instance);
+    BOOST_CHECK(result);
+
+    auto [trace, weight] = Solver::get_trace<Trace_Type::Shortest>(instance);
+    BOOST_CHECK_EQUAL(weight, 4);
+    BOOST_CHECK_EQUAL(trace.size(), 5);
+
+    print_trace<std::string>(trace);
+}
