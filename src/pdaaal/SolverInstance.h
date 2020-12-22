@@ -39,9 +39,10 @@ namespace pdaaal {
         using state_t = typename product_automaton_t::state_t;
     public:
         SolverInstance_impl(pda_t&& pda, const NFA<T>& initial_nfa, const std::vector<size_t>& initial_states,
-                                          const NFA<T>& final_nfa,   const std::vector<size_t>& final_states)
-        : _pda(std::move(pda)), _pda_size(_pda.states().size()), _initial(_pda, initial_nfa, initial_states),
-          _final(_pda, final_nfa, final_states), _product(_pda, intersect_vector(initial_states, final_states)) { };
+                                         const NFA<T>& final_nfa,   const std::vector<size_t>& final_states)
+        : _pda(std::move(pda)), _pda_size(_pda.states().size()),
+          _initial(_pda, initial_nfa, initial_states), _final(_pda, final_nfa, final_states),
+          _product(_pda, intersect_vector(initial_states, final_states), initial_nfa.empty_accept() && final_nfa.empty_accept()) { };
 
         // Returns whether an accepting state in the product automaton was reached.
         bool initialize_product() {
