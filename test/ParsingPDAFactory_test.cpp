@@ -137,7 +137,7 @@ BOOST_AUTO_TEST_CASE(CegarPdaFactory_Test)
 # You can make a comment like this
 
 # Labels
-A,B
+A,B,C
 # Initial states
 0
 # Accepting states
@@ -155,12 +155,16 @@ A,B
 )");
     auto factory = ParsingCegarPdaFactory<>::create(i_stream);
 
-    // initial stack: [A,B]
+    // initial stack: [A,B,C]
     NFA<std::string> initial(std::unordered_set<std::string>{"A"});
-    NFA<std::string> temp(std::unordered_set<std::string>{"B"});
-    initial.concat(std::move(temp));
-    // final stack: [A]
+    NFA<std::string> temp1(std::unordered_set<std::string>{"B"});
+    NFA<std::string> temp2(std::unordered_set<std::string>{"C"});
+    initial.concat(std::move(temp1));
+    initial.concat(std::move(temp2));
+    // final stack: [A,C]
     NFA<std::string> final(std::unordered_set<std::string>{"A"});
+    NFA<std::string> temp3(std::unordered_set<std::string>{"C"});
+    final.concat(std::move(temp3));
     // Yeah, a small regex -> NFA parser could be nice here...
 
     auto instance = factory.compile(initial, final);
@@ -168,8 +172,13 @@ A,B
     bool result = Solver::post_star_accepts(instance);
     BOOST_CHECK(result);
 
-    factory.reconstruct_trace(instance, initial, final);
+    auto res = factory.reconstruct_trace(instance, initial, final);
+    BOOST_CHECK(res.index() == 0);
 
-    // TODO: Implement reconstruct_trace properly and then test it here.
+    auto trace = std::get<0>(res);
+    BOOST_CHECK_GE(trace.size(), 4);
+    BOOST_CHECK_LE(trace.size(), 5);
+    BOOST_CHECK(std::all_of(trace.begin(), trace.end(), [](const auto& trace_state){ return trace_state._stack.back() == "C"; }));
 
+    print_trace<std::string>(trace);
 }

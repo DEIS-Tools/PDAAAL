@@ -326,7 +326,7 @@ namespace pdaaal {
         std::vector<std::vector<std::pair<size_t,size_t>>> _id_fast_lookup;
     };
 
-    template <typename T, typename W = void, typename C = std::less<W>, typename A = add<W>>
+    template <typename T, typename W, typename C, typename A>
     class SolverInstance : public SolverInstance_impl<TypedPDA<T,W,C,fut::type::vector>, PAutomaton<W,C,A>, T, W, C, A> {
     public:
         using pda_t = TypedPDA<T,W,C,fut::type::vector>;
@@ -337,11 +337,11 @@ namespace pdaaal {
         : SolverInstance_impl<pda_t, pautomaton_t, T, W, C, A>(std::move(pda), initial_nfa, initial_states, final_nfa, final_states) { };
     };
 
-    template <typename T, typename W = void, typename C = std::less<W>, typename A = add<W>>
-    class AbstractionSolverInstance : public SolverInstance_impl<AbstractionPDA<T,W,C,fut::type::vector>, AbstractionPAutomaton<T,W,C,A>, T, W, C, A> {
+    template <typename T, typename AT, typename W, typename C, typename A>
+    class AbstractionSolverInstance : public SolverInstance_impl<AbstractionPDA<T,AT,W,C,fut::type::vector>, AbstractionPAutomaton<T,AT,W,C,A>, T, W, C, A> {
     public:
-        using pda_t = AbstractionPDA<T,W,C,fut::type::vector>;
-        using pautomaton_t = AbstractionPAutomaton<T,W,C,A>;
+        using pda_t = AbstractionPDA<T,AT,W,C,fut::type::vector>;
+        using pautomaton_t = AbstractionPAutomaton<T,AT,W,C,A>;
         AbstractionSolverInstance(pda_t&& pda,
                                   const NFA<T>& initial_nfa, const std::vector<size_t>& initial_states,
                                   const NFA<T>& final_nfa,   const std::vector<size_t>& final_states)

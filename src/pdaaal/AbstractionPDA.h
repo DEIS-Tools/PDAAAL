@@ -32,17 +32,17 @@
 
 namespace pdaaal {
 
-    template <typename T, typename W = void, typename C = std::less<W>, fut::type Container = fut::type::vector>
+    template <typename label_t, typename abstract_label_t, typename W, typename C, fut::type Container = fut::type::vector>
     class AbstractionPDA : public PDA<W, C, Container> {
     protected:
         using impl_rule_t = typename PDA<W, C, Container>::rule_t; // This rule type is used internally.
     public:
         template<fut::type OtherContainer>
-        explicit AbstractionPDA(AbstractionPDA<T,W,C,OtherContainer>&& other_pda)
+        explicit AbstractionPDA(AbstractionPDA<label_t,abstract_label_t,W,C,OtherContainer>&& other_pda)
         : PDA<W,C,Container>(std::move(other_pda)), _label_abstraction(other_pda.move_label_map()) {}
 
-        explicit AbstractionPDA(std::function<uint32_t(const T&)>&& label_abstraction_fn)
-        : _label_abstraction(std::move(label_abstraction_fn)) {};
+        explicit AbstractionPDA(std::unordered_set<label_t>&& all_labels, std::function<abstract_label_t(const label_t&)>&& label_abstraction_fn)
+        : _label_abstraction(std::move(label_abstraction_fn), std::move(all_labels)) { };
 
         auto move_label_map() { return std::move(_label_abstraction); }
 
@@ -50,11 +50,11 @@ namespace pdaaal {
             return _label_abstraction.size();
         }
 
-        std::pair<bool,size_t> insert_label(const T& label){
+        std::pair<bool,size_t> insert_label(const label_t& label){
             return _label_abstraction.insert(label);
         }
 
-        std::vector<uint32_t> encode_labels(const std::vector<T>& labels, bool negated) const {
+        std::vector<uint32_t> encode_labels(const std::vector<label_t>& labels, bool negated) const {
             assert(std::is_sorted(labels.begin(), labels.end()));
             auto abstract_labels = _label_abstraction.encode_many(labels);
             if (negated) {
@@ -68,7 +68,7 @@ namespace pdaaal {
             return std::vector<uint32_t>(abstract_labels.begin(), abstract_labels.end()); // TODO: This is not optimal. Label type in PDA should be size_t instead of uint32_t. This is a change many places...
         }
 
-        std::vector<T> get_concrete_labels(size_t label) const {
+        std::vector<label_t> get_concrete_labels(size_t label) const {
             return _label_abstraction.get_concrete_values(label);
         }
         auto get_concrete_labels_range(size_t label) const {
@@ -76,7 +76,7 @@ namespace pdaaal {
         }
 
     private:
-        AbstractionMapping<T,uint32_t> _label_abstraction;
+        AbstractionMapping<label_t,abstract_label_t> _label_abstraction;
     };
 
 }
