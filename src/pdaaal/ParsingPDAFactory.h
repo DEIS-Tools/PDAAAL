@@ -251,7 +251,7 @@ namespace pdaaal {
             return conf.second;
         }
 
-        concrete_trace_t get_concrete_trace(std::vector<configuration_t>&& configurations, std::vector<label_t>&& final_header) override {
+        concrete_trace_t get_concrete_trace(std::vector<configuration_t>&& configurations, std::vector<label_t>&& final_header, size_t initial_abstract_state) override {
             concrete_trace_t trace;
             for (auto it = configurations.crbegin(); it < configurations.crend(); ++it) {
                 trace.emplace_back();
@@ -271,9 +271,14 @@ namespace pdaaal {
                         break;
                 }
             }
-            assert(!configurations.empty()); // TODO: How to handle when trace.empty() ??
             trace.emplace_back();
-            trace.back()._pdastate = configurations[0].first._from;
+            if (configurations.empty()) {
+                auto range = _state_abstraction.get_concrete_values_range(initial_abstract_state);
+                assert(range.begin() != range.end());
+                trace.back()._pdastate = *range.begin();
+            } else {
+                trace.back()._pdastate = configurations[0].first._from;
+            }
             trace.back()._stack.assign(final_header.rbegin(), final_header.rend());
             std::reverse(trace.begin(), trace.end());
             return trace;

@@ -317,8 +317,17 @@ namespace pdaaal {
                     }
                 };
                 std::vector<search_state_t> search_stack;
-                // Initialize
-                search_stack.emplace_back(initial_concrete_rules(trace[0], header_handler), 0);
+                if (!trace.empty()) { // Initialize
+                    search_stack.emplace_back(initial_concrete_rules(trace[0], header_handler), 0);
+                } else {
+                    // Special case: Empty trace. Immediately find concrete header.
+                    auto res = header_handler.finalize_header(header_handler.initial_header());
+                    if (std::holds_alternative<header_t>(res)) {
+                        final_header.emplace(std::get<header_t>(res));
+                    } else {
+                        header_refinement_info.emplace(std::get<1>(res));
+                    }
+                }
                 // Search
                 while (!search_stack.empty()) {
                     if (search_stack.back().end()) { // No more rules at this level
@@ -376,7 +385,7 @@ namespace pdaaal {
                         concrete_trace.emplace_back(*search_state._it);
                     }
                     assert(final_header->count_wildcards == 0);
-                    return get_concrete_trace(std::move(concrete_trace), std::move(final_header->concrete_part));
+                    return get_concrete_trace(std::move(concrete_trace), std::move(final_header->concrete_part), initial_path[0]);
                 } else if (header_refinement_info) {
                     // Return Label refinement info. And empty State refinement info. TODO: Should this case have a separate return value, or be generalized like this?
                     return std::make_pair(header_refinement_info.value(), std::make_pair(std::vector<state_t>(), std::vector<state_t>()));
@@ -405,7 +414,7 @@ namespace pdaaal {
         virtual const configuration_range_t& search_concrete_rules(const abstract_rule_t&, const configuration_t&, const header_wrapper_t&) = 0;
         virtual refinement_info_t find_refinement(const std::vector<configuration_t>&, const abstract_rule_t&) = 0;
         virtual header_t get_header(const configuration_t&) = 0;
-        virtual concrete_trace_t get_concrete_trace(std::vector<configuration_t>&&, std::vector<label_t>&&) = 0;
+        virtual concrete_trace_t get_concrete_trace(std::vector<configuration_t>&&, std::vector<label_t>&&, size_t) = 0;
 
     private:
         builder_pda_t _temp_pda;
