@@ -37,8 +37,10 @@ if (PDAAAL_GetDependencies)
         include_directories(${PTRIE_INSTALL_DIR})
     else()
         ExternalProject_add(ptrie-ext
-                URL https://github.com/petergjoel/ptrie/archive/v1.1.1.zip
-                URL_HASH SHA512=5435d6f8132d273b50eccd721790d559f7dc67ffdada75fec315f4c53705199f31f1ddc80dda0cb86f883db27076fa6d324d28516b442fecce3ffa51213aef4e
+                GIT_REPOSITORY git@github.com:MortenSchou/ptrie.git
+                GIT_TAG af7f132f2c3e81f7402be51828f3e1076ff895a1
+                #URL https://github.com/petergjoel/ptrie/archive/v1.1.1.zip
+                #URL_HASH SHA512=5435d6f8132d273b50eccd721790d559f7dc67ffdada75fec315f4c53705199f31f1ddc80dda0cb86f883db27076fa6d324d28516b442fecce3ffa51213aef4e
                 CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EXTERNAL_INSTALL_LOCATION} -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
                 )
         file(MAKE_DIRECTORY ${EXTERNAL_INSTALL_LOCATION}/include)

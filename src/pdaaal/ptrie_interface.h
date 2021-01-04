@@ -68,8 +68,8 @@ namespace pdaaal::utils {
         static constexpr insert_type to_ptrie(const external_type& key) {
             return key;
         }
-        template<uint16_t H, uint16_t S, size_t A, typename T, typename I>
-        static constexpr external_type unpack(const ptrie::set_stable<elem_type,H,S,A,T,I>& p, size_t id) {
+        template<typename I, uint16_t H, uint16_t S, uint8_t B, size_t A>
+        static constexpr external_type unpack(const ptrie::set_stable<elem_type,I,H,S,B,A>& p, size_t id) {
             external_type res;
             p.unpack(id, &res);
             return res;
@@ -83,8 +83,8 @@ namespace pdaaal::utils {
         static insert_type to_ptrie(const external_type& key) {
             return std::move(key);
         }
-        template<uint16_t H, uint16_t S, size_t A, typename T, typename I>
-        static external_type unpack(const ptrie::set_stable<elem_type,H,S,A,T,I>& p, size_t id) {
+        template<typename I, uint16_t H, uint16_t S, uint8_t B, size_t A>
+        static external_type unpack(const ptrie::set_stable<elem_type,I,H,S,B,A>& p, size_t id) {
             return p.unpack(id);
         }
     };
@@ -96,8 +96,8 @@ namespace pdaaal::utils {
         static insert_type to_ptrie(const external_type& key) {
             return std::make_pair(key.data(), key.length());
         }
-        template<uint16_t H, uint16_t S, size_t A, typename T, typename I>
-        static external_type unpack(const ptrie::set_stable<elem_type,H,S,A,T,I>& p, size_t id) {
+        template<typename I, uint16_t H, uint16_t S, uint8_t B, size_t A>
+        static external_type unpack(const ptrie::set_stable<elem_type,I,H,S,B,A>& p, size_t id) {
             auto vector = p.unpack(id);
             return std::string(vector.data(), vector.size());
         }
@@ -255,8 +255,8 @@ namespace pdaaal::utils {
             byte_vector_converter<KEY,use_knowable_size>::push_back_bytes(result, key);
             return result;
         }
-        template<uint16_t H, uint16_t S, size_t A, typename T, typename I>
-        static external_type unpack(const ptrie::set_stable<elem_type,H,S,A,T,I>& p, size_t id) {
+        template<typename I, uint16_t H, uint16_t S, uint8_t B, size_t A>
+        static external_type unpack(const ptrie::set_stable<elem_type,I,H,B,A>& p, size_t id) {
             auto bytes = p.unpack(id);
             external_type result;
             size_t bytes_id = 0;
