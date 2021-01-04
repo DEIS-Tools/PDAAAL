@@ -28,6 +28,7 @@
 #define PDAAAL_ABSTRACTIONPAUTOMATON_H
 
 #include "PAutomaton.h"
+#include "AbstractionPDA.h"
 
 namespace pdaaal {
 

@@ -134,8 +134,6 @@ A,B
 BOOST_AUTO_TEST_CASE(CegarPdaFactory_Simple_Test)
 {
     std::istringstream i_stream(R"(
-# You can make a comment like this
-
 # Labels
 A,B,C
 # Initial states
@@ -153,7 +151,9 @@ A,B,C
 # PUSH rules use +LABEL
 # SWAP rules use LABEL
 )");
-    auto factory = ParsingCegarPdaFactory<>::create(i_stream);
+    auto factory = ParsingCegarPdaFactory<>::create(i_stream,
+                                                    [](const auto& label){ return (int)label[0]; }, // No abstraction (use first character of strings A,B and C).
+                                                    [](const auto& s){ return s; }); // No abstraction
 
     // initial stack: [A,B,C]
     NFA<std::string> initial(std::unordered_set<std::string>{"A"});
@@ -187,8 +187,6 @@ A,B,C
 BOOST_AUTO_TEST_CASE(CegarPdaFactory_Empty_Trace_Test)
 {
     std::istringstream i_stream(R"(
-# You can make a comment like this
-
 # Labels
 A,B,C
 # Initial states
@@ -206,7 +204,9 @@ A,B,C
 # PUSH rules use +LABEL
 # SWAP rules use LABEL
 )");
-    auto factory = ParsingCegarPdaFactory<>::create(i_stream);
+    auto factory = ParsingCegarPdaFactory<>::create(i_stream,
+                                                    [](const auto& label){ return (int)label[0]; }, // No abstraction (use first character of strings A,B and C).
+                                                    [](const auto& s){ return s; }); // No abstraction
 
     // initial stack: [A,B] or [A,C]
     NFA<std::string> initial(std::unordered_set<std::string>{"A"});
@@ -227,4 +227,55 @@ A,B,C
     BOOST_CHECK(res.index() == 0);
     auto trace = std::get<0>(res);
     print_trace<std::string>(trace);
+}
+
+
+BOOST_AUTO_TEST_CASE(CegarPdaFactory_Full_Abstraction_Test)
+{
+    std::istringstream i_stream(R"(
+# Labels
+A,B,C
+# Initial states
+0
+# Accepting states
+0
+# Rules
+0 A -> 2 B
+0 B -> 0 A
+0 A -> 1 -
+1 B -> 2 +B
+2 B -> 0 -
+
+# POP  rules use -
+# PUSH rules use +LABEL
+# SWAP rules use LABEL
+)");
+    auto factory = ParsingCegarPdaFactory<>::create(i_stream,
+                                                    [](const auto& label){ return 0; }, // All labels map to 0.
+                                                    [](const auto& s){ return 0; }); // All states map to 0.
+
+    // initial stack: [A,B,C]
+    NFA<std::string> initial(std::unordered_set<std::string>{"A"});
+    NFA<std::string> temp1(std::unordered_set<std::string>{"B"});
+    NFA<std::string> temp2(std::unordered_set<std::string>{"C"});
+    initial.concat(std::move(temp1));
+    initial.concat(std::move(temp2));
+    // final stack: [A,C]
+    NFA<std::string> final(std::unordered_set<std::string>{"A"});
+    NFA<std::string> temp3(std::unordered_set<std::string>{"C"});
+    final.concat(std::move(temp3));
+    // Yeah, a small regex -> NFA parser could be nice here...
+
+    auto instance = factory.compile(initial, final);
+
+    bool result = Solver::post_star_accepts(instance); // NOTE: This test depends on the trace returned by post*, but with the current implementation we don't get a 'lucky' trace.
+    BOOST_CHECK(result);
+
+    auto res = factory.reconstruct_trace(instance, initial, final);
+    BOOST_CHECK(res.index() == 1);
+
+    auto [label_refinement, state_refinement] = std::get<1>(res);
+    BOOST_CHECK_GE(label_refinement.first.size(), 1);
+    BOOST_CHECK_GE(label_refinement.second.size(), 1);
+    BOOST_TEST(label_refinement.first != label_refinement.second);
 }

@@ -74,6 +74,10 @@ namespace pdaaal {
         auto get_concrete_labels_range(size_t label) const {
             return _label_abstraction.get_concrete_values_range(label);
         }
+        bool maps_to(label_t label, size_t id) const {
+            auto [exists, res_id] = _label_abstraction.exists(label, true);
+            return exists && res_id == id;
+        }
 
     private:
         AbstractionMapping<label_t,abstract_label_t> _label_abstraction;

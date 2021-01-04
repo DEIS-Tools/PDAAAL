@@ -194,7 +194,7 @@ namespace pdaaal {
             return {fresh_value, value_id};
         }
 
-        std::pair<bool,size_t> exists(const ConcreteType& key, bool ignore_concrete = false) {
+        std::pair<bool,size_t> exists(const ConcreteType& key, bool ignore_concrete = false) const {
             if (!ignore_concrete) {
                 auto [exists, key_id] = _many_to_one_map.exists(key);
                 if (!exists) return {exists, key_id};
@@ -202,16 +202,16 @@ namespace pdaaal {
             return _abstract_values.exists(_map_fn(key));
         }
 
-        AbstractType map(const ConcreteType& concrete_value) {
+        AbstractType map(const ConcreteType& concrete_value) const {
             return _map_fn(concrete_value);
         }
 
         std::vector<size_t> encode_many(const std::vector<ConcreteType>& concrete_values) const {
             std::unordered_set<size_t> res_set;
             for (const auto& concrete_value : concrete_values) {
-                auto [exists, value] = _many_to_one_map.exists(concrete_value);
+                auto [exists, id] = _many_to_one_map.exists(concrete_value);
                 assert(exists);
-                res_set.emplace(value);
+                res_set.emplace(_many_to_one_map.get_data(id));
             }
             std::vector<size_t> result(res_set.begin(), res_set.end());
             std::sort(result.begin(), result.end());

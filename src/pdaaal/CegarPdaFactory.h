@@ -181,6 +181,9 @@ namespace pdaaal {
             return _pda.get_concrete_labels_range(label);
         }
         */
+        bool maps_to(label_t label, size_t id) const {
+            return _pda.maps_to(label, id);
+        }
 
     private:
         std::variant<header_t, std::pair<std::vector<label_t>,std::vector<label_t>>> concreterize_wildcards(header_t&& header) const {

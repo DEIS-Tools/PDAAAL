@@ -204,10 +204,8 @@ namespace pdaaal {
         };
     public:
         static ParsingCegarPdaFactory<W,C,A> create(std::istream& input,
-            std::function<abstract_label_t(const label_t&)>&& label_abstraction_fn
-                = [](const label_t& label){ return (abstract_label_t)label[0]; }, // Dummy ... Use first character... TODO: Stuff
-            std::function<abstract_state_t(const state_t&)>&& state_abstraction_fn
-                = [](const state_t& s){ return s; }) // No state abstraction, for now...
+            std::function<abstract_label_t(const label_t&)>&& label_abstraction_fn,
+            std::function<abstract_state_t(const state_t&)>&& state_abstraction_fn)
         {
             auto all_labels = PDAParser::parse_all_labels(input);
             return ParsingCegarPdaFactory<W,C,A>(input, std::move(all_labels), std::move(label_abstraction_fn), std::move(state_abstraction_fn));
@@ -296,9 +294,12 @@ namespace pdaaal {
         void make_configurations(std::vector<configuration_t>& result, const abstract_rule_t& abstract_rule, const std::vector<state_t>& from_states, const header_t& header, const header_wrapper_t& header_handler) const {
             for (const state_t& from_state : from_states) {
                 for (const auto& rule : get_rules(from_state)) {
+                    if (rule._op != abstract_rule._op) continue;
+                    if (_state_abstraction.map(rule._to) != abstract_rule._to) continue;
+                    if (!header_handler.maps_to(rule._pre, abstract_rule._pre)) continue;
                     std::vector<std::string> pre{rule._pre}; // Here only one label, but we support multiple pre labels - useful e.g. if concrete rule translates to multiple abstract rules.
                     std::vector<std::string> post;
-                    switch (rule._op) {
+                    switch (abstract_rule._op) {
                         case POP:
                             // empty post
                             break;
@@ -306,9 +307,11 @@ namespace pdaaal {
                             post = pre;
                             break;
                         case SWAP:
+                            if (!header_handler.maps_to(rule._op_label, abstract_rule._op_label)) continue;
                             post = std::vector<std::string>{rule._op_label};
                             break;
                         case PUSH:
+                            if (!header_handler.maps_to(rule._op_label, abstract_rule._op_label)) continue;
                             post = std::vector<std::string>{rule._pre, rule._op_label};
                             break;
                     }
