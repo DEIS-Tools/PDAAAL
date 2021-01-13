@@ -206,6 +206,11 @@ namespace pdaaal {
             return _map_fn(concrete_value);
         }
 
+        bool maps_to(const ConcreteType& key, size_t id) const {
+            auto [abstract_exists, res_id] = exists(key, true);
+            return abstract_exists && res_id == id;
+        }
+
         std::vector<size_t> encode_many(const std::vector<ConcreteType>& concrete_values) const {
             std::unordered_set<size_t> res_set;
             for (const auto& concrete_value : concrete_values) {

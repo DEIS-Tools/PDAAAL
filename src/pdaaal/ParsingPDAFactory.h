@@ -239,10 +239,38 @@ namespace pdaaal {
             make_configurations(_temps.back(), rule, std::vector<state_t>{conf.first._to}, conf.second, header_handler);
             return _temps.back();
         }
-        refinement_info_t find_refinement(const std::vector<configuration_t>&, const abstract_rule_t&) override {
+        refinement_info_t find_refinement(const std::vector<configuration_t>& configurations, const abstract_rule_t& abstract_rule, const header_wrapper_t&  header_handler) override {
             std::vector<std::string> labels_a, labels_b;
             std::vector<state_t> states_a, states_b;
-            // TODO:: Implement
+            for (const auto& [c_rule, header] : configurations) {
+                auto state = c_rule._to;
+                if (_state_abstraction.maps_to(state, abstract_rule._from) && // Check if configuration matches abstract_rule.
+                    (!header.top_is_concrete() || header_handler.maps_to(header.concrete_part.back(), abstract_rule._pre))) {
+                    for (const auto& from_state : _state_abstraction.get_concrete_values(abstract_rule._from)) { // Search through concrete rules corresponding to abstract_rule
+                        for (const auto& rule : get_rules(from_state)) {
+                            if (!rule_match(rule, abstract_rule, header_handler)) continue;
+                            if (header.top_is_concrete()) { // We must have violation of either state or label
+                                assert(state != rule._from || header.concrete_part.back() != rule._pre);
+                                if (state != rule._from) {
+                                    states_a.push_back(state);
+                                    states_b.push_back(rule._from);
+                                }
+                                if (header.concrete_part.back() != rule._pre) {
+                                    labels_a.push_back(header.concrete_part.back());
+                                    labels_b.push_back(rule._pre);
+                                }
+                            } else { // Header top is wildcard, so violation must be due to state
+                                assert(state != rule._from);
+                                states_a.push_back(state);
+                                states_b.push_back(rule._from);
+                            }
+                        }
+                    }
+                }
+            }
+            remove_duplicates(labels_a); remove_duplicates(labels_b);
+            remove_duplicates(states_a); remove_duplicates(states_b);
+            assert((!labels_a.empty() && !labels_b.empty()) || (!states_a.empty() && !states_b.empty()));
             return std::make_pair(std::make_pair(labels_a, labels_b), std::make_pair(states_a, states_b));
         }
         header_t get_header(const configuration_t& conf) override {
@@ -284,6 +312,12 @@ namespace pdaaal {
 
     private:
 
+        template<typename T> // Should maybe be in a utils file somewhere, but this is where we use it...
+        static void remove_duplicates(std::vector<T>& v) {
+            std::sort(v.begin(), v.end());
+            v.erase(std::unique(v.begin(), v.end()), v.end());
+        }
+
         std::vector<rule_t> get_rules(size_t from) const {
             if (from < _rules.size()) {
                 return _rules[from];
@@ -291,12 +325,19 @@ namespace pdaaal {
             return std::vector<rule_t>();
         }
 
+        bool rule_match(const rule_t& rule, const abstract_rule_t& abstract_rule, const header_wrapper_t& header_handler) const {
+            assert(_state_abstraction.maps_to(rule._from, abstract_rule._from)); // Matching _from is a precondition where this is used.
+            return rule._op == abstract_rule._op &&
+                   _state_abstraction.maps_to(rule._to, abstract_rule._to) &&
+                   header_handler.maps_to(rule._pre, abstract_rule._pre) &&
+                   (abstract_rule._op == POP || abstract_rule._op == NOOP ||
+                    header_handler.maps_to(rule._op_label, abstract_rule._op_label));
+        }
+
         void make_configurations(std::vector<configuration_t>& result, const abstract_rule_t& abstract_rule, const std::vector<state_t>& from_states, const header_t& header, const header_wrapper_t& header_handler) const {
             for (const state_t& from_state : from_states) {
                 for (const auto& rule : get_rules(from_state)) {
-                    if (rule._op != abstract_rule._op) continue;
-                    if (_state_abstraction.map(rule._to) != abstract_rule._to) continue;
-                    if (!header_handler.maps_to(rule._pre, abstract_rule._pre)) continue;
+                    if (!rule_match(rule, abstract_rule, header_handler)) continue;
                     std::vector<std::string> pre{rule._pre}; // Here only one label, but we support multiple pre labels - useful e.g. if concrete rule translates to multiple abstract rules.
                     std::vector<std::string> post;
                     switch (abstract_rule._op) {
@@ -307,11 +348,9 @@ namespace pdaaal {
                             post = pre;
                             break;
                         case SWAP:
-                            if (!header_handler.maps_to(rule._op_label, abstract_rule._op_label)) continue;
                             post = std::vector<std::string>{rule._op_label};
                             break;
                         case PUSH:
-                            if (!header_handler.maps_to(rule._op_label, abstract_rule._op_label)) continue;
                             post = std::vector<std::string>{rule._pre, rule._op_label};
                             break;
                     }

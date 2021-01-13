@@ -181,7 +181,7 @@ namespace pdaaal {
             return _pda.get_concrete_labels_range(label);
         }
         */
-        bool maps_to(label_t label, size_t id) const {
+        bool maps_to(const label_t& label, size_t id) const {
             return _pda.maps_to(label, id);
         }
 
@@ -379,7 +379,7 @@ namespace pdaaal {
 
                     } else {
                         // TODO: Refine...
-                        return find_refinement(current_deepest_states, trace[max_depth]);
+                        return find_refinement(current_deepest_states, trace[max_depth], header_handler);
                     }
                 } else if (final_header) {
                     // Success. Reconstruct concrete trace from search stack and return it together with the final concrete header.
@@ -415,7 +415,7 @@ namespace pdaaal {
 
         virtual const configuration_range_t& initial_concrete_rules(const abstract_rule_t&, const header_wrapper_t&) = 0;
         virtual const configuration_range_t& search_concrete_rules(const abstract_rule_t&, const configuration_t&, const header_wrapper_t&) = 0;
-        virtual refinement_info_t find_refinement(const std::vector<configuration_t>&, const abstract_rule_t&) = 0;
+        virtual refinement_info_t find_refinement(const std::vector<configuration_t>&, const abstract_rule_t&, const header_wrapper_t&) = 0;
         virtual header_t get_header(const configuration_t&) = 0;
         virtual concrete_trace_t get_concrete_trace(std::vector<configuration_t>&&, std::vector<label_t>&&, size_t) = 0;
 
