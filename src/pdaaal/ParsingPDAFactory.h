@@ -240,8 +240,8 @@ namespace pdaaal {
             return _temps.back();
         }
         refinement_info_t find_refinement(const std::vector<configuration_t>& configurations, const abstract_rule_t& abstract_rule, const header_wrapper_t&  header_handler) override {
-            std::vector<std::string> labels_a, labels_b;
-            std::vector<state_t> states_a, states_b;
+            RefinementInfo<label_t> label_refinement;
+            RefinementInfo<state_t> state_refinement;
             for (const auto& [c_rule, header] : configurations) {
                 auto state = c_rule._to;
                 if (_state_abstraction.maps_to(state, abstract_rule._from) && // Check if configuration matches abstract_rule.
@@ -252,26 +252,23 @@ namespace pdaaal {
                             if (header.top_is_concrete()) { // We must have violation of either state or label
                                 assert(state != rule._from || header.concrete_part.back() != rule._pre);
                                 if (state != rule._from) {
-                                    states_a.push_back(state);
-                                    states_b.push_back(rule._from);
+                                    state_refinement.add(state, rule._from);
                                 }
                                 if (header.concrete_part.back() != rule._pre) {
-                                    labels_a.push_back(header.concrete_part.back());
-                                    labels_b.push_back(rule._pre);
+                                    label_refinement.add(header.concrete_part.back(), rule._pre);
                                 }
                             } else { // Header top is wildcard, so violation must be due to state
                                 assert(state != rule._from);
-                                states_a.push_back(state);
-                                states_b.push_back(rule._from);
+                                state_refinement.add(state, rule._from);
                             }
                         }
                     }
                 }
             }
-            remove_duplicates(labels_a); remove_duplicates(labels_b);
-            remove_duplicates(states_a); remove_duplicates(states_b);
-            assert((!labels_a.empty() && !labels_b.empty()) || (!states_a.empty() && !states_b.empty()));
-            return std::make_pair(std::make_pair(labels_a, labels_b), std::make_pair(states_a, states_b));
+            label_refinement.remove_duplicates();
+            state_refinement.remove_duplicates();
+            assert(!label_refinement.empty() || !state_refinement.empty());
+            return std::make_pair(label_refinement, state_refinement);
         }
         header_t get_header(const configuration_t& conf) override {
             return conf.second;
@@ -311,12 +308,6 @@ namespace pdaaal {
         }
 
     private:
-
-        template<typename T> // Should maybe be in a utils file somewhere, but this is where we use it...
-        static void remove_duplicates(std::vector<T>& v) {
-            std::sort(v.begin(), v.end());
-            v.erase(std::unique(v.begin(), v.end()), v.end());
-        }
 
         std::vector<rule_t> get_rules(size_t from) const {
             if (from < _rules.size()) {

@@ -275,9 +275,9 @@ A,B,C
     BOOST_CHECK(res.index() == 1);
 
     auto [label_refinement, state_refinement] = std::get<1>(res);
-    BOOST_CHECK_GE(label_refinement.first.size(), 1);
-    BOOST_CHECK_GE(label_refinement.second.size(), 1);
-    BOOST_TEST(label_refinement.first != label_refinement.second);
+    BOOST_CHECK_GE(label_refinement.first().size(), 1);
+    BOOST_CHECK_GE(label_refinement.second().size(), 1);
+    BOOST_TEST(label_refinement.first() != label_refinement.second());
 }
 
 BOOST_AUTO_TEST_CASE(CegarPdaFactory_State_Abstraction_Test)
@@ -325,11 +325,11 @@ A,B,C
     BOOST_CHECK(res.index() == 1);
 
     auto [label_refinement, state_refinement] = std::get<1>(res);
-    BOOST_CHECK_GE(label_refinement.first.size() + state_refinement.first.size(), 1);
-    BOOST_CHECK_GE(label_refinement.second.size() + state_refinement.second.size(), 1);
-    if (!label_refinement.first.empty()) {
-        BOOST_TEST(label_refinement.first != label_refinement.second);
+    BOOST_CHECK_GE(label_refinement.first().size() + state_refinement.first().size(), 1);
+    BOOST_CHECK_GE(label_refinement.second().size() + state_refinement.second().size(), 1);
+    if (!label_refinement.empty()) {
+        BOOST_TEST(label_refinement.first() != label_refinement.second());
     } else {
-        BOOST_TEST(state_refinement.first != state_refinement.second);
+        BOOST_TEST(state_refinement.first() != state_refinement.second());
     }
 }
