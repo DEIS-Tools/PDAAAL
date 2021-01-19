@@ -176,7 +176,7 @@ namespace pdaaal {
         size_t, // state_t
         std::vector< // configuration_range_t        In this case configuration_t consists of:
                 std::pair<typename TypedPDA<std::string, W, C>::rule_t, // Our concrete rule_t
-                          typename wildcard_header<std::string,int,W,C>::header_t> // header_t
+                          typename wildcard_header<std::string,W,C>::header_t> // header_t
                 >,
         std::vector<typename TypedPDA<std::string>::tracestate_t>, // concrete_trace_t
         W, C, A> {
@@ -184,7 +184,7 @@ namespace pdaaal {
         using label_t = std::string;
         using abstract_label_t = int;
         using state_t = size_t;
-        using header_wrapper_t = wildcard_header<label_t,abstract_label_t,W,C>;
+        using header_wrapper_t = wildcard_header<label_t,W,C>;
         using header_t = typename header_wrapper_t::header_t;
         using rule_t = typename TypedPDA<std::string, W, C>::rule_t; // For concrete rules we just use this one.
         using configuration_t = std::pair<rule_t, header_t>;
@@ -199,7 +199,7 @@ namespace pdaaal {
                                std::function<abstract_label_t(const label_t&)>&& label_abstraction_fn,
                                std::function<abstract_state_t(const state_t&)>&& state_abstraction_fn)
         : parent_t(std::move(all_labels), std::move(label_abstraction_fn)),
-          _input(input), _state_abstraction(std::move(state_abstraction_fn)) {
+          _input(input), _builder_mapping(std::move(state_abstraction_fn)) {
             initialize();
         };
     public:
@@ -218,6 +218,7 @@ namespace pdaaal {
                     this->add_rule(abstract_rule(rule));
                 }
             }
+            _state_abstraction = RefinementMapping<state_t>(std::move(_builder_mapping));
         }
         const std::vector<size_t>& initial() override {
             return _initial;
@@ -270,7 +271,7 @@ namespace pdaaal {
             // FIXME: This ^ could potentially be a bit faster with std::set_difference, but that requires the types to be the same. Though std::ranges::set_difference would work.
 
             assert(std::all_of(Y.begin(), Y.end(),[&X_wildcard](const auto& y){ return !std::binary_search(X_wildcard.begin(), X_wildcard.end(), y.first); })); // X_wildcard is disjoint from all states in Y
-            return make_pair_refinement<state_t,label_t>(X, Y, X_wildcard);
+            return make_pair_refinement<state_t,label_t>(X, Y, X_wildcard, abstract_rule._from, abstract_rule._pre);
         }
         header_t get_header(const configuration_t& conf) override {
             return conf.second;
@@ -368,7 +369,7 @@ namespace pdaaal {
         std::vector<size_t> abstract_states(std::vector<state_t>&& concrete_states) {
             std::vector<size_t> abstract_states;
             for (const auto& state : concrete_states) {
-                auto [fresh, id] = _state_abstraction.insert(state);
+                auto [fresh, id] = _builder_mapping.insert(state);
                 abstract_states.push_back(id);
             }
             std::sort(abstract_states.begin(), abstract_states.end());
@@ -377,8 +378,8 @@ namespace pdaaal {
         }
         abstract_rule_t abstract_rule(const rule_t& r) {
             abstract_rule_t res;
-            res._from = _state_abstraction.insert(r._from).second;
-            res._to = _state_abstraction.insert(r._to).second;
+            res._from = _builder_mapping.insert(r._from).second;
+            res._to = _builder_mapping.insert(r._to).second;
             res._pre = this->insert_label(r._pre).second;
             res._op_label = (r._op == PUSH || r._op == SWAP) ? this->insert_label(r._op_label).second
                                                              : std::numeric_limits<uint32_t>::max();
@@ -388,7 +389,8 @@ namespace pdaaal {
 
     private:
         std::istream& _input;
-        AbstractionMapping<state_t, abstract_state_t> _state_abstraction; // <size_t, size_t> is kind of a simple case, but fine for now
+        AbstractionMapping<state_t, abstract_state_t> _builder_mapping;
+        RefinementMapping<state_t> _state_abstraction; // <size_t, size_t> is kind of a simple case, but fine for now
         std::vector<size_t> _initial; // Abstracted initial states
         std::vector<size_t> _accepting; // Abstracted final states
         std::vector<std::vector<rule_t>> _rules; // Concrete rules. Here stored explicitly, but CegarPdaFactory supports generating them on the fly.

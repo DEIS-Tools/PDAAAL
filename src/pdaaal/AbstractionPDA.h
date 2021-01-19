@@ -32,17 +32,11 @@
 
 namespace pdaaal {
 
-    template <typename label_t, typename abstract_label_t, typename W, typename C, fut::type Container = fut::type::vector>
-    class AbstractionPDA : public PDA<W, C, Container> {
-    protected:
-        using impl_rule_t = typename PDA<W, C, Container>::rule_t; // This rule type is used internally.
+    template <typename label_t, typename abstract_label_t, typename W, typename C>
+    class AbstractionPDA : public PDA<W, C, fut::type::hash> {
     public:
-        template<fut::type OtherContainer>
-        explicit AbstractionPDA(AbstractionPDA<label_t,abstract_label_t,W,C,OtherContainer>&& other_pda)
-        : PDA<W,C,Container>(std::move(other_pda)), _label_abstraction(other_pda.move_label_map()) {}
-
         explicit AbstractionPDA(std::unordered_set<label_t>&& all_labels, std::function<abstract_label_t(const label_t&)>&& label_abstraction_fn)
-        : _label_abstraction(std::move(label_abstraction_fn), std::move(all_labels)) { };
+        : _label_abstraction(AbstractionMapping<label_t,abstract_label_t>(std::move(label_abstraction_fn), std::move(all_labels))) { };
 
         auto move_label_map() { return std::move(_label_abstraction); }
 
@@ -52,6 +46,22 @@ namespace pdaaal {
 
         std::pair<bool,size_t> insert_label(const label_t& label){
             return _label_abstraction.insert(label);
+        }
+
+    private:
+        AbstractionMapping<label_t, abstract_label_t> _label_abstraction;
+    };
+
+
+    template <typename label_t, typename W, typename C>
+    class RefinementPDA : public PDA<W, C, fut::type::vector> {
+    public:
+        template<typename abstract_label_t>
+        explicit RefinementPDA(AbstractionPDA<label_t,abstract_label_t,W,C>&& other_pda)
+        : PDA<W,C,fut::type::vector>(std::move(other_pda)), _label_abstraction(other_pda.move_label_map()) {}
+
+        [[nodiscard]] virtual size_t number_of_labels() const {
+            return _label_abstraction.size();
         }
 
         std::vector<uint32_t> encode_labels(const std::vector<label_t>& labels, bool negated) const {
@@ -77,10 +87,19 @@ namespace pdaaal {
         bool maps_to(const label_t& label, size_t id) const {
             return _label_abstraction.maps_to(label, id);
         }
+        void refine(const Refinement<label_t>& refinement) {
+            _label_abstraction.refine(refinement);
+        }
+        void refine(const HeaderRefinement<label_t>& header_refinement) {
+            for (const auto& refinement : header_refinement.refinements()) {
+                refine(refinement);
+            }
+        }
 
     private:
-        AbstractionMapping<label_t,abstract_label_t> _label_abstraction;
+        RefinementMapping<label_t> _label_abstraction;
     };
+
 
 }
 

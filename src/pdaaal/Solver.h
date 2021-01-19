@@ -246,8 +246,8 @@ namespace pdaaal {
                 return instance.add_edge_product(from, label, to, trace);
             });
         }
-        template <Trace_Type trace_type = Trace_Type::Any, typename T, typename AT, typename W, typename C, typename A>
-        static bool post_star_accepts(AbstractionSolverInstance<T,AT,W,C,A>& instance) {
+        template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
+        static bool post_star_accepts(AbstractionSolverInstance<T,W,C,A>& instance) {
             return instance.initialize_product() ||
                    post_star<trace_type,W,C,A,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
                        return instance.add_edge_product(from, label, to, trace);
@@ -265,8 +265,8 @@ namespace pdaaal {
                 return _get_trace(instance.pda(), instance.automaton(), path, stack);
             }
         }
-        template <Trace_Type trace_type = Trace_Type::Any, typename T, typename AT, typename W, typename C, typename A>
-        static auto get_rule_trace_and_paths(const AbstractionSolverInstance<T,AT,W,C,A>& instance) {
+        template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
+        static auto get_rule_trace_and_paths(const AbstractionSolverInstance<T,W,C,A>& instance) {
             static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
             if constexpr (trace_type == Trace_Type::Shortest) {
                 auto [paths, stack, weight] = instance.template find_path<trace_type, true>();

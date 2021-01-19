@@ -36,8 +36,12 @@ template <typename T>
 class Refinement {
     std::vector<std::vector<T>> _partitions;
 public:
-    Refinement() = default;
-    Refinement(std::vector<T>&& first, std::vector<T>&& second) : _partitions{std::move(first), std::move(second)} {
+    const size_t abstract_id;
+
+    explicit Refinement(size_t abstract_id) : abstract_id(abstract_id) {};
+
+    Refinement(std::vector<T>&& first, std::vector<T>&& second, size_t abstract_id)
+    : _partitions{std::move(first), std::move(second)}, abstract_id(abstract_id) {
         assert(_partitions.size() == 2);
         assert(!_partitions[0].empty());
         assert(!_partitions[1].empty());
@@ -58,6 +62,8 @@ public:
         //  Investigate this...
 
         // TODO: Better move semantics...
+
+        assert(abstract_id == other.abstract_id);
 
         if (_partitions.empty()) { // This should not actually happen...
             _partitions = std::move(other._partitions);
@@ -155,16 +161,19 @@ public:
     std::vector<std::vector<T>>& partitions() {
         return _partitions;
     }
+    const std::vector<std::vector<T>>& partitions() const {
+        return _partitions;
+    }
 };
 
-template <typename label_t, typename abstract_label_t>
+template <typename label_t>
 class HeaderRefinement {
-    std::vector<std::pair<abstract_label_t, Refinement<label_t>>> _refinements;
+    std::vector<Refinement<label_t>> _refinements;
 public:
-    void combine(std::pair<abstract_label_t, Refinement<label_t>>&& refinement) {
-        auto match = std::find_if(_refinements.begin(), _refinements.end(), [&refinement](const auto& r){ return r.first == refinement.first; });
+    void combine(Refinement<label_t>&& refinement) {
+        auto match = std::find_if(_refinements.begin(), _refinements.end(), [&refinement](const auto& r){ return r.abstract_id == refinement.abstract_id; });
         if (match != _refinements.end()) {
-            match->second.combine(std::move(refinement.second));
+            match->combine(std::move(refinement));
         } else {
             _refinements.emplace_back(std::move(refinement));
         }
@@ -172,19 +181,19 @@ public:
     [[nodiscard]] bool empty() const {
         return _refinements.empty();
     }
-    const std::vector<std::pair<abstract_label_t, Refinement<label_t>>>& refinements() const {
+    const std::vector<Refinement<label_t>>& refinements() const {
         return _refinements;
     }
 };
 
 template <typename A, typename B>
 static inline std::pair<Refinement<A>, Refinement<B>>
-make_pair_refinement(const std::vector<std::pair<A,B>>& X, const std::vector<std::pair<A,B>>& Y, const std::vector<A>& X_wildcard) {
-    Refinement<A> a_partition;
-    Refinement<B> b_partition;
+make_pair_refinement(const std::vector<std::pair<A,B>>& X, const std::vector<std::pair<A,B>>& Y, const std::vector<A>& X_wildcard, size_t A_id, size_t B_id) {
+    Refinement<A> a_partition(A_id);
+    Refinement<B> b_partition(B_id);
     // TODO: Implement!!
 
-    // TODO: Assign X_wildcard to a different bucket than all states in Y.
+    // TODO: Assign X_wildcard to a different bucket than all As in Y.
 
     return std::make_pair(a_partition, b_partition);
 }

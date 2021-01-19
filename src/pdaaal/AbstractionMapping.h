@@ -33,133 +33,18 @@
 #include <memory>
 #include <vector>
 
-namespace pdaaal::details {
-    using namespace pdaaal::utils;
-/*
-    // Iterator used by AbstractionMapping to iterate through the concrete values that correspond to a given abstract value.
-    // It is maybe a bit overkill to define an (almost) complete random access iterator, but here goes.
-    template<typename T, typename _inner_iterator = std::vector<size_t>::const_iterator>
-    struct concrete_value_iterator {
-    private:
-        static_assert(std::is_same_v<std::remove_const_t<typename _inner_iterator::value_type>, size_t>,
-                      "_inner_iterator::value_type is not size_t");
-        using _iterator_type = std::iterator<std::random_access_iterator_tag, T>;
-        _inner_iterator _inner;
-        const ptrie_map<T, size_t>* _map;
-    public:
-        using iterator_category = typename _iterator_type::iterator_category;
-        using value_type = typename _iterator_type::value_type;
-        static_assert(std::is_same_v<value_type, T>, "value_type and T not matching");
-        using difference_type = typename _iterator_type::difference_type;
-        // pointer and reference are not used, as we have to return by value what is stored in the ptrie_map.
-        //using pointer           = typename _iterator_type::pointer;
-        //using reference         = typename _iterator_type::reference;
-
-        explicit constexpr concrete_value_iterator(const ptrie_map<T, size_t>* map) noexcept: _inner(
-                _inner_iterator()), _map(map) {}
-
-        concrete_value_iterator(_inner_iterator&& i, const ptrie_map<T, size_t>* map) noexcept: _inner(std::move(i)),
-                                                                                                 _map(map) {}
-
-        concrete_value_iterator(const _inner_iterator& i, const ptrie_map<T, size_t>* map) noexcept: _inner(i),
-                                                                                                      _map(map) {}
-
-        value_type operator*() const { // Note this gives a value_type not a reference.
-            return _map->at(*_inner);
-        }
-
-        // Forward iterator requirements
-        concrete_value_iterator& operator++() noexcept {
-            ++_inner;
-            return *this;
-        }
-
-        concrete_value_iterator operator++(int) noexcept { return concrete_value_iterator(_inner++, _map); }
-
-        template<typename U, typename _iteratorR>
-        bool operator==(const concrete_value_iterator<U, _iteratorR>& rhs) const noexcept {
-            return base() == rhs.base();
-        }
-
-        template<typename U, typename _iteratorR>
-        bool operator!=(const concrete_value_iterator<U, _iteratorR>& rhs) const noexcept {
-            return base() != rhs.base();
-        }
-
-        // Bidirectional iterator requirements
-        concrete_value_iterator& operator--() noexcept {
-            --_inner;
-            return *this;
-        }
-
-        concrete_value_iterator operator--(int) noexcept { return concrete_value_iterator(_inner--, _map); }
-
-        // Random access iterator requirements
-        value_type operator[](difference_type n) const { // Note this gives a value_type not a reference.
-            return _map->at(_inner[n]);
-        }
-
-        concrete_value_iterator& operator+=(difference_type n) noexcept {
-            _inner += n;
-            return *this;
-        }
-
-        concrete_value_iterator operator+(difference_type n) const noexcept {
-            return concrete_value_iterator(_inner + n, _map);
-        }
-
-        concrete_value_iterator& operator-=(difference_type n) noexcept {
-            _inner -= n;
-            return *this;
-        }
-
-        concrete_value_iterator operator-(difference_type n) const noexcept {
-            return concrete_value_iterator(_inner - n, _map);
-        }
-
-        template<typename U, typename _iteratorR>
-        difference_type operator-(const concrete_value_iterator<U, _iteratorR>& rhs) const noexcept {
-            return base() - rhs.base();
-        }
-
-        template<typename U, typename _iteratorR>
-        bool operator<(const concrete_value_iterator<U, _iteratorR>& rhs) const noexcept { return base() < rhs.base(); }
-
-        template<typename U, typename _iteratorR>
-        bool operator>(const concrete_value_iterator<U, _iteratorR>& rhs) const noexcept { return base() > rhs.base(); }
-
-        template<typename U, typename _iteratorR>
-        bool operator<=(const concrete_value_iterator<U, _iteratorR>& rhs) const noexcept {
-            return base() <= rhs.base();
-        }
-
-        template<typename U, typename _iteratorR>
-        bool operator>=(const concrete_value_iterator<U, _iteratorR>& rhs) const noexcept {
-            return base() >= rhs.base();
-        }
-
-        const _inner_iterator& base() const noexcept { return _inner; }
-
-        const ptrie_map<T, size_t>* map() const noexcept { return _map; }
-    };
-
-    template<typename T, typename _iterator>
-    inline concrete_value_iterator<T, _iterator>
-    operator+(typename concrete_value_iterator<T, _iterator>::difference_type n,
-              const concrete_value_iterator<T, _iterator>& i) noexcept {
-        return concrete_value_iterator<T, _iterator>(i.base() + n, i.map());
-    }
-*/
-}
 
 namespace pdaaal {
     using namespace pdaaal::utils;
+
+    template <typename ConcreteType> class RefinementMapping;
 
     // Given a mapping function from ConcreteType to AbstractType,
     // the AbstractionMapping gives a consecutive id to each distinct (by byte representation) AbstractType value,
     // and provides efficient concrete to abstract (many-to-one) and abstract to concrete (one-to-many) mapping.
     template <typename ConcreteType, typename AbstractType>
     class AbstractionMapping {
+        friend class RefinementMapping<ConcreteType>;
     public:
         // map_fn should always produce the same output on the same input.
         explicit AbstractionMapping(std::function<AbstractType(const ConcreteType&)>&& map_fn) : _map_fn(std::move(map_fn)) {
@@ -206,10 +91,76 @@ namespace pdaaal {
         AbstractType map(const ConcreteType& concrete_value) const {
             return _map_fn(concrete_value);
         }
+        AbstractType get_abstract_value(size_t id) const {
+            return _abstract_values.at(id);
+        }
+
+        [[nodiscard]] size_t size() const {
+            return _abstract_values.size();
+        }
+
+    private:
+        std::function<AbstractType(const ConcreteType&)> _map_fn;
+        ptrie_set<AbstractType> _abstract_values;
+        ptrie_map<ConcreteType, size_t> _many_to_one_map;
+        std::vector<std::vector<size_t>> _one_to_many_ids;
+    };
+
+
+    // This mapping can be build from an AbstractionMapping.
+    // A RefinementMapping does not allow adding new elements, only refining the existing mapping.
+    template <typename ConcreteType>
+    class RefinementMapping {
+    public:
+        RefinementMapping() = default;
+        template <typename AbstractType>
+        explicit RefinementMapping(AbstractionMapping<ConcreteType,AbstractType>&& abstraction_mapping)
+        : _many_to_one_map(std::move(abstraction_mapping._many_to_one_map)),
+          _one_to_many_ids(std::move(abstraction_mapping._one_to_many_ids)) {
+              assert(std::all_of(_one_to_many_ids.begin(), _one_to_many_ids.end(), [](const auto& x){ return !x.empty(); }));
+          }
+
+        void refine(const Refinement<ConcreteType>& refinement) {
+            assert(!refinement.partitions().empty());
+            if (refinement.partitions().size() == 1) return;
+            // We don't move the largest partition
+            auto max_partition = std::max_element(refinement.partitions().begin(), refinement.partitions().end(),
+                                                  [](const auto& a, const auto& b){ return a.size() < b.size(); });
+            std::vector<size_t> moved_values;
+            for (auto partition = refinement.begin(); partition != refinement.end(); ++partition) {
+                assert(!partition.empty());
+                assert(std::all_of(partition.begin(), partition.end(), [this, id=refinement.abstract_id](const auto& x){ auto [found, xid] = exists(x); return found && xid == id; }));
+                if (partition == max_partition) continue;
+                // Create a new 'abstract' id for each new partition
+                auto new_id = _one_to_many_ids.size();
+                _one_to_many_ids.emplace_back();
+                // Change the id of each concrete value
+                for (const auto& concrete_value : partition) {
+                    auto [found, key_id] = _many_to_one_map.exists(concrete_value);
+                    _many_to_one_map.get_data(key_id) = new_id;
+                    _one_to_many_ids[new_id].emplace_back(key_id);
+                    moved_values.emplace_back(key_id);
+                }
+            }
+            // Remove all moved key ids from the original partition.
+            // Sorting and set_difference is maybe a bit overkill... Depends on the sizes...
+            std::sort(moved_values.begin(), moved_values.end());
+            std::sort(_one_to_many_ids[refinement.abstract_id].begin(), _one_to_many_ids[refinement.abstract_id].end());
+            std::vector<size_t> temp;
+            std::set_difference(_one_to_many_ids[refinement.abstract_id].begin(), _one_to_many_ids[refinement.abstract_id].end(),
+                                moved_values.begin(), moved_values.end(),
+                                std::back_inserter(temp));
+            std::swap(_one_to_many_ids[refinement.abstract_id], temp);
+        }
+
+        std::pair<bool,size_t> exists(const ConcreteType& key) const {
+            auto [exists, key_id] = _many_to_one_map.exists(key);
+            return {exists, exists ? _many_to_one_map.get_data(key_id) : key_id};
+        }
 
         bool maps_to(const ConcreteType& key, size_t id) const {
-            auto [abstract_exists, res_id] = exists(key, true);
-            return abstract_exists && res_id == id;
+            auto [exist, res_id] = exists(key);
+            return exist && res_id == id;
         }
 
         std::vector<size_t> encode_many(const std::vector<ConcreteType>& concrete_values) const {
@@ -224,15 +175,7 @@ namespace pdaaal {
             return result;
         }
 
-        AbstractType get_abstract_value(size_t id) const {
-            return _abstract_values.at(id);
-        }
-
         // Construct vector
-        std::vector<ConcreteType> get_concrete_values_from_abstract(const AbstractType& value) const {
-            auto [exists, id] = _abstract_values.exists(value);
-            return get_concrete_values(exists ? id : _one_to_many_ids.size());
-        }
         std::vector<ConcreteType> get_concrete_values(size_t abstract_value) const {
             std::vector<ConcreteType> result;
             if (abstract_value < _one_to_many_ids.size()) {
@@ -249,8 +192,8 @@ namespace pdaaal {
         // Return range structure with begin and end defined.
         struct concrete_value_range {
             explicit concrete_value_range(const ptrie_map<ConcreteType, size_t>& map, const std::vector<size_t>* range = nullptr)
-            : _map(map), _range(range) { };
-            using iterator = details::ptrie_access_iterator<ConcreteType>;
+                    : _map(map), _range(range) { };
+            using iterator = ptrie_access_iterator<ConcreteType>;
             iterator begin() const noexcept {
                 return _range != nullptr ? iterator(_range->begin(), _map) : iterator(_map);
             }
@@ -262,10 +205,6 @@ namespace pdaaal {
             const std::vector<size_t>* _range;
         };
 
-        concrete_value_range get_concrete_values_range_from_abstract(const AbstractType& value) const {
-            auto [exists, id] = _abstract_values.exists(value);
-            return get_concrete_values_range(exists ? id : _one_to_many_ids.size());
-        }
         concrete_value_range get_concrete_values_range(size_t abstract_value) const {
             if (abstract_value < _one_to_many_ids.size()) {
                 return concrete_value_range(_many_to_one_map, &_one_to_many_ids[abstract_value]);
@@ -274,12 +213,10 @@ namespace pdaaal {
         }
 
         [[nodiscard]] size_t size() const {
-            return _abstract_values.size();
+            return _one_to_many_ids.size();
         }
 
     private:
-        std::function<AbstractType(const ConcreteType&)> _map_fn;
-        ptrie_set<AbstractType> _abstract_values;
         ptrie_map<ConcreteType, size_t> _many_to_one_map;
         std::vector<std::vector<size_t>> _one_to_many_ids;
     };

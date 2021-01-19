@@ -67,10 +67,10 @@ namespace pdaaal {
 
     // wildcard_header helps efficiently representing a partially specified stack, and ensuring that the instantiation of wildcards are sound, and that the concrete stack conforms to initial and final nfa.
     // wildcard_header::header_t contains the state needed for representing the header in the search.
-    template <typename label_t, typename abstract_label_t, typename W, typename C>
+    template <typename label_t, typename W, typename C>
     class wildcard_header {
         using nfa_state_t = typename NFA<label_t>::state_t;
-        using pda_t = AbstractionPDA<label_t,abstract_label_t,W,C,fut::type::vector>; // Hmm, not able to decouple this one...
+        using pda_t = RefinementPDA<label_t,W,C>; // Hmm, not able to decouple this one...
     public:
         wildcard_header(const NFA<label_t>& initial_nfa, const NFA<label_t>& final_nfa, const pda_t& pda,
                         std::vector<const nfa_state_t*>&& initial_path,
@@ -152,7 +152,7 @@ namespace pdaaal {
 
         // Returns the concrete final header if possible, or provides refinement info if this is a spurious counterexample.
         // The refinement info is two disjoint sets (vectors) of labels that map to the same abstract label, but should map to different labels in the refined abstraction.
-        std::variant<header_t, std::pair<abstract_label_t,Refinement<label_t>>> finalize_header(const header_t& input_header) const {
+        std::variant<header_t, Refinement<label_t>> finalize_header(const header_t& input_header) const {
             auto header = input_header; // Copy
             assert(header.size() == _final_path.size());
             size_t i = 0;
@@ -160,9 +160,10 @@ namespace pdaaal {
                 if (!check_nfa_path(_final_nfa, _final_path, header.concrete_part.back(), i)) {
                     auto labels = _pda.get_concrete_labels(_final_abstract_stack[i]);
                     std::sort(labels.begin(), labels.end());
-                    return std::make_pair(_final_abstract_stack[i], Refinement<label_t>( // Create refinement info
-                            std::vector<label_t>{header.concrete_part.back()},               // The label in concrete header, not matching edge
-                            intersect_edge_labels(_final_nfa, _final_path, labels, i)));     // All the matching concrete labels that maps to the same abstract label.
+                    return  Refinement<label_t>(                                       // Create refinement info
+                            std::vector<label_t>{header.concrete_part.back()},         // The label in concrete header, not matching edge
+                            intersect_edge_labels(_final_nfa, _final_path, labels, i), // All the matching concrete labels that maps to the same abstract label.
+                            _final_abstract_stack[i]);
                 }
                 ++i;
                 header.pop();
@@ -187,7 +188,7 @@ namespace pdaaal {
         }
 
     private:
-        std::variant<header_t, std::pair<abstract_label_t,Refinement<label_t>>> concreterize_wildcards(header_t&& header) const {
+        std::variant<header_t, Refinement<label_t>> concreterize_wildcards(header_t&& header) const {
             assert(header.concrete_part.empty());
             std::vector<label_t> concrete_stack;
             concrete_stack.reserve(header.count_wildcards);
@@ -218,7 +219,7 @@ namespace pdaaal {
                     // Failed.
                     // initial_ok_labels and final_ok_labels are disjoint, but all map to the same abstract label.
                     // Use this split for refinement.
-                    return std::make_pair(abstract_label, Refinement<label_t>(std::move(initial_ok_labels), std::move(final_ok_labels)));
+                    return Refinement<label_t>(std::move(initial_ok_labels), std::move(final_ok_labels), abstract_label);
                 }
             }
             return header_t{0, std::vector<label_t>(concrete_stack.rbegin(), concrete_stack.rend())}; // Reverse stack to make it bottom to top.
@@ -250,18 +251,18 @@ namespace pdaaal {
     class CegarPdaFactory {
     private:
         using configuration_t = typename configuration_range_t::value_type;
-        using header_wrapper_t = wildcard_header<label_t,abstract_label_t,W,C>;
+        using header_wrapper_t = wildcard_header<label_t,W,C>;
 
-        using builder_pda_t = AbstractionPDA<label_t,abstract_label_t,W,C,fut::type::hash>; // We optimize for set insertion while building,
-        using pda_t = AbstractionPDA<label_t,abstract_label_t,W,C,fut::type::vector>;       // and then optimize for iteration when analyzing.
+        using builder_pda_t = AbstractionPDA<label_t,abstract_label_t,W,C>; // We optimize for set insertion while building,
+        using pda_t = RefinementPDA<label_t,W,C>;                           // and then optimize for iteration when analyzing.
         using nfa_state_t = typename NFA<label_t>::state_t;
-        using automaton_t = AbstractionPAutomaton<label_t,abstract_label_t,W,C,A>;
-        using solver_instance_t = AbstractionSolverInstance<label_t,abstract_label_t,W,C,A>;
+        using automaton_t = AbstractionPAutomaton<label_t,W,C,A>;
+        using solver_instance_t = AbstractionSolverInstance<label_t,W,C,A>;
     public:
         using header_t = typename header_wrapper_t::header_t;
         using state_refinement_t = Refinement<state_t>;
         using label_refinement_t = Refinement<label_t>;
-        using header_refinement_t = HeaderRefinement<label_t, abstract_label_t>;
+        using header_refinement_t = HeaderRefinement<label_t>;
         using refinement_t = std::pair<state_refinement_t, label_refinement_t>;
         using abstract_rule_t = user_rule_t<W,C>; // FIXME: This does not yet work for weighted rules.
 
@@ -400,7 +401,7 @@ namespace pdaaal {
                 }
             }
             // I don't know, sort of an empty return on failure...
-            return std::make_pair(state_refinement_t(), label_refinement_t());
+            return header_refinement_t();
         }
 
     protected:
