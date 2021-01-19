@@ -192,7 +192,7 @@ namespace pdaaal {
         using concrete_trace_t = std::vector<typename TypedPDA<label_t>::tracestate_t>;
         using abstract_state_t = state_t;
         using parent_t = CegarPdaFactory<label_t, abstract_label_t, state_t, configuration_range_t, concrete_trace_t, W, C, A>;
-        using refinement_info_t = typename parent_t::refinement_info_t;
+        using refinement_info_t = typename parent_t::refinement_t;
         using abstract_rule_t = typename parent_t::abstract_rule_t;
 
         ParsingCegarPdaFactory(std::istream& input, std::unordered_set<std::string>&& all_labels,
@@ -239,36 +239,38 @@ namespace pdaaal {
             make_configurations(_temps.back(), rule, std::vector<state_t>{conf.first._to}, conf.second, header_handler);
             return _temps.back();
         }
-        refinement_info_t find_refinement(const std::vector<configuration_t>& configurations, const abstract_rule_t& abstract_rule, const header_wrapper_t&  header_handler) override {
-            RefinementInfo<label_t> label_refinement;
-            RefinementInfo<state_t> state_refinement;
+        refinement_info_t find_refinement(const std::vector<configuration_t>& configurations, const abstract_rule_t& abstract_rule, const header_wrapper_t& header_handler) override {
+            std::vector<std::pair<state_t,label_t>> X, Y;
+            std::vector<state_t> X_wildcard; // When label is wildcard, we must refine on state. These states are stored here.
+
             for (const auto& [c_rule, header] : configurations) {
                 auto state = c_rule._to;
-                if (_state_abstraction.maps_to(state, abstract_rule._from) && // Check if configuration matches abstract_rule.
-                    (!header.top_is_concrete() || header_handler.maps_to(header.concrete_part.back(), abstract_rule._pre))) {
-                    for (const auto& from_state : _state_abstraction.get_concrete_values(abstract_rule._from)) { // Search through concrete rules corresponding to abstract_rule
-                        for (const auto& rule : get_rules(from_state)) {
-                            if (!rule_match(rule, abstract_rule, header_handler)) continue;
-                            if (header.top_is_concrete()) { // We must have violation of either state or label
-                                assert(state != rule._from || header.concrete_part.back() != rule._pre);
-                                if (state != rule._from) {
-                                    state_refinement.add(state, rule._from);
-                                }
-                                if (header.concrete_part.back() != rule._pre) {
-                                    label_refinement.add(header.concrete_part.back(), rule._pre);
-                                }
-                            } else { // Header top is wildcard, so violation must be due to state
-                                assert(state != rule._from);
-                                state_refinement.add(state, rule._from);
-                            }
+                if (_state_abstraction.maps_to(state, abstract_rule._from)) {
+                    if (header.top_is_concrete()) {
+                        auto label = header.concrete_part.back();
+                        if (header_handler.maps_to(label, abstract_rule._pre)) {
+                            X.emplace_back(state, label);
                         }
+                    } else {
+                        X_wildcard.emplace_back(state);
                     }
                 }
             }
-            label_refinement.remove_duplicates();
-            state_refinement.remove_duplicates();
-            assert(!label_refinement.empty() || !state_refinement.empty());
-            return std::make_pair(label_refinement, state_refinement);
+            for (const auto& from_state : _state_abstraction.get_concrete_values(abstract_rule._from)) {
+                for (const auto& rule : get_rules(from_state)) {
+                    if (rule_match(rule, abstract_rule, header_handler)){
+                        Y.emplace_back(rule._from, rule._pre);
+                    }
+                }
+            }
+            std::sort(X_wildcard.begin(), X_wildcard.end());
+            X_wildcard.erase(std::unique(X_wildcard.begin(), X_wildcard.end()), X_wildcard.end());
+            // Remove from X all pairs where state is contained in X_wildcard.
+            X.erase(std::remove_if(X.begin(), X.end(), [&X_wildcard](const auto& x){ return std::binary_search(X_wildcard.begin(), X_wildcard.end(), x.first); }), X.end());
+            // FIXME: This ^ could potentially be a bit faster with std::set_difference, but that requires the types to be the same. Though std::ranges::set_difference would work.
+
+            assert(std::all_of(Y.begin(), Y.end(),[&X_wildcard](const auto& y){ return !std::binary_search(X_wildcard.begin(), X_wildcard.end(), y.first); })); // X_wildcard is disjoint from all states in Y
+            return make_pair_refinement<state_t,label_t>(X, Y, X_wildcard);
         }
         header_t get_header(const configuration_t& conf) override {
             return conf.second;

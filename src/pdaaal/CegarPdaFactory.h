@@ -64,39 +64,6 @@ namespace pdaaal {
     // then we can skip the _abstract_values part. But lets not make that restriction yet.
 
 
-    template <typename T>
-    class RefinementInfo {
-        std::vector<T> _a;
-        std::vector<T> _b;
-        // TODO: Consider if std::vector<std::pair<T,T>> is more appropriate.
-        // TODO: Is std::unordered_set faster? Maybe not for small sizes..?
-    public:
-        RefinementInfo() = default;
-        RefinementInfo(const std::vector<T>& a, const std::vector<T>& b) : _a(a), _b(b) {};
-        RefinementInfo(std::vector<T>&& a, std::vector<T>&& b) : _a(std::move(a)), _b(std::move(b)) {};
-
-        [[nodiscard]] bool empty() const {
-            assert((_a.empty() && _b.empty()) || (!_a.empty() && !_b.empty()));
-            return _a.empty() || _b.empty();
-        }
-        const std::vector<T>& first() const { return _a; }
-        const std::vector<T>& second() const { return _b; }
-        void add(const T& a, const T& b) {
-            assert(a != b);
-            _a.push_back(a);
-            _b.push_back(b);
-        }
-        void remove_duplicates() {
-            remove_duplicates(_a);
-            remove_duplicates(_b);
-        }
-    private:
-        static void remove_duplicates(std::vector<T>& v) {
-            std::sort(v.begin(), v.end());
-            v.erase(std::unique(v.begin(), v.end()), v.end());
-        }
-    };
-
 
     // wildcard_header helps efficiently representing a partially specified stack, and ensuring that the instantiation of wildcards are sound, and that the concrete stack conforms to initial and final nfa.
     // wildcard_header::header_t contains the state needed for representing the header in the search.
@@ -185,7 +152,7 @@ namespace pdaaal {
 
         // Returns the concrete final header if possible, or provides refinement info if this is a spurious counterexample.
         // The refinement info is two disjoint sets (vectors) of labels that map to the same abstract label, but should map to different labels in the refined abstraction.
-        std::variant<header_t, RefinementInfo<label_t>> finalize_header(const header_t& input_header) const {
+        std::variant<header_t, std::pair<abstract_label_t,Refinement<label_t>>> finalize_header(const header_t& input_header) const {
             auto header = input_header; // Copy
             assert(header.size() == _final_path.size());
             size_t i = 0;
@@ -193,9 +160,9 @@ namespace pdaaal {
                 if (!check_nfa_path(_final_nfa, _final_path, header.concrete_part.back(), i)) {
                     auto labels = _pda.get_concrete_labels(_final_abstract_stack[i]);
                     std::sort(labels.begin(), labels.end());
-                    return RefinementInfo(                                              // Create refinement info
-                            std::vector<label_t>{header.concrete_part.back()},          // The label in concrete header, not matching edge
-                            intersect_edge_labels(_final_nfa, _final_path, labels, i)); // All the matching concrete labels that maps to the same abstract label.
+                    return std::make_pair(_final_abstract_stack[i], Refinement<label_t>( // Create refinement info
+                            std::vector<label_t>{header.concrete_part.back()},               // The label in concrete header, not matching edge
+                            intersect_edge_labels(_final_nfa, _final_path, labels, i)));     // All the matching concrete labels that maps to the same abstract label.
                 }
                 ++i;
                 header.pop();
@@ -220,7 +187,7 @@ namespace pdaaal {
         }
 
     private:
-        std::variant<header_t, RefinementInfo<label_t>> concreterize_wildcards(header_t&& header) const {
+        std::variant<header_t, std::pair<abstract_label_t,Refinement<label_t>>> concreterize_wildcards(header_t&& header) const {
             assert(header.concrete_part.empty());
             std::vector<label_t> concrete_stack;
             concrete_stack.reserve(header.count_wildcards);
@@ -251,7 +218,7 @@ namespace pdaaal {
                     // Failed.
                     // initial_ok_labels and final_ok_labels are disjoint, but all map to the same abstract label.
                     // Use this split for refinement.
-                    return RefinementInfo(std::move(initial_ok_labels), std::move(final_ok_labels));
+                    return std::make_pair(abstract_label, Refinement<label_t>(std::move(initial_ok_labels), std::move(final_ok_labels)));
                 }
             }
             return header_t{0, std::vector<label_t>(concrete_stack.rbegin(), concrete_stack.rend())}; // Reverse stack to make it bottom to top.
@@ -292,9 +259,10 @@ namespace pdaaal {
         using solver_instance_t = AbstractionSolverInstance<label_t,abstract_label_t,W,C,A>;
     public:
         using header_t = typename header_wrapper_t::header_t;
-        using label_refinement_info_t = RefinementInfo<label_t>;
-        using state_refinement_info_t = RefinementInfo<state_t>;
-        using refinement_info_t = std::pair<label_refinement_info_t, state_refinement_info_t>;
+        using state_refinement_t = Refinement<state_t>;
+        using label_refinement_t = Refinement<label_t>;
+        using header_refinement_t = HeaderRefinement<label_t, abstract_label_t>;
+        using refinement_t = std::pair<state_refinement_t, label_refinement_t>;
         using abstract_rule_t = user_rule_t<W,C>; // FIXME: This does not yet work for weighted rules.
 
     public:
@@ -309,7 +277,8 @@ namespace pdaaal {
         }
 
         std::variant<concrete_trace_t,// Concrete trace (of configurations) and final concrete header.
-                    refinement_info_t>
+                    refinement_t,
+                    header_refinement_t>
         reconstruct_trace(const solver_instance_t& instance, const NFA<label_t>& initial_headers, const NFA<label_t>& final_headers) {
             static_assert(!is_weighted<W>, "Not yet supported.");
             if constexpr (is_weighted<W>) {
@@ -336,7 +305,7 @@ namespace pdaaal {
                 // Keep track of outcome of search, and info for doing refinement if needed.
                 size_t max_depth = 0;
                 std::vector<configuration_t> current_deepest_states;
-                std::optional<label_refinement_info_t> header_refinement_info;
+                header_refinement_t header_refinement_info;
                 std::optional<header_t> final_header;
 
                 // Depth first search, using this as states:
@@ -360,9 +329,9 @@ namespace pdaaal {
                     // Special case: Empty trace. Immediately find concrete header.
                     auto res = header_handler.finalize_header(header_handler.initial_header());
                     if (std::holds_alternative<header_t>(res)) {
-                        final_header.emplace(std::get<header_t>(res));
+                        final_header.emplace(std::get<header_t>(std::move(res)));
                     } else {
-                        header_refinement_info.emplace(std::get<1>(res));
+                        header_refinement_info.combine(std::get<1>(std::move(res)));
                     }
                 }
                 // Search
@@ -397,7 +366,7 @@ namespace pdaaal {
                             final_header.emplace(std::get<header_t>(res));
                             break; // Yeah, we are done searching.
                         } else {
-                            header_refinement_info.emplace(std::get<1>(res));
+                            header_refinement_info.combine(std::get<1>(std::move(res)));
                             ++search_stack.back(); // No, keep searching.
                             continue;
                         }
@@ -423,15 +392,15 @@ namespace pdaaal {
                     }
                     assert(final_header->count_wildcards == 0);
                     return get_concrete_trace(std::move(concrete_trace), std::move(final_header->concrete_part), initial_path[0]);
-                } else if (header_refinement_info) {
-                    // Return Label refinement info. And empty State refinement info. TODO: Should this case have a separate return value, or be generalized like this?
-                    return std::make_pair(header_refinement_info.value(), state_refinement_info_t());
+                } else if (!header_refinement_info.empty()) {
+                    // Return Label refinement info.
+                    return header_refinement_info;
                 } else {
                     assert(false); // If we got through the trace, but have no final header, we must have header_refinement_info.
                 }
             }
             // I don't know, sort of an empty return on failure...
-            return std::make_pair(label_refinement_info_t(), state_refinement_info_t());
+            return std::make_pair(state_refinement_t(), label_refinement_t());
         }
 
     protected:
@@ -449,7 +418,7 @@ namespace pdaaal {
 
         virtual const configuration_range_t& initial_concrete_rules(const abstract_rule_t&, const header_wrapper_t&) = 0;
         virtual const configuration_range_t& search_concrete_rules(const abstract_rule_t&, const configuration_t&, const header_wrapper_t&) = 0;
-        virtual refinement_info_t find_refinement(const std::vector<configuration_t>&, const abstract_rule_t&, const header_wrapper_t&) = 0;
+        virtual refinement_t find_refinement(const std::vector<configuration_t>&, const abstract_rule_t&, const header_wrapper_t&) = 0;
         virtual header_t get_header(const configuration_t&) = 0;
         virtual concrete_trace_t get_concrete_trace(std::vector<configuration_t>&&, std::vector<label_t>&&, size_t) = 0;
 

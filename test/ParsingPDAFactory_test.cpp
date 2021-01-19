@@ -272,12 +272,11 @@ A,B,C
     BOOST_CHECK(result);
 
     auto res = factory.reconstruct_trace(instance, initial, final);
-    BOOST_CHECK(res.index() == 1);
+    BOOST_CHECK(res.index() == 2);
 
-    auto [label_refinement, state_refinement] = std::get<1>(res);
-    BOOST_CHECK_GE(label_refinement.first().size(), 1);
-    BOOST_CHECK_GE(label_refinement.second().size(), 1);
-    BOOST_TEST(label_refinement.first() != label_refinement.second());
+    auto header_refinement = std::get<2>(res);
+    BOOST_CHECK(!header_refinement.empty());
+    // TODO: More test...
 }
 
 BOOST_AUTO_TEST_CASE(CegarPdaFactory_State_Abstraction_Test)
@@ -324,12 +323,7 @@ A,B,C
     auto res = factory.reconstruct_trace(instance, initial, final);
     BOOST_CHECK(res.index() == 1);
 
-    auto [label_refinement, state_refinement] = std::get<1>(res);
-    BOOST_CHECK_GE(label_refinement.first().size() + state_refinement.first().size(), 1);
-    BOOST_CHECK_GE(label_refinement.second().size() + state_refinement.second().size(), 1);
-    if (!label_refinement.empty()) {
-        BOOST_TEST(label_refinement.first() != label_refinement.second());
-    } else {
-        BOOST_TEST(state_refinement.first() != state_refinement.second());
-    }
+    auto [state_refinement, label_refinement] = std::get<1>(res);
+    BOOST_CHECK(!state_refinement.empty() || !label_refinement.empty());
+    // TODO: More test...
 }
