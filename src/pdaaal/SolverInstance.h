@@ -315,8 +315,9 @@ namespace pdaaal {
                 return std::make_pair(false ,id + _pda_size);
             }
         }
-
-        const pda_t _pda;
+    protected:
+        pda_t _pda;
+    private:
         const size_t _pda_size;
         automaton_t _initial;
         automaton_t _final;
@@ -338,14 +339,27 @@ namespace pdaaal {
     };
 
     template <typename T, typename W, typename C, typename A>
-    class AbstractionSolverInstance : public SolverInstance_impl<RefinementPDA<T,W,C>, AbstractionPAutomaton<T,W,C,A>, T, W, C, A> {
+    class AbstractionSolverInstance : public SolverInstance_impl<AbstractionPDA<T,W,C>, AbstractionPAutomaton<T,W,C,A>, T, W, C, A> {
     public:
-        using pda_t = RefinementPDA<T,W,C>;
+        using pda_t = AbstractionPDA<T,W,C>;
         using pautomaton_t = AbstractionPAutomaton<T,W,C,A>;
         AbstractionSolverInstance(pda_t&& pda,
                                   const NFA<T>& initial_nfa, const std::vector<size_t>& initial_states,
                                   const NFA<T>& final_nfa,   const std::vector<size_t>& final_states)
         : SolverInstance_impl<pda_t, pautomaton_t, T, W, C, A>(std::move(pda), initial_nfa, initial_states, final_nfa, final_states) { };
+
+        auto move_pda_refinement_mapping(const Refinement<T>& refinement) {
+            auto map = this->_pda.move_label_map();
+            map.refine(refinement);
+            return map;
+        }
+        auto move_pda_refinement_mapping(const HeaderRefinement<T>& header_refinement) {
+            auto map = this->_pda.move_label_map();
+            for (const auto& refinement : header_refinement.refinements()) {
+                map.refine(refinement);
+            }
+            return map;
+        }
     };
 
 }

@@ -172,7 +172,8 @@ A,B,C
     bool result = Solver::post_star_accepts(instance);
     BOOST_CHECK(result);
 
-    auto res = factory.reconstruct_trace(instance, initial, final);
+    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory));
+    auto res = reconstruction.reconstruct_trace(instance, initial, final);
     BOOST_CHECK(res.index() == 0);
 
     auto trace = std::get<0>(res);
@@ -222,8 +223,8 @@ A,B,C
 
     bool result = Solver::post_star_accepts(instance);
     BOOST_CHECK(result);
-
-    auto res = factory.reconstruct_trace(instance, initial, final);
+    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory));
+    auto res = reconstruction.reconstruct_trace(instance, initial, final);
     BOOST_CHECK(res.index() == 0);
     auto trace = std::get<0>(res);
     print_trace<std::string>(trace);
@@ -271,7 +272,8 @@ A,B,C
     bool result = Solver::post_star_accepts(instance); // NOTE: This test depends on the trace returned by post*, but with the current implementation we don't get a 'lucky' trace.
     BOOST_CHECK(result);
 
-    auto res = factory.reconstruct_trace(instance, initial, final);
+    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory));
+    auto res = reconstruction.reconstruct_trace(instance, initial, final);
     BOOST_CHECK(res.index() == 2);
 
     auto header_refinement = std::get<2>(res);
@@ -320,10 +322,58 @@ A,B,C
     bool result = Solver::post_star_accepts(instance); // NOTE: This test depends on the trace returned by post*, but with the current implementation we don't get a 'lucky' trace.
     BOOST_CHECK(result);
 
-    auto res = factory.reconstruct_trace(instance, initial, final);
+    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory));
+    auto res = reconstruction.reconstruct_trace(instance, initial, final);
     BOOST_CHECK(res.index() == 1);
 
     auto [state_refinement, label_refinement] = std::get<1>(res);
     BOOST_CHECK(!state_refinement.empty() || !label_refinement.empty());
     // TODO: More test...
+}
+
+BOOST_AUTO_TEST_CASE(Complete_CEGAR_Full_Abstraction_Test)
+{
+    std::istringstream i_stream(R"(
+# Labels
+A,B,C
+# Initial states
+0
+# Accepting states
+0
+# Rules
+0 A -> 2 B
+0 B -> 0 A
+0 A -> 1 -
+1 B -> 2 +B
+2 B -> 0 -
+
+# POP  rules use -
+# PUSH rules use +LABEL
+# SWAP rules use LABEL
+)");
+    auto factory = ParsingCegarPdaFactory<>::create(i_stream,
+                                                    [](const auto& label){ return 0; }, // All labels map to 0.
+                                                    [](const auto& s){ return 0; }); // All states map to 0.
+
+    // initial stack: [A,B,C]
+    NFA<std::string> initial(std::unordered_set<std::string>{"A"});
+    NFA<std::string> temp1(std::unordered_set<std::string>{"B"});
+    NFA<std::string> temp2(std::unordered_set<std::string>{"C"});
+    initial.concat(std::move(temp1));
+    initial.concat(std::move(temp2));
+    // final stack: [A,C]
+    NFA<std::string> final(std::unordered_set<std::string>{"A"});
+    NFA<std::string> temp3(std::unordered_set<std::string>{"C"});
+    final.concat(std::move(temp3));
+    // Yeah, a small regex -> NFA parser could be nice here...
+
+    CEGAR<ParsingCegarPdaFactory<>,ParsingCegarPdaReconstruction<>> cegar;
+    auto res = cegar.cegar_solve(std::move(factory), initial, final);
+    BOOST_CHECK(res.has_value());
+    auto trace = res.value();
+
+    BOOST_CHECK_GE(trace.size(), 4);
+    BOOST_CHECK_LE(trace.size(), 5);
+    BOOST_CHECK(std::all_of(trace.begin(), trace.end(), [](const auto& trace_state){ return trace_state._stack.back() == "C"; }));
+    print_trace<std::string>(trace);
 }

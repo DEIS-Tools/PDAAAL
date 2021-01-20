@@ -189,12 +189,39 @@ public:
 template <typename A, typename B>
 static inline std::pair<Refinement<A>, Refinement<B>>
 make_pair_refinement(const std::vector<std::pair<A,B>>& X, const std::vector<std::pair<A,B>>& Y, const std::vector<A>& X_wildcard, size_t A_id, size_t B_id) {
+    assert(!X.empty() || !X_wildcard.empty());
+    assert(!Y.empty());
     Refinement<A> a_partition(A_id);
     Refinement<B> b_partition(B_id);
-    // TODO: Implement!!
-
     // TODO: Assign X_wildcard to a different bucket than all As in Y.
 
+    // FIXME: For now we just have simple (but inefficient) implementation, that is still safe.
+    // TODO: Implement better version, which uses all information.
+    if (!X_wildcard.empty()) {
+        // Put X_wildcard in one partition and all As in Y in another partition. Ignore X.
+        a_partition.partitions().emplace_back(X_wildcard);
+        a_partition.partitions().emplace_back();
+        for (const auto& [a,b] : Y) {
+            a_partition.partitions().back().emplace_back(a);
+        }
+    } else {
+        // Just use first pairs in X and Y.
+        const auto& [Xa,Xb] = X[0];
+        const auto& [Ya,Yb] = Y[0];
+        if (Xa != Ya) {
+            a_partition.partitions().emplace_back();
+            a_partition.partitions().back().emplace_back(Xa);
+            a_partition.partitions().emplace_back();
+            a_partition.partitions().back().emplace_back(Ya);
+        }
+        if (Xb != Yb) {
+            b_partition.partitions().emplace_back();
+            b_partition.partitions().back().emplace_back(Xb);
+            b_partition.partitions().emplace_back();
+            b_partition.partitions().back().emplace_back(Yb);
+        }
+    }
+    assert(a_partition.partitions().size() >= 2 || b_partition.partitions().size() >= 2);
     return std::make_pair(a_partition, b_partition);
 }
 

@@ -105,6 +105,10 @@ namespace pdaaal {
         ptrie_map<ConcreteType, size_t> _many_to_one_map;
         std::vector<std::vector<size_t>> _one_to_many_ids;
     };
+    template <typename ConcreteType, typename AbstractType>
+    AbstractionMapping(std::function<AbstractType(const ConcreteType&)>&& map_fn) -> AbstractionMapping<ConcreteType,AbstractType>;
+    template <typename ConcreteType, typename AbstractType>
+    AbstractionMapping(std::function<AbstractType(const ConcreteType&)>&& map_fn, std::unordered_set<ConcreteType>&& initial_values) -> AbstractionMapping<ConcreteType,AbstractType>;
 
 
     // This mapping can be build from an AbstractionMapping.
@@ -121,21 +125,20 @@ namespace pdaaal {
           }
 
         void refine(const Refinement<ConcreteType>& refinement) {
-            assert(!refinement.partitions().empty());
-            if (refinement.partitions().size() == 1) return;
+            if (refinement.partitions().size() <= 1) return; // We might have empty refinement (if other component of a pair is refined), and only one partition is no refinement.
             // We don't move the largest partition
             auto max_partition = std::max_element(refinement.partitions().begin(), refinement.partitions().end(),
                                                   [](const auto& a, const auto& b){ return a.size() < b.size(); });
             std::vector<size_t> moved_values;
-            for (auto partition = refinement.begin(); partition != refinement.end(); ++partition) {
-                assert(!partition.empty());
-                assert(std::all_of(partition.begin(), partition.end(), [this, id=refinement.abstract_id](const auto& x){ auto [found, xid] = exists(x); return found && xid == id; }));
+            for (auto partition = refinement.partitions().begin(); partition != refinement.partitions().end(); ++partition) {
+                assert(!partition->empty());
+                assert(std::all_of(partition->begin(), partition->end(), [this, id=refinement.abstract_id](const auto& x){ auto [found, xid] = exists(x); return found && xid == id; }));
                 if (partition == max_partition) continue;
                 // Create a new 'abstract' id for each new partition
                 auto new_id = _one_to_many_ids.size();
                 _one_to_many_ids.emplace_back();
                 // Change the id of each concrete value
-                for (const auto& concrete_value : partition) {
+                for (const auto& concrete_value : *partition) {
                     auto [found, key_id] = _many_to_one_map.exists(concrete_value);
                     _many_to_one_map.get_data(key_id) = new_id;
                     _one_to_many_ids[new_id].emplace_back(key_id);

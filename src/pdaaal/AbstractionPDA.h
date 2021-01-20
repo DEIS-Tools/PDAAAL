@@ -32,11 +32,20 @@
 
 namespace pdaaal {
 
-    template <typename label_t, typename abstract_label_t, typename W, typename C>
-    class AbstractionPDA : public PDA<W, C, fut::type::hash> {
+    template <typename label_t, typename W, typename C, fut::type Container = fut::type::vector>
+    class AbstractionPDA : public PDA<W, C, Container> {
     public:
-        explicit AbstractionPDA(std::unordered_set<label_t>&& all_labels, std::function<abstract_label_t(const label_t&)>&& label_abstraction_fn)
-        : _label_abstraction(AbstractionMapping<label_t,abstract_label_t>(std::move(label_abstraction_fn), std::move(all_labels))) { };
+
+        template <typename abstract_label_t>
+        AbstractionPDA(std::unordered_set<label_t>&& all_labels, std::function<abstract_label_t(const label_t&)>&& label_abstraction_fn)
+        : _label_abstraction(AbstractionMapping<label_t,abstract_label_t>(std::move(label_abstraction_fn), std::move(all_labels))) { }
+
+        template<fut::type OtherContainer>
+        explicit AbstractionPDA(AbstractionPDA<label_t,W,C,OtherContainer>&& other_pda)
+        : PDA<W,C,Container>(std::move(other_pda)), _label_abstraction(other_pda.move_label_map()) { }
+
+        explicit AbstractionPDA(RefinementMapping<label_t>&& mapping)
+        : _label_abstraction(std::move(mapping)) { };
 
         auto move_label_map() { return std::move(_label_abstraction); }
 
@@ -44,24 +53,8 @@ namespace pdaaal {
             return _label_abstraction.size();
         }
 
-        std::pair<bool,size_t> insert_label(const label_t& label){
-            return _label_abstraction.insert(label);
-        }
-
-    private:
-        AbstractionMapping<label_t, abstract_label_t> _label_abstraction;
-    };
-
-
-    template <typename label_t, typename W, typename C>
-    class RefinementPDA : public PDA<W, C, fut::type::vector> {
-    public:
-        template<typename abstract_label_t>
-        explicit RefinementPDA(AbstractionPDA<label_t,abstract_label_t,W,C>&& other_pda)
-        : PDA<W,C,fut::type::vector>(std::move(other_pda)), _label_abstraction(other_pda.move_label_map()) {}
-
-        [[nodiscard]] virtual size_t number_of_labels() const {
-            return _label_abstraction.size();
+        std::pair<bool,size_t> abstract_label(const label_t& label){
+            return _label_abstraction.exists(label);
         }
 
         std::vector<uint32_t> encode_labels(const std::vector<label_t>& labels, bool negated) const {

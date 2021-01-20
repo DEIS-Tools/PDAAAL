@@ -70,7 +70,7 @@ namespace pdaaal {
     template <typename label_t, typename W, typename C>
     class wildcard_header {
         using nfa_state_t = typename NFA<label_t>::state_t;
-        using pda_t = RefinementPDA<label_t,W,C>; // Hmm, not able to decouple this one...
+        using pda_t = AbstractionPDA<label_t,W,C,fut::type::vector>; // Hmm, not able to decouple this one...
     public:
         wildcard_header(const NFA<label_t>& initial_nfa, const NFA<label_t>& final_nfa, const pda_t& pda,
                         std::vector<const nfa_state_t*>&& initial_path,
@@ -247,14 +247,53 @@ namespace pdaaal {
 
 
     // NOTE: CEGAR construction with weights is not yet implemented.
-    template <typename label_t, typename abstract_label_t, typename state_t, typename configuration_range_t, typename concrete_trace_t, typename W = void, typename C = std::less<W>, typename A = add<W>>
+    template <typename label_t, typename W = void, typename C = std::less<W>, typename A = add<W>>
     class CegarPdaFactory {
+    private:
+        using builder_pda_t = AbstractionPDA<label_t,W,C,fut::type::hash>; // We optimize for set insertion while building,
+        using pda_t = AbstractionPDA<label_t,W,C,fut::type::vector>;       // and then optimize for iteration when analyzing.
+    protected:
+        using solver_instance_t = AbstractionSolverInstance<label_t,W,C,A>;
+    public:
+        using abstract_rule_t = user_rule_t<W,C>; // FIXME: This does not yet work for weighted rules.
+
+    public:
+        template<typename abstract_label_t>
+        CegarPdaFactory(std::unordered_set<label_t>&& all_labels, std::function<abstract_label_t(const label_t&)>&& label_abstraction_fn)
+        : _temp_pda(std::move(all_labels), std::move(label_abstraction_fn)) { }
+
+        explicit CegarPdaFactory(RefinementMapping<label_t>&& mapping)
+        : _temp_pda(std::move(mapping)) { };
+
+        // NFAs must be already compiled before passing them to this function.
+        solver_instance_t compile(const NFA<label_t>& initial_headers, const NFA<label_t>& final_headers) {
+            build_pda();
+            return solver_instance_t(pda_t{std::move(_temp_pda)}, initial_headers, initial(), final_headers, accepting());
+        }
+
+    protected:
+        void add_rule(const abstract_rule_t& rule) {
+            _temp_pda.add_rule(rule);
+        }
+        std::pair<bool,size_t> abstract_label(const label_t& label){
+            return _temp_pda.abstract_label(label);
+        }
+
+        virtual void build_pda() = 0;
+        virtual const std::vector<size_t>& initial() = 0;
+        virtual const std::vector<size_t>& accepting() = 0;
+
+    private:
+        builder_pda_t _temp_pda;
+    };
+
+    template <typename label_t, typename state_t, typename configuration_range_t, typename concrete_trace_t, typename W = void, typename C = std::less<W>, typename A = add<W>>
+    class CegarPdaReconstruction {
     private:
         using configuration_t = typename configuration_range_t::value_type;
         using header_wrapper_t = wildcard_header<label_t,W,C>;
 
-        using builder_pda_t = AbstractionPDA<label_t,abstract_label_t,W,C>; // We optimize for set insertion while building,
-        using pda_t = RefinementPDA<label_t,W,C>;                           // and then optimize for iteration when analyzing.
+        using pda_t = AbstractionPDA<label_t,W,C,fut::type::vector>;
         using nfa_state_t = typename NFA<label_t>::state_t;
         using automaton_t = AbstractionPAutomaton<label_t,W,C,A>;
         using solver_instance_t = AbstractionSolverInstance<label_t,W,C,A>;
@@ -268,18 +307,9 @@ namespace pdaaal {
 
     public:
 
-        CegarPdaFactory(std::unordered_set<label_t>&& all_labels, std::function<abstract_label_t(const label_t&)>&& label_abstraction_fn)
-        : _temp_pda(std::move(all_labels), std::move(label_abstraction_fn)) { };
-
-        // NFAs must be already compiled before passing them to this function.
-        solver_instance_t compile(const NFA<label_t>& initial_headers, const NFA<label_t>& final_headers) {
-            build_pda();
-            return solver_instance_t(pda_t{std::move(_temp_pda)}, initial_headers, initial(), final_headers, accepting());
-        }
-
         std::variant<concrete_trace_t,// Concrete trace (of configurations) and final concrete header.
-                    refinement_t,
-                    header_refinement_t>
+                refinement_t,
+                header_refinement_t>
         reconstruct_trace(const solver_instance_t& instance, const NFA<label_t>& initial_headers, const NFA<label_t>& final_headers) {
             static_assert(!is_weighted<W>, "Not yet supported.");
             if constexpr (is_weighted<W>) {
@@ -315,7 +345,7 @@ namespace pdaaal {
                     typename configuration_range_t::const_iterator _end; // TODO: Sentinel??
                     size_t _trace_id;
                     search_state_t(const configuration_range_t& config_range, size_t trace_id)
-                    : _it(config_range.begin()), _end(config_range.end()), _trace_id(trace_id) {};
+                            : _it(config_range.begin()), _end(config_range.end()), _trace_id(trace_id) {};
                     [[nodiscard]] bool end() const noexcept {
                         return _it == _end;
                     }
@@ -405,26 +435,46 @@ namespace pdaaal {
         }
 
     protected:
-
-        void add_rule(const abstract_rule_t& rule) {
-            _temp_pda.add_rule(rule);
-        }
-        std::pair<bool,size_t> insert_label(const label_t& label){
-            return _temp_pda.insert_label(label);
-        }
-
-        virtual void build_pda() = 0;
-        virtual const std::vector<size_t>& initial() = 0;
-        virtual const std::vector<size_t>& accepting() = 0;
-
         virtual const configuration_range_t& initial_concrete_rules(const abstract_rule_t&, const header_wrapper_t&) = 0;
         virtual const configuration_range_t& search_concrete_rules(const abstract_rule_t&, const configuration_t&, const header_wrapper_t&) = 0;
         virtual refinement_t find_refinement(const std::vector<configuration_t>&, const abstract_rule_t&, const header_wrapper_t&) = 0;
         virtual header_t get_header(const configuration_t&) = 0;
         virtual concrete_trace_t get_concrete_trace(std::vector<configuration_t>&&, std::vector<label_t>&&, size_t) = 0;
+    };
 
-    private:
-        builder_pda_t _temp_pda;
+
+
+    template <typename Factory, typename Reconstruction>
+    class CEGAR {
+        static_assert(std::is_same_v<typename Factory::label_t, typename Reconstruction::label_t>);
+        using label_t = typename Reconstruction::label_t;
+        using concrete_trace_t = typename Reconstruction::concrete_trace_t;
+        using refinement_t = typename Reconstruction::refinement_t;
+        using header_refinement_t = typename Reconstruction::header_refinement_t;
+    public:
+        std::optional<concrete_trace_t> cegar_solve(Factory&& factory, const NFA<label_t>& initial_headers, const NFA<label_t>& final_headers) {
+            while(true) {
+                auto instance = factory.compile(initial_headers, final_headers);
+
+                bool result = Solver::post_star_accepts(instance);
+                if (!result) {
+                    return std::nullopt; // No trace.
+                }
+
+                Reconstruction reconstruction(std::move(factory));
+
+                auto res = reconstruction.reconstruct_trace(instance, initial_headers, final_headers);
+
+                if (std::holds_alternative<concrete_trace_t>(res)) {
+                    return std::get<concrete_trace_t>(res);
+                } else if (std::holds_alternative<refinement_t>(res)) {
+                    factory = Factory(std::move(reconstruction), std::get<refinement_t>(std::move(res)), std::move(instance));
+                } else {
+                    assert(std::holds_alternative<header_refinement_t>(res));
+                    factory = Factory(std::move(reconstruction), std::get<header_refinement_t>(std::move(res)), std::move(instance));
+                }
+            }
+        }
     };
 
 }
