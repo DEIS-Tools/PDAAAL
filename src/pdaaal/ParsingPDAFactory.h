@@ -219,8 +219,8 @@ namespace pdaaal {
         };
 
     public:
-        ParsingCegarPdaFactory(ParsingCegarPdaReconstruction<W,C,A>&& reconstruction, typename ParsingCegarPdaReconstruction<W,C,A>::refinement_t&& refinement, solver_instance_t&& instance);
-        ParsingCegarPdaFactory(ParsingCegarPdaReconstruction<W,C,A>&& reconstruction, typename ParsingCegarPdaReconstruction<W,C,A>::header_refinement_t&& refinement, solver_instance_t&& instance);
+        void refine(typename ParsingCegarPdaReconstruction<W,C,A>::refinement_t&& refinement);
+        void refine(typename ParsingCegarPdaReconstruction<W,C,A>::header_refinement_t&& refinement);
 
         static ParsingCegarPdaFactory<W,C,A> create(std::istream& input,
             std::function<abstract_label_t(const label_t&)>&& label_abstraction_fn,
@@ -232,6 +232,11 @@ namespace pdaaal {
 
     protected:
         void build_pda() override {
+            if (!first) {
+                _initial = abstract_states(_concrete_pda._initial);
+                _accepting = abstract_states(_concrete_pda._accepting);
+            }
+            first = false;
             for (const auto& rules : _concrete_pda._rules) { // rules for each from state.
                 for (const auto& rule : rules) {
                     this->add_rule(abstract_rule(rule));
@@ -286,7 +291,7 @@ namespace pdaaal {
         RefinementMapping<state_t> _state_abstraction; // <size_t, size_t> is kind of a simple case, but fine for now
         std::vector<size_t> _initial; // Abstracted initial states
         std::vector<size_t> _accepting; // Abstracted final states
-
+        bool first = true;
         ConcretePDA _concrete_pda;
     };
 
@@ -319,8 +324,8 @@ namespace pdaaal {
         using refinement_t = typename parent_t::refinement_t;
         using header_refinement_t = typename parent_t::header_refinement_t;
 
-        explicit ParsingCegarPdaReconstruction(ParsingCegarPdaFactory<W,C,A>&& factory)
-        : _state_abstraction(std::move(factory._state_abstraction)), _concrete_pda(std::move(factory._concrete_pda)) {};
+        explicit ParsingCegarPdaReconstruction(const ParsingCegarPdaFactory<W,C,A>& factory)
+        : _state_abstraction(factory._state_abstraction), _rules(factory._concrete_pda._rules) {};
 
     protected:
 
@@ -409,8 +414,8 @@ namespace pdaaal {
 
     private:
         std::vector<rule_t> get_rules(size_t from) const {
-            if (from < _concrete_pda._rules.size()) {
-                return _concrete_pda._rules[from];
+            if (from < _rules.size()) {
+                return _rules[from];
             }
             return std::vector<rule_t>();
         }
@@ -453,33 +458,19 @@ namespace pdaaal {
         }
 
     private:
-        RefinementMapping<state_t> _state_abstraction; // <size_t, size_t> is kind of a simple case, but fine for now
-        ConcretePDA _concrete_pda;
+        const RefinementMapping<state_t>& _state_abstraction; // <size_t, size_t> is kind of a simple case, but fine for now
+        const std::vector<std::vector<rule_t>>& _rules;
         std::vector<std::vector<configuration_t>> _temps; // This is where all configurations are stored. Super inefficient, but I don't have better option yet. Implementing ranges would take some time...
     };
 
 
     template<typename W, typename C, typename A>
-    ParsingCegarPdaFactory<W, C, A>::ParsingCegarPdaFactory(ParsingCegarPdaReconstruction<W, C, A>&& reconstruction,
-                                                            typename ParsingCegarPdaReconstruction<W, C, A>::refinement_t&& refinement,
-                                                            typename ParsingCegarPdaFactory<W, C, A>::solver_instance_t&& instance)
-    : parent_t(instance.move_pda_refinement_mapping(refinement.second)),
-      _state_abstraction(std::move(reconstruction._state_abstraction)),
-      _concrete_pda(std::move(reconstruction._concrete_pda)) {
+    void ParsingCegarPdaFactory<W, C, A>::refine(typename ParsingCegarPdaReconstruction<W, C, A>::refinement_t&& refinement) {
         _state_abstraction.refine(refinement.first);
-        _initial = abstract_states(_concrete_pda._initial);
-        _accepting = abstract_states(_concrete_pda._accepting);
     }
-
     template<typename W, typename C, typename A>
-    ParsingCegarPdaFactory<W, C, A>::ParsingCegarPdaFactory(ParsingCegarPdaReconstruction<W, C, A>&& reconstruction,
-                                                            typename ParsingCegarPdaReconstruction<W, C, A>::header_refinement_t&& refinement,
-                                                            typename ParsingCegarPdaFactory<W, C, A>::solver_instance_t&& instance)
-    : parent_t(instance.move_pda_refinement_mapping(refinement)),
-      _state_abstraction(std::move(reconstruction._state_abstraction)),
-      _concrete_pda(std::move(reconstruction._concrete_pda)) {
-        _initial = abstract_states(_concrete_pda._initial);
-        _accepting = abstract_states(_concrete_pda._accepting);
+    void ParsingCegarPdaFactory<W, C, A>::refine(typename ParsingCegarPdaReconstruction<W, C, A>::header_refinement_t&& refinement) {
+        // No refinement of states.
     }
 
 }

@@ -262,8 +262,9 @@ namespace pdaaal {
         CegarPdaFactory(std::unordered_set<label_t>&& all_labels, std::function<abstract_label_t(const label_t&)>&& label_abstraction_fn)
         : _temp_pda(std::move(all_labels), std::move(label_abstraction_fn)) { }
 
-        explicit CegarPdaFactory(RefinementMapping<label_t>&& mapping)
-        : _temp_pda(std::move(mapping)) { };
+        void reset_pda(RefinementMapping<label_t>&& mapping) {
+            _temp_pda = builder_pda_t(std::move(mapping));
+        }
 
         // NFAs must be already compiled before passing them to this function.
         solver_instance_t compile(const NFA<label_t>& initial_headers, const NFA<label_t>& final_headers) {
@@ -461,17 +462,19 @@ namespace pdaaal {
                     return std::nullopt; // No trace.
                 }
 
-                Reconstruction reconstruction(std::move(factory));
+                Reconstruction reconstruction(factory);
 
                 auto res = reconstruction.reconstruct_trace(instance, initial_headers, final_headers);
 
                 if (std::holds_alternative<concrete_trace_t>(res)) {
                     return std::get<concrete_trace_t>(res);
                 } else if (std::holds_alternative<refinement_t>(res)) {
-                    factory = Factory(std::move(reconstruction), std::get<refinement_t>(std::move(res)), std::move(instance));
+                    factory.reset_pda(instance.move_pda_refinement_mapping(std::get<refinement_t>(res).second));
+                    factory.refine(std::get<refinement_t>(std::move(res)));
                 } else {
                     assert(std::holds_alternative<header_refinement_t>(res));
-                    factory = Factory(std::move(reconstruction), std::get<header_refinement_t>(std::move(res)), std::move(instance));
+                    factory.reset_pda(instance.move_pda_refinement_mapping(std::get<header_refinement_t>(res)));
+                    factory.refine(std::get<header_refinement_t>(std::move(res)));
                 }
             }
         }
