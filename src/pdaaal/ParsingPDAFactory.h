@@ -205,7 +205,7 @@ namespace pdaaal {
         ParsingCegarPdaFactory(std::istream& input, std::unordered_set<std::string>&& all_labels,
                                std::function<abstract_label_t(const label_t&)>&& label_abstraction_fn,
                                std::function<abstract_state_t(const state_t&)>&& state_abstraction_fn)
-        : parent_t(std::move(all_labels), std::move(label_abstraction_fn)), _concrete_pda(input) {
+        : parent_t(all_labels, std::move(label_abstraction_fn)), _concrete_pda(input) {
             AbstractionMapping<state_t, abstract_state_t> builder_mapping(std::move(state_abstraction_fn));
             _initial = abstract_states(_concrete_pda._initial, builder_mapping);
             _accepting = abstract_states(_concrete_pda._accepting, builder_mapping);
