@@ -147,7 +147,7 @@ namespace pdaaal::utils {
         }
         static constexpr void from_bytes(const std::vector<std::byte>& bytes, size_t& bytes_id, T& data){
             for (size_t i = 0; i < ptrie::byte_iterator<KEY>::element_size(); ++i, ++bytes_id){
-                ptrie::byte_iterator<KEY>::access(&data, i) = bytes[bytes_id];
+                ptrie::byte_iterator<KEY>::access(&data, i) = (unsigned char)bytes[bytes_id];
             }
         }
     };
