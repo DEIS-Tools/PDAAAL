@@ -122,7 +122,7 @@ namespace pdaaal {
         // TODO: Use C++20 ranges::view when available.
         // Return range structure with begin and end defined.
         struct concrete_value_range {
-            explicit concrete_value_range(const ptrie_map<ConcreteType, size_t>& map, const std::vector<size_t>* range = nullptr)
+            explicit concrete_value_range(const ptrie_map<ConcreteType, size_t>* map, const std::vector<size_t>* range = nullptr)
                     : _map(map), _range(range) { };
             using iterator = ptrie_access_iterator<ConcreteType>;
             iterator begin() const noexcept {
@@ -132,15 +132,15 @@ namespace pdaaal {
                 return _range != nullptr ? iterator(_range->end(), _map) : iterator(_map);
             }
         private:
-            const ptrie_map<ConcreteType, size_t>& _map;
+            const ptrie_map<ConcreteType, size_t>* _map;
             const std::vector<size_t>* _range;
         };
 
         concrete_value_range get_concrete_values_range(size_t abstract_value) const {
             if (abstract_value < _one_to_many_ids.size()) {
-                return concrete_value_range(_many_to_one_map, &_one_to_many_ids[abstract_value]);
+                return concrete_value_range(&_many_to_one_map, &_one_to_many_ids[abstract_value]);
             }
-            return concrete_value_range(_many_to_one_map);
+            return concrete_value_range(&_many_to_one_map);
         }
 
         [[nodiscard]] size_t size() const {

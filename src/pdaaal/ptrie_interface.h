@@ -271,7 +271,7 @@ namespace pdaaal::utils {
                       "_inner_iterator::value_type is not size_t");
         using _iterator_type = std::iterator<std::random_access_iterator_tag, T>;
         _inner_iterator _inner;
-        const ptrie_set<T>& _ptrie;
+        const ptrie_set<T>* _ptrie;
     public:
         using iterator_category = typename _iterator_type::iterator_category;
         using value_type = typename _iterator_type::value_type;
@@ -281,15 +281,16 @@ namespace pdaaal::utils {
         //using pointer           = typename _iterator_type::pointer;
         //using reference         = typename _iterator_type::reference;
 
-        explicit constexpr ptrie_access_iterator(const ptrie_set<T>& ptrie) noexcept: _inner(
+        explicit constexpr ptrie_access_iterator(const ptrie_set<T>* ptrie) noexcept: _inner(
                 _inner_iterator()), _ptrie(ptrie) {};
 
-        ptrie_access_iterator(_inner_iterator&& i, const ptrie_set<T>& ptrie) noexcept: _inner(std::move(i)), _ptrie(ptrie) {};
+        ptrie_access_iterator(_inner_iterator&& i, const ptrie_set<T>* ptrie) noexcept: _inner(std::move(i)), _ptrie(ptrie) {};
 
-        ptrie_access_iterator(const _inner_iterator& i, const ptrie_set<T>& ptrie) noexcept: _inner(i), _ptrie(ptrie) {};
+        ptrie_access_iterator(const _inner_iterator& i, const ptrie_set<T>* ptrie) noexcept: _inner(i), _ptrie(ptrie) {};
+
 
         value_type operator*() const { // Note this gives a value_type not a reference.
-            return _ptrie.at(*_inner);
+            return _ptrie->at(*_inner);
         }
 
         // Forward iterator requirements
@@ -320,7 +321,7 @@ namespace pdaaal::utils {
 
         // Random access iterator requirements
         value_type operator[](difference_type n) const { // Note this gives a value_type not a reference.
-            return _ptrie.at(_inner[n]);
+            return _ptrie->at(_inner[n]);
         }
 
         ptrie_access_iterator& operator+=(difference_type n) noexcept {
@@ -364,7 +365,7 @@ namespace pdaaal::utils {
 
         const _inner_iterator& base() const noexcept { return _inner; }
 
-        const ptrie_set<T>& ptrie() const noexcept { return _ptrie; }
+        const ptrie_set<T>* ptrie() const noexcept { return _ptrie; }
     };
 
     template<typename T, typename _iterator>
