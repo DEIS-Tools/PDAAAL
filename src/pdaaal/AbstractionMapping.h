@@ -37,79 +37,7 @@
 namespace pdaaal {
     using namespace pdaaal::utils;
 
-    template <typename ConcreteType> class RefinementMapping;
-
-    // Given a mapping function from ConcreteType to AbstractType,
-    // the AbstractionMapping gives a consecutive id to each distinct (by byte representation) AbstractType value,
-    // and provides efficient concrete to abstract (many-to-one) and abstract to concrete (one-to-many) mapping.
-    template <typename ConcreteType, typename AbstractType>
-    class AbstractionMapping {
-        friend class RefinementMapping<ConcreteType>;
-    public:
-        // map_fn should always produce the same output on the same input.
-        explicit AbstractionMapping(std::function<AbstractType(const ConcreteType&)>&& map_fn) : _map_fn(std::move(map_fn)) {
-            static_assert(std::is_default_constructible_v<ConcreteType>, "ConcreteType must be default constructible");
-            static_assert(std::is_default_constructible_v<AbstractType>, "AbstractType must be default constructible");
-            static_assert(has_ptrie_interface_v<ConcreteType>, "ConcreteType must satisfy has_ptrie_interface_v<ConcreteType> e.g. by satisfying std::has_unique_object_representations_v<ConcreteType> or specializing ptrie::byte_iterator<ConcreteType> or ptrie_interface<ConcreteType>");
-            static_assert(has_ptrie_interface_v<AbstractType>, "AbstractType must satisfy has_ptrie_interface_v<AbstractType> e.g. by satisfying std::has_unique_object_representations_v<AbstractType> or specializing ptrie::byte_iterator<AbstractType> or ptrie_interface<AbstractType>");
-        };
-        AbstractionMapping(std::function<AbstractType(const ConcreteType&)>&& map_fn, const std::unordered_set<ConcreteType>& initial_values)
-        : AbstractionMapping(std::move(map_fn)) {
-            for (const auto& value : initial_values) {
-                insert(value);
-            }
-        };
-
-        // returns whether a new abstract_value was added, and the id of the abstract value (new or old) corresponding to the concrete key.
-        // optionally don't insert the concrete value in the backward map.
-        std::pair<bool,size_t> insert(const ConcreteType& key, bool ignore_concrete = false) {
-            size_t key_id;
-            if (!ignore_concrete) {
-                bool fresh_key;
-                std::tie(fresh_key, key_id) = _many_to_one_map.insert(key);
-                if (!fresh_key) return {false, _many_to_one_map.get_data(key_id)};
-            }
-            auto [fresh_value, value_id] = _abstract_values.insert(_map_fn(key));
-            if (value_id >= _one_to_many_ids.size()) {
-                _one_to_many_ids.resize(value_id + 1);
-            }
-            if (!ignore_concrete) {
-                _many_to_one_map.get_data(key_id) = value_id;
-                _one_to_many_ids[value_id].push_back(key_id);
-            }
-            return {fresh_value, value_id};
-        }
-
-        std::pair<bool,size_t> exists(const ConcreteType& key, bool ignore_concrete = false) const {
-            if (!ignore_concrete) {
-                auto [exists, key_id] = _many_to_one_map.exists(key);
-                if (!exists) return {exists, key_id};
-            }
-            return _abstract_values.exists(_map_fn(key));
-        }
-
-        AbstractType map(const ConcreteType& concrete_value) const {
-            return _map_fn(concrete_value);
-        }
-        AbstractType get_abstract_value(size_t id) const {
-            return _abstract_values.at(id);
-        }
-
-        [[nodiscard]] size_t size() const {
-            return _abstract_values.size();
-        }
-
-    private:
-        std::function<AbstractType(const ConcreteType&)> _map_fn;
-        ptrie_set<AbstractType> _abstract_values;
-        ptrie_map<ConcreteType, size_t> _many_to_one_map;
-        std::vector<std::vector<size_t>> _one_to_many_ids;
-    };
-    template <typename ConcreteType, typename AbstractType>
-    AbstractionMapping(std::function<AbstractType(const ConcreteType&)>&& map_fn) -> AbstractionMapping<ConcreteType,AbstractType>;
-    template <typename ConcreteType, typename AbstractType>
-    AbstractionMapping(std::function<AbstractType(const ConcreteType&)>&& map_fn, const std::unordered_set<ConcreteType>& initial_values) -> AbstractionMapping<ConcreteType,AbstractType>;
-
+    template <typename ConcreteType, typename AbstractType> class AbstractionMapping;
 
     // This mapping can be build from an AbstractionMapping.
     // A RefinementMapping does not allow adding new elements, only refining the existing mapping.
@@ -219,10 +147,92 @@ namespace pdaaal {
             return _one_to_many_ids.size();
         }
 
-    private:
+    protected:
         ptrie_map<ConcreteType, size_t> _many_to_one_map;
         std::vector<std::vector<size_t>> _one_to_many_ids;
     };
+
+
+    // Given a mapping function from ConcreteType to AbstractType,
+    // the AbstractionMapping gives a consecutive id to each distinct (by byte representation) AbstractType value,
+    // and provides efficient concrete to abstract (many-to-one) and abstract to concrete (one-to-many) mapping.
+    template <typename ConcreteType, typename AbstractType>
+    class AbstractionMapping : private RefinementMapping<ConcreteType> {
+        friend class RefinementMapping<ConcreteType>;
+        using rm = RefinementMapping<ConcreteType>;
+    public:
+        // map_fn should always produce the same output on the same input.
+        explicit AbstractionMapping(std::function<AbstractType(const ConcreteType&)>&& map_fn) : _map_fn(std::move(map_fn)) {
+            static_assert(std::is_default_constructible_v<ConcreteType>, "ConcreteType must be default constructible");
+            static_assert(std::is_default_constructible_v<AbstractType>, "AbstractType must be default constructible");
+            static_assert(has_ptrie_interface_v<ConcreteType>, "ConcreteType must satisfy has_ptrie_interface_v<ConcreteType> e.g. by satisfying std::has_unique_object_representations_v<ConcreteType> or specializing ptrie::byte_iterator<ConcreteType> or ptrie_interface<ConcreteType>");
+            static_assert(has_ptrie_interface_v<AbstractType>, "AbstractType must satisfy has_ptrie_interface_v<AbstractType> e.g. by satisfying std::has_unique_object_representations_v<AbstractType> or specializing ptrie::byte_iterator<AbstractType> or ptrie_interface<AbstractType>");
+        };
+        AbstractionMapping(std::function<AbstractType(const ConcreteType&)>&& map_fn, const std::unordered_set<ConcreteType>& initial_values)
+                : AbstractionMapping(std::move(map_fn)) {
+            for (const auto& value : initial_values) {
+                insert(value);
+            }
+        };
+
+        // returns whether a new abstract_value was added, and the id of the abstract value (new or old) corresponding to the concrete key.
+        // optionally don't insert the concrete value in the backward map.
+        std::pair<bool,size_t> insert(const ConcreteType& key, bool ignore_concrete = false) {
+            size_t key_id;
+            if (!ignore_concrete) {
+                bool fresh_key;
+                std::tie(fresh_key, key_id) = this->_many_to_one_map.insert(key);
+                if (!fresh_key) return {false, this->_many_to_one_map.get_data(key_id)};
+            }
+            auto [fresh_value, value_id] = _abstract_values.insert(_map_fn(key));
+            if (value_id >= this->_one_to_many_ids.size()) {
+                this->_one_to_many_ids.resize(value_id + 1);
+            }
+            if (!ignore_concrete) {
+                this->_many_to_one_map.get_data(key_id) = value_id;
+                this->_one_to_many_ids[value_id].push_back(key_id);
+            }
+            return {fresh_value, value_id};
+        }
+
+        std::pair<bool,size_t> exists(const ConcreteType& key, bool ignore_concrete = false) const {
+            if (!ignore_concrete) {
+                auto [exists, key_id] = this->_many_to_one_map.exists(key);
+                if (!exists) return {exists, key_id};
+            }
+            return _abstract_values.exists(_map_fn(key));
+        }
+
+        AbstractType map(const ConcreteType& concrete_value) const {
+            return _map_fn(concrete_value);
+        }
+        AbstractType get_abstract_value(size_t id) const {
+            return _abstract_values.at(id);
+        }
+
+        [[nodiscard]] size_t size() const {
+            assert(rm::size() == _abstract_values.size());
+            return rm::size();
+        }
+
+        std::vector<ConcreteType> get_concrete_values(const AbstractType& abstract_value) const {
+            auto [found, id] = _abstract_values.exists(abstract_value);
+            return rm::get_concrete_values(found ? id : this->_one_to_many_ids.size());
+        }
+        auto get_concrete_values_range(const AbstractType& abstract_value) const {
+            auto [found, id] = _abstract_values.exists(abstract_value);
+            return rm::get_concrete_values_range(found ? id : this->_one_to_many_ids.size());
+        }
+
+    private:
+        std::function<AbstractType(const ConcreteType&)> _map_fn;
+        ptrie_set<AbstractType> _abstract_values;
+    };
+    template <typename ConcreteType, typename AbstractType>
+    AbstractionMapping(std::function<AbstractType(const ConcreteType&)>&& map_fn) -> AbstractionMapping<ConcreteType,AbstractType>;
+    template <typename ConcreteType, typename AbstractType>
+    AbstractionMapping(std::function<AbstractType(const ConcreteType&)>&& map_fn, const std::unordered_set<ConcreteType>& initial_values) -> AbstractionMapping<ConcreteType,AbstractType>;
+
 
 }
 
