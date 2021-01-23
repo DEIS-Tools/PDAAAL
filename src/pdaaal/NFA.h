@@ -439,7 +439,7 @@ namespace pdaaal {
                     if(e._epsilon)
                     {
                         if(!e._symbols.empty() || e._negated) out << " ";
-                        out << u8"𝜀";
+                        out << "𝜀";
                     }
                     
                     out << "\"];\n";

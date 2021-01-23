@@ -238,7 +238,7 @@ namespace pdaaal {
                     }
                     if (labels.contains(epsilon)) {
                         if (labels.size() > 1) out << " ";
-                        out << u8"𝜀";
+                        out << "𝜀";
                     }
                     out << "\"];\n";
                 }
