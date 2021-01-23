@@ -342,8 +342,8 @@ namespace pdaaal {
 
                 // Depth first search, using this as states:
                 struct search_state_t {
-                    typename configuration_range_t::const_iterator _it;
-                    typename configuration_range_t::const_iterator _end; // TODO: Sentinel??
+                    decltype(std::declval<const configuration_range_t&>().begin()) _it;
+                    decltype(std::declval<const configuration_range_t&>().end()) _end;
                     size_t _trace_id;
                     search_state_t(const configuration_range_t& config_range, size_t trace_id)
                             : _it(config_range.begin()), _end(config_range.end()), _trace_id(trace_id) {};
