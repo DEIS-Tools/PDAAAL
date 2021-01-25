@@ -195,6 +195,14 @@ namespace pdaaal {
             return {fresh_value, value_id};
         }
 
+        std::pair<bool,size_t> insert_abstract(const AbstractType& value) {
+            auto [fresh_value, value_id] = _abstract_values.insert(value);
+            if (value_id >= this->_one_to_many_ids.size()) {
+                this->_one_to_many_ids.resize(value_id + 1);
+            }
+            return {fresh_value, value_id};
+        }
+
         std::pair<bool,size_t> exists(const ConcreteType& key, bool ignore_concrete = false) const {
             if (!ignore_concrete) {
                 auto [exists, key_id] = this->_many_to_one_map.exists(key);
