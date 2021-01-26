@@ -267,9 +267,9 @@ namespace pdaaal {
         using abstract_rule_t = user_rule_t<W,C>; // FIXME: This does not yet work for weighted rules.
 
     public:
-        template<typename abstract_label_t>
-        CegarPdaFactory(const std::unordered_set<label_t>& all_labels, std::function<abstract_label_t(const label_t&)>&& label_abstraction_fn)
-        : _temp_pda(all_labels, std::move(label_abstraction_fn)) { }
+        template<typename Fn>
+        CegarPdaFactory(const std::unordered_set<label_t>& all_labels, Fn&& label_abstraction_fn)
+        : _temp_pda(all_labels, std::forward<Fn>(label_abstraction_fn)) { }
 
         void reset_pda(RefinementMapping<label_t>&& mapping) {
             _temp_pda = builder_pda_t(std::move(mapping));

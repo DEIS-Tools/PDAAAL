@@ -168,12 +168,13 @@ namespace pdaaal {
             static_assert(has_ptrie_interface_v<ConcreteType>, "ConcreteType must satisfy has_ptrie_interface_v<ConcreteType> e.g. by satisfying std::has_unique_object_representations_v<ConcreteType> or specializing ptrie::byte_iterator<ConcreteType> or ptrie_interface<ConcreteType>");
             static_assert(has_ptrie_interface_v<AbstractType>, "AbstractType must satisfy has_ptrie_interface_v<AbstractType> e.g. by satisfying std::has_unique_object_representations_v<AbstractType> or specializing ptrie::byte_iterator<AbstractType> or ptrie_interface<AbstractType>");
         };
-        AbstractionMapping(std::function<AbstractType(const ConcreteType&)>&& map_fn, const std::unordered_set<ConcreteType>& initial_values)
-                : AbstractionMapping(std::move(map_fn)) {
+        template <typename Fn>
+        AbstractionMapping(const std::unordered_set<ConcreteType>& initial_values, Fn&& map_fn) : AbstractionMapping(std::forward<Fn>(map_fn)) {
+            static_assert(std::is_convertible_v<Fn,std::function<AbstractType(const ConcreteType&)>>);
             for (const auto& value : initial_values) {
                 insert(value);
             }
-        };
+        }
 
         // returns whether a new abstract_value was added, and the id of the abstract value (new or old) corresponding to the concrete key.
         // optionally don't insert the concrete value in the backward map.
@@ -238,8 +239,8 @@ namespace pdaaal {
     };
     template <typename ConcreteType, typename AbstractType>
     AbstractionMapping(std::function<AbstractType(const ConcreteType&)>&& map_fn) -> AbstractionMapping<ConcreteType,AbstractType>;
-    template <typename ConcreteType, typename AbstractType>
-    AbstractionMapping(std::function<AbstractType(const ConcreteType&)>&& map_fn, const std::unordered_set<ConcreteType>& initial_values) -> AbstractionMapping<ConcreteType,AbstractType>;
+    template <typename ConcreteType, typename Fn>
+    AbstractionMapping(const std::unordered_set<ConcreteType>& initial_values, Fn&& map_fn) -> AbstractionMapping<ConcreteType, decltype(std::declval<Fn>()(std::declval<ConcreteType>()))>;
 
 
 }
