@@ -68,8 +68,9 @@ namespace pdaaal::utils {
         static constexpr insert_type to_ptrie(const external_type& key) {
             return key;
         }
-        template<typename I, uint16_t H, uint16_t S, uint8_t B, size_t A>
-        static constexpr external_type unpack(const ptrie::set_stable<elem_type,I,H,S,B,A>& p, size_t id) {
+        template<typename PT>
+        static constexpr external_type unpack(const PT& p, size_t id) {
+            static_assert(std::is_same_v<size_t , decltype(std::declval<PT>().unpack(std::declval<size_t>(),std::declval<elem_type*>()))>);
             external_type res;
             p.unpack(id, &res);
             return res;
@@ -83,8 +84,9 @@ namespace pdaaal::utils {
         static insert_type to_ptrie(const external_type& key) {
             return std::move(key);
         }
-        template<typename I, uint16_t H, uint16_t S, uint8_t B, size_t A>
-        static external_type unpack(const ptrie::set_stable<elem_type,I,H,S,B,A>& p, size_t id) {
+        template<typename PT>
+        static external_type unpack(const PT& p, size_t id) {
+            static_assert(std::is_same_v<std::vector<elem_type>, decltype(std::declval<PT>().unpack(std::declval<size_t>()))>);
             return p.unpack(id);
         }
     };
@@ -96,8 +98,9 @@ namespace pdaaal::utils {
         static insert_type to_ptrie(const external_type& key) {
             return std::make_pair(key.data(), key.length());
         }
-        template<typename I, uint16_t H, uint16_t S, uint8_t B, size_t A>
-        static external_type unpack(const ptrie::set_stable<elem_type,I,H,S,B,A>& p, size_t id) {
+        template<typename PT>
+        static external_type unpack(const PT& p, size_t id) {
+            static_assert(std::is_same_v<std::vector<elem_type>, decltype(std::declval<PT>().unpack(std::declval<size_t>()))>);
             auto vector = p.unpack(id);
             return std::string(vector.data(), vector.size());
         }
@@ -206,8 +209,9 @@ namespace pdaaal::utils {
             byte_vector_converter<KEY>::push_back_bytes(result, key);
             return result;
         }
-        template<typename I, uint16_t H, uint16_t S, uint8_t B, size_t A>
-        static external_type unpack(const ptrie::set_stable<elem_type,I,H,S,B,A>& p, size_t id) {
+        template<typename PT>
+        static external_type unpack(const PT& p, size_t id) {
+            static_assert(std::is_same_v<std::vector<elem_type>, decltype(std::declval<PT>().unpack(std::declval<size_t>()))>);
             auto bytes = p.unpack(id);
             external_type result;
             size_t bytes_id = 0;
@@ -227,6 +231,10 @@ namespace pdaaal::utils {
         static_assert(std::is_same_v<KEY, typename ptrie_interface<KEY>::external_type>, "KEY not matching ptrie_interface<KEY>::external_type.");
         using pt = ptrie::set_stable<ptrie_interface_elem<KEY>>;
     public:
+        using elem_type = KEY;
+
+        using pt::set_stable;
+        using pt::unpack;
         using pt::size;
 
         std::pair<bool, size_t> insert(const KEY& key) {
@@ -243,18 +251,32 @@ namespace pdaaal::utils {
         }
     };
 
-    template <typename KEY, typename T>
-    class ptrie_map : private ptrie::map<ptrie_interface_elem<KEY>, T>, public ptrie_set<KEY> {
+    template <typename KEY,typename T>
+    class ptrie_map : private ptrie::map<ptrie_interface_elem<KEY>, T> {
         static_assert(has_ptrie_interface_v<KEY>, "KEY does not provide a specialization for ptrie_interface.");
         static_assert(std::is_same_v<KEY, typename ptrie_interface<KEY>::external_type>, "KEY not matching ptrie_interface<KEY>::external_type.");
         using pt = ptrie::map<ptrie_interface_elem<KEY>, T>;
-        using ps = ptrie_set<KEY>;
     public:
-        using ps::insert;
-        using ps::exists;
-        using ps::erase;
+        using elem_type = KEY;
+
+        using pt::map;
+        using pt::unpack;
+        using pt::size;
         using pt::get_data;
 
+        // Yes, insert(), exists(), erase() and at() are same as ptrie_set, but I tried multiple inheritance, and it didn't fly.
+        std::pair<bool, size_t> insert(const KEY& key) {
+            return pt::insert(ptrie_interface<KEY>::to_ptrie(key));
+        }
+        [[nodiscard]] std::pair<bool, size_t> exists(const KEY& key) const {
+            return pt::exists(ptrie_interface<KEY>::to_ptrie(key));
+        }
+        bool erase (const KEY& key) {
+            return pt::erase(ptrie_interface<KEY>::to_ptrie(key));
+        }
+        KEY at(size_t index) const {
+            return ptrie_interface<KEY>::unpack(*this, index);
+        }
         T& operator[](const KEY& key) {
             return pt::operator[](ptrie_interface<KEY>::to_ptrie(key));
         }
@@ -264,29 +286,29 @@ namespace pdaaal::utils {
     // TODO: Use C++20 ranges::transform_view when available
     // Iterator used to iterate through the values stored in the ptrie at indexes specified by some inner iterator.
     // It is maybe a bit overkill to define an (almost) complete random access iterator, but here goes.
-    template<typename T, typename _inner_iterator = std::vector<size_t>::const_iterator>
+    template<typename PT, typename _inner_iterator = std::vector<size_t>::const_iterator>
     struct ptrie_access_iterator {
     private:
         static_assert(std::is_same_v<std::remove_const_t<typename _inner_iterator::value_type>, size_t>,
                       "_inner_iterator::value_type is not size_t");
-        using _iterator_type = std::iterator<std::random_access_iterator_tag, T>;
+        using _iterator_type = std::iterator<std::random_access_iterator_tag, typename PT::elem_type>;
         _inner_iterator _inner;
-        const ptrie_set<T>* _ptrie;
+        const PT* _ptrie;
     public:
         using iterator_category = typename _iterator_type::iterator_category;
         using value_type = typename _iterator_type::value_type;
-        static_assert(std::is_same_v<value_type, T>, "value_type and T not matching");
+        static_assert(std::is_same_v<value_type, typename PT::elem_type>, "value_type and PT::elem_type not matching");
         using difference_type = typename _iterator_type::difference_type;
         // pointer and reference are not used, as we have to return by value what is stored in the ptrie_set.
         //using pointer           = typename _iterator_type::pointer;
         //using reference         = typename _iterator_type::reference;
 
-        explicit constexpr ptrie_access_iterator(const ptrie_set<T>* ptrie) noexcept: _inner(
+        explicit constexpr ptrie_access_iterator(const PT* ptrie) noexcept: _inner(
                 _inner_iterator()), _ptrie(ptrie) {};
 
-        ptrie_access_iterator(_inner_iterator&& i, const ptrie_set<T>* ptrie) noexcept: _inner(std::move(i)), _ptrie(ptrie) {};
+        ptrie_access_iterator(_inner_iterator&& i, const PT* ptrie) noexcept: _inner(std::move(i)), _ptrie(ptrie) {};
 
-        ptrie_access_iterator(const _inner_iterator& i, const ptrie_set<T>* ptrie) noexcept: _inner(i), _ptrie(ptrie) {};
+        ptrie_access_iterator(const _inner_iterator& i, const PT* ptrie) noexcept: _inner(i), _ptrie(ptrie) {};
 
 
         value_type operator*() const { // Note this gives a value_type not a reference.
@@ -301,13 +323,10 @@ namespace pdaaal::utils {
 
         ptrie_access_iterator operator++(int) noexcept { return ptrie_access_iterator(_inner++, _ptrie); }
 
-        template<typename U, typename _iteratorR>
-        bool operator==(const ptrie_access_iterator<U, _iteratorR>& rhs) const noexcept {
+        bool operator==(const ptrie_access_iterator& rhs) const noexcept {
             return base() == rhs.base();
         }
-
-        template<typename U, typename _iteratorR>
-        bool operator!=(const ptrie_access_iterator<U, _iteratorR>& rhs) const noexcept {
+        bool operator!=(const ptrie_access_iterator& rhs) const noexcept {
             return base() != rhs.base();
         }
 
@@ -342,37 +361,44 @@ namespace pdaaal::utils {
             return ptrie_access_iterator(_inner - n, _ptrie);
         }
 
-        template<typename U, typename _iteratorR>
-        difference_type operator-(const ptrie_access_iterator<U, _iteratorR>& rhs) const noexcept {
+        difference_type operator-(const ptrie_access_iterator& rhs) const noexcept {
             return base() - rhs.base();
         }
 
-        template<typename U, typename _iteratorR>
-        bool operator<(const ptrie_access_iterator<U, _iteratorR>& rhs) const noexcept { return base() < rhs.base(); }
+        bool operator<(const ptrie_access_iterator& rhs) const noexcept { return base() < rhs.base(); }
 
-        template<typename U, typename _iteratorR>
-        bool operator>(const ptrie_access_iterator<U, _iteratorR>& rhs) const noexcept { return base() > rhs.base(); }
+        bool operator>(const ptrie_access_iterator& rhs) const noexcept { return base() > rhs.base(); }
 
-        template<typename U, typename _iteratorR>
-        bool operator<=(const ptrie_access_iterator<U, _iteratorR>& rhs) const noexcept {
+        bool operator<=(const ptrie_access_iterator& rhs) const noexcept {
             return base() <= rhs.base();
         }
 
-        template<typename U, typename _iteratorR>
-        bool operator>=(const ptrie_access_iterator<U, _iteratorR>& rhs) const noexcept {
+        bool operator>=(const ptrie_access_iterator& rhs) const noexcept {
             return base() >= rhs.base();
         }
 
         const _inner_iterator& base() const noexcept { return _inner; }
 
-        const ptrie_set<T>* ptrie() const noexcept { return _ptrie; }
+        const PT* ptrie() const noexcept { return _ptrie; }
     };
+    template<typename T>
+    ptrie_access_iterator(const ptrie_set<T>* ptrie) -> ptrie_access_iterator<ptrie_set<T>>;
+    template<typename T, typename _inner_iterator>
+    ptrie_access_iterator(_inner_iterator&& i, const ptrie_set<T>* ptrie) -> ptrie_access_iterator<ptrie_set<T>,_inner_iterator>;
+    template<typename T, typename _inner_iterator>
+    ptrie_access_iterator(const _inner_iterator& i, const ptrie_set<T>* ptrie) -> ptrie_access_iterator<ptrie_set<T>,_inner_iterator>;
+    template<typename T, typename U>
+    ptrie_access_iterator(const ptrie_map<T,U>* ptrie) -> ptrie_access_iterator<ptrie_map<T,U>>;
+    template<typename T, typename U, typename _inner_iterator>
+    ptrie_access_iterator(_inner_iterator&& i, const ptrie_map<T,U>* ptrie) -> ptrie_access_iterator<ptrie_map<T,U>,_inner_iterator>;
+    template<typename T, typename U, typename _inner_iterator>
+    ptrie_access_iterator(const _inner_iterator& i, const ptrie_map<T,U>* ptrie) -> ptrie_access_iterator<ptrie_map<T,U>,_inner_iterator>;
 
-    template<typename T, typename _iterator>
-    inline ptrie_access_iterator<T, _iterator>
-    operator+(typename ptrie_access_iterator<T, _iterator>::difference_type n,
-              const ptrie_access_iterator<T, _iterator>& i) noexcept {
-        return ptrie_access_iterator<T, _iterator>(i.base() + n, i.ptrie());
+    template<typename PT, typename _iterator>
+    inline ptrie_access_iterator<PT, _iterator>
+    operator+(typename ptrie_access_iterator<PT, _iterator>::difference_type n,
+              const ptrie_access_iterator<PT, _iterator>& i) noexcept {
+        return ptrie_access_iterator<PT, _iterator>(i.base() + n, i.ptrie());
     }
 
 }

@@ -124,7 +124,7 @@ namespace pdaaal {
         struct concrete_value_range {
             explicit concrete_value_range(const ptrie_map<ConcreteType, size_t>* map, const std::vector<size_t>* range = nullptr)
                     : _map(map), _range(range) { };
-            using iterator = ptrie_access_iterator<ConcreteType>;
+            using iterator = decltype(ptrie_access_iterator(std::declval<const ptrie_map<ConcreteType, size_t>*>()));
             iterator begin() const noexcept {
                 return _range != nullptr ? iterator(_range->begin(), _map) : iterator(_map);
             }
