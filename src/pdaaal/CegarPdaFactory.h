@@ -288,6 +288,9 @@ namespace pdaaal {
         std::pair<bool,size_t> abstract_label(const label_t& label){
             return _temp_pda.abstract_label(label);
         }
+        [[nodiscard]] size_t number_of_labels() const {
+            return _temp_pda.number_of_labels();
+        }
 
         virtual void build_pda() = 0;
         virtual const std::vector<size_t>& initial() = 0;
