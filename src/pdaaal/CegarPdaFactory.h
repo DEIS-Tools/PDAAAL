@@ -120,34 +120,43 @@ namespace pdaaal {
         header_t initial_header() const {
             return header_t{_initial_path.size(), std::vector<label_t>()};
         }
+
         /**
-         * Updates header by popping pre and pushing post.
+         * Updates header by popping the label pre and 'additional_pops' without checks, and then pushing post.
          * Before popping, we check if pre matches current labels and (when relevant) is a valid concreterization of wildcard label.
          * @param header
-         * @param pre is top to bottom vector.
+         * @param pre is label.
          * @param post is bottom to top vector.
+         * @param additional_pops is the number of pops after popping pre. These pops are not checked (i.e. we assume they match)
          * @return The updated header if valid, or std::nullopt if pre was not valid.
          */
-        std::optional<header_t> update(const header_t& input_header, const std::vector<label_t>& pre, const std::vector<label_t>& post) const {
+        std::optional<header_t> update(const header_t& input_header, const label_t& pre, const std::vector<label_t>& post, size_t additional_pops = 0) const {
             auto header = input_header;
-            assert(pre.size() <= header.size());
-            for (const auto& label : pre) {
-                if (header.empty()) {
-                    assert(false); // TODO: Would this be an implementation bug or a legitimate error state?
-                    return std::nullopt;
-                }
-                if (header.top_is_concrete()
-                    ? header.concrete_part.back() == label
-                    : check_nfa_path(_initial_nfa, _initial_path, label, _initial_path.size() - header.count_wildcards)) {
-                    // label is fine as pre, so we can pop header.
-                    header.pop();
-                } else {
-                    // pre label violates some condition for the header (match header value or be okay with initial_nfa_path), so return error value.
-                    return std::nullopt;
-                }
+            assert(1 + additional_pops <= header.size());
+            if (header.top_is_concrete()
+                ? header.concrete_part.back() == pre
+                : check_nfa_path(_initial_nfa, _initial_path, pre, _initial_path.size() - header.count_wildcards)) {
+                // label is fine as pre, so we can pop header.
+                header.pop();
+            } else {
+                // pre label violates some condition for the header (match header value or be okay with initial_nfa_path), so return error value.
+                return std::nullopt;
+            }
+            for (size_t i = 0; i < additional_pops; ++i) {
+                assert(!header.empty());
+                header.pop();
             }
             header.append(post);
             return header;
+        }
+        // Returns the labels, pre, for which update(header, pre, ...) succeeds. Can be used when computing refinement.
+        std::vector<label_t> pre_labels(const header_t& header) const {
+            if (header.empty()) return std::vector<label_t>();
+            if (header.top_is_concrete()) return std::vector<label_t>{header.concrete_part.back()};
+            size_t i = _initial_path.size() - header.count_wildcards;
+            auto labels = _pda.get_concrete_labels(_initial_abstract_stack[i]);
+            std::sort(labels.begin(), labels.end());
+            return intersect_edge_labels(_initial_nfa, _initial_path, labels, i);
         }
 
         // Returns the concrete final header if possible, or provides refinement info if this is a spurious counterexample.
@@ -410,10 +419,8 @@ namespace pdaaal {
                     // Refine based on configurations at deepest level of search.
                     if (max_depth == 0) {
                         // Special case since we did not even apply a first rule, so current_deepest_states is empty.
-                        // TODO: ...
-
+                        return find_initial_refinement(trace[0], header_handler);
                     } else {
-                        // TODO: Refine...
                         return find_refinement(current_deepest_states, trace[max_depth], header_handler);
                     }
                 } else if (final_header) {
@@ -432,11 +439,13 @@ namespace pdaaal {
                 }
             }
             // I don't know, sort of an empty return on failure...
+            assert(false);
             return header_refinement_t();
         }
 
     protected:
         virtual const configuration_range_t& initial_concrete_rules(const abstract_rule_t&, const header_wrapper_t&) = 0;
+        virtual refinement_t find_initial_refinement(const abstract_rule_t& abstract_rule, const header_wrapper_t&  header_handler) = 0;
         virtual const configuration_range_t& search_concrete_rules(const abstract_rule_t&, const configuration_t&, const header_wrapper_t&) = 0;
         virtual refinement_t find_refinement(const std::vector<configuration_t>&, const abstract_rule_t&, const header_wrapper_t&) = 0;
         virtual header_t get_header(const configuration_t&) = 0;
