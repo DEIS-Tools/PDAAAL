@@ -219,8 +219,12 @@ namespace pdaaal {
         };
 
     public:
-        void refine(typename ParsingCegarPdaReconstruction<W,C,A>::refinement_t&& refinement);
-        void refine(typename ParsingCegarPdaReconstruction<W,C,A>::header_refinement_t&& refinement);
+        void refine(typename ParsingCegarPdaReconstruction<W,C,A>::refinement_t&& refinement) {
+            _state_abstraction.refine(refinement.first);
+        }
+        void refine(typename ParsingCegarPdaReconstruction<W,C,A>::header_refinement_t&& refinement) {
+            // No refinement of states.
+        }
 
         static ParsingCegarPdaFactory<W,C,A> create(std::istream& input,
             std::function<abstract_label_t(const label_t&)>&& label_abstraction_fn,
@@ -302,7 +306,7 @@ namespace pdaaal {
             size_t, // state_t
             std::vector< // configuration_range_t        In this case configuration_t consists of:
                     std::pair<typename TypedPDA<std::string, W, C>::rule_t, // Our concrete rule_t
-                            typename wildcard_header<std::string,W,C>::header_t> // header_t
+                              Header<std::string>> // header_t
             >,
             std::vector<typename TypedPDA<std::string>::tracestate_t>, // concrete_trace_t
             W, C, A> {
@@ -312,44 +316,45 @@ namespace pdaaal {
         using concrete_trace_t = std::vector<typename TypedPDA<label_t>::tracestate_t>;
     private:
         using state_t = size_t;
-        using header_wrapper_t = wildcard_header<label_t,W,C>;
-        using header_t = typename header_wrapper_t::header_t;
+        using header_t = Header<label_t>;
         using rule_t = typename TypedPDA<std::string, W, C>::rule_t; // For concrete rules we just use this one.
         using configuration_t = std::pair<rule_t, header_t>;
         using configuration_range_t = std::vector<configuration_t>;
         using parent_t = CegarPdaReconstruction<label_t, state_t, configuration_range_t, concrete_trace_t, W, C, A>;
         using abstract_rule_t = typename parent_t::abstract_rule_t;
-        using ConcretePDA = typename ParsingCegarPdaFactory<W,C,A>::ConcretePDA;
+        using solver_instance_t = typename parent_t::solver_instance_t;
     public:
         using refinement_t = typename parent_t::refinement_t;
         using header_refinement_t = typename parent_t::header_refinement_t;
 
-        explicit ParsingCegarPdaReconstruction(const ParsingCegarPdaFactory<W,C,A>& factory)
-        : _state_abstraction(factory._state_abstraction), _rules(factory._concrete_pda._rules), _initial_states(factory._concrete_pda._initial) {};
+        explicit ParsingCegarPdaReconstruction(const ParsingCegarPdaFactory<W,C,A>& factory, const solver_instance_t& instance,
+                                               const NFA<label_t>& initial_headers, const NFA<label_t>& final_headers)
+        : parent_t(instance, initial_headers, final_headers),
+          _state_abstraction(factory._state_abstraction), _rules(factory._concrete_pda._rules), _initial_states(factory._concrete_pda._initial) {};
 
     protected:
 
         // TODO: Coroutines might make this a lot simpler...
-        const configuration_range_t& initial_concrete_rules(const abstract_rule_t& rule, const header_wrapper_t& header_handler) override {
+        const configuration_range_t& initial_concrete_rules(const abstract_rule_t& rule) override {
             auto from_states = _state_abstraction.get_concrete_values(rule._from);
-            auto header = header_handler.initial_header();
+            auto header = this->initial_header();
             _temps.emplace_back(); // We store all configurations in _temps. TODO: Make efficient range implementation. That was the hole point of returning iterators.
-            make_configurations(_temps.back(), rule, from_states, header, header_handler);
+            make_configurations(_temps.back(), rule, from_states, header);
             return _temps.back();
         }
-        const configuration_range_t& search_concrete_rules(const abstract_rule_t& rule, const configuration_t& conf, const header_wrapper_t&  header_handler) override {
+        const configuration_range_t& search_concrete_rules(const abstract_rule_t& rule, const configuration_t& conf) override {
             _temps.emplace_back(); // We store all configurations in _temps. TODO: Make efficient range implementation. That was the hole point of returning iterators.
-            make_configurations(_temps.back(), rule, std::vector<state_t>{conf.first._to}, conf.second, header_handler);
+            make_configurations(_temps.back(), rule, std::vector<state_t>{conf.first._to}, conf.second);
             return _temps.back();
         }
-        refinement_t find_initial_refinement(const abstract_rule_t& abstract_rule, const header_wrapper_t&  header_handler) override {
+        refinement_t find_initial_refinement(const abstract_rule_t& abstract_rule) override {
             std::vector<std::pair<state_t,label_t>> X, Y;
 
-            auto labels = header_handler.pre_labels(header_handler.initial_header());
+            auto labels = this->pre_labels(this->initial_header());
             for (const auto& initial_state : _initial_states) {
                 if (_state_abstraction.maps_to(initial_state, abstract_rule._from)) {
                     for (const auto& label : labels) {
-                        if (header_handler.maps_to(label, abstract_rule._pre)) {
+                        if (this->label_maps_to(label, abstract_rule._pre)) {
                             X.emplace_back(initial_state, label);
                         }
                     }
@@ -357,21 +362,21 @@ namespace pdaaal {
             }
             for (const auto& from_state : _state_abstraction.get_concrete_values(abstract_rule._from)) {
                 for (const auto& rule : get_rules(from_state)) {
-                    if (rule_match(rule, abstract_rule, header_handler)){
+                    if (rule_match(rule, abstract_rule)){
                         Y.emplace_back(rule._from, rule._pre);
                     }
                 }
             }
             return make_pair_refinement<state_t,label_t>(X, Y, abstract_rule._from, abstract_rule._pre);
         }
-        refinement_t find_refinement(const std::vector<configuration_t>& configurations, const abstract_rule_t& abstract_rule, const header_wrapper_t& header_handler) override {
+        refinement_t find_refinement(const abstract_rule_t& abstract_rule, const std::vector<configuration_t>& configurations) override {
             std::vector<std::pair<state_t,label_t>> X, Y;
 
             for (const auto& [c_rule, header] : configurations) {
                 auto state = c_rule._to;
                 if (_state_abstraction.maps_to(state, abstract_rule._from)) {
-                    for (const auto& label : header_handler.pre_labels(header)) {
-                        if (header_handler.maps_to(label, abstract_rule._pre)) {
+                    for (const auto& label : this->pre_labels(header)) {
+                        if (this->label_maps_to(label, abstract_rule._pre)) {
                             X.emplace_back(state, label);
                         }
                     }
@@ -379,7 +384,7 @@ namespace pdaaal {
             }
             for (const auto& from_state : _state_abstraction.get_concrete_values(abstract_rule._from)) {
                 for (const auto& rule : get_rules(from_state)) {
-                    if (rule_match(rule, abstract_rule, header_handler)){
+                    if (rule_match(rule, abstract_rule)){
                         Y.emplace_back(rule._from, rule._pre);
                     }
                 }
@@ -431,19 +436,19 @@ namespace pdaaal {
             return std::vector<rule_t>();
         }
 
-        bool rule_match(const rule_t& rule, const abstract_rule_t& abstract_rule, const header_wrapper_t& header_handler) const {
+        bool rule_match(const rule_t& rule, const abstract_rule_t& abstract_rule) const {
             assert(_state_abstraction.maps_to(rule._from, abstract_rule._from)); // Matching _from is a precondition where this is used.
             return rule._op == abstract_rule._op &&
                    _state_abstraction.maps_to(rule._to, abstract_rule._to) &&
-                   header_handler.maps_to(rule._pre, abstract_rule._pre) &&
+                   this->label_maps_to(rule._pre, abstract_rule._pre) &&
                    (abstract_rule._op == POP || abstract_rule._op == NOOP ||
-                    header_handler.maps_to(rule._op_label, abstract_rule._op_label));
+                    this->label_maps_to(rule._op_label, abstract_rule._op_label));
         }
 
-        void make_configurations(std::vector<configuration_t>& result, const abstract_rule_t& abstract_rule, const std::vector<state_t>& from_states, const header_t& header, const header_wrapper_t& header_handler) const {
+        void make_configurations(std::vector<configuration_t>& result, const abstract_rule_t& abstract_rule, const std::vector<state_t>& from_states, const header_t& header) const {
             for (const state_t& from_state : from_states) {
                 for (const auto& rule : get_rules(from_state)) {
-                    if (!rule_match(rule, abstract_rule, header_handler)) continue;
+                    if (!rule_match(rule, abstract_rule)) continue;
                     std::vector<std::string> post;
                     switch (abstract_rule._op) {
                         case POP:
@@ -459,7 +464,7 @@ namespace pdaaal {
                             post = std::vector<std::string>{rule._pre, rule._op_label};
                             break;
                     }
-                    auto new_header = header_handler.update(header, rule._pre, post);
+                    auto new_header = this->update_header(header, rule._pre, post);
                     if (new_header) {
                         result.emplace_back(rule, new_header.value());
                     }
@@ -473,16 +478,6 @@ namespace pdaaal {
         const std::vector<size_t>& _initial_states;
         std::vector<std::vector<configuration_t>> _temps; // This is where all configurations are stored. Super inefficient, but I don't have better option yet. Implementing ranges would take some time...
     };
-
-
-    template<typename W, typename C, typename A>
-    void ParsingCegarPdaFactory<W, C, A>::refine(typename ParsingCegarPdaReconstruction<W, C, A>::refinement_t&& refinement) {
-        _state_abstraction.refine(refinement.first);
-    }
-    template<typename W, typename C, typename A>
-    void ParsingCegarPdaFactory<W, C, A>::refine(typename ParsingCegarPdaReconstruction<W, C, A>::header_refinement_t&& refinement) {
-        // No refinement of states.
-    }
 
 }
 

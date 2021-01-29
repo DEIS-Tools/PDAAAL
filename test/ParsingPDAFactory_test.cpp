@@ -172,8 +172,8 @@ A,B,C
     bool result = Solver::post_star_accepts(instance);
     BOOST_CHECK(result);
 
-    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory));
-    auto res = reconstruction.reconstruct_trace(instance, initial, final);
+    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), instance, initial, final);
+    auto res = reconstruction.reconstruct_trace();
     BOOST_CHECK(res.index() == 0);
 
     auto trace = std::get<0>(res);
@@ -223,8 +223,8 @@ A,B,C
 
     bool result = Solver::post_star_accepts(instance);
     BOOST_CHECK(result);
-    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory));
-    auto res = reconstruction.reconstruct_trace(instance, initial, final);
+    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), instance, initial, final);
+    auto res = reconstruction.reconstruct_trace();
     BOOST_CHECK(res.index() == 0);
     auto trace = std::get<0>(res);
     print_trace<std::string>(trace);
@@ -272,8 +272,8 @@ A,B,C
     bool result = Solver::post_star_accepts(instance); // NOTE: This test depends on the trace returned by post*, but with the current implementation we don't get a 'lucky' trace.
     BOOST_CHECK(result);
 
-    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory));
-    auto res = reconstruction.reconstruct_trace(instance, initial, final);
+    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), instance, initial, final);
+    auto res = reconstruction.reconstruct_trace();
     BOOST_CHECK(res.index() == 2);
 
     auto header_refinement = std::get<2>(res);
@@ -322,8 +322,8 @@ A,B,C
     bool result = Solver::post_star_accepts(instance); // NOTE: This test depends on the trace returned by post*, but with the current implementation we don't get a 'lucky' trace.
     BOOST_CHECK(result);
 
-    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory));
-    auto res = reconstruction.reconstruct_trace(instance, initial, final);
+    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), instance, initial, final);
+    auto res = reconstruction.reconstruct_trace();
     BOOST_CHECK(res.index() == 1);
 
     auto [state_refinement, label_refinement] = std::get<1>(res);
