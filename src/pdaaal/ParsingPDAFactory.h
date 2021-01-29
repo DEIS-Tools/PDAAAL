@@ -304,10 +304,10 @@ namespace pdaaal {
     class ParsingCegarPdaReconstruction : public CegarPdaReconstruction<
             std::string, // label_t
             size_t, // state_t
-            std::vector< // configuration_range_t        In this case configuration_t consists of:
+            const std::vector< // configuration_range_t        In this case configuration_t consists of:
                     std::pair<typename TypedPDA<std::string, W, C>::rule_t, // Our concrete rule_t
                               Header<std::string>> // header_t
-            >,
+            >&,
             std::vector<typename TypedPDA<std::string>::tracestate_t>, // concrete_trace_t
             W, C, A> {
         friend class ParsingCegarPdaFactory<W,C,A>;
@@ -319,7 +319,7 @@ namespace pdaaal {
         using header_t = Header<label_t>;
         using rule_t = typename TypedPDA<std::string, W, C>::rule_t; // For concrete rules we just use this one.
         using configuration_t = std::pair<rule_t, header_t>;
-        using configuration_range_t = std::vector<configuration_t>;
+        using configuration_range_t = const std::vector<configuration_t>&;
         using parent_t = CegarPdaReconstruction<label_t, state_t, configuration_range_t, concrete_trace_t, W, C, A>;
         using abstract_rule_t = typename parent_t::abstract_rule_t;
         using solver_instance_t = typename parent_t::solver_instance_t;
@@ -335,14 +335,14 @@ namespace pdaaal {
     protected:
 
         // TODO: Coroutines might make this a lot simpler...
-        const configuration_range_t& initial_concrete_rules(const abstract_rule_t& rule) override {
+        configuration_range_t initial_concrete_rules(const abstract_rule_t& rule) override {
             auto from_states = _state_abstraction.get_concrete_values(rule._from);
             auto header = this->initial_header();
             _temps.emplace_back(); // We store all configurations in _temps. TODO: Make efficient range implementation. That was the hole point of returning iterators.
             make_configurations(_temps.back(), rule, from_states, header);
             return _temps.back();
         }
-        const configuration_range_t& search_concrete_rules(const abstract_rule_t& rule, const configuration_t& conf) override {
+        configuration_range_t search_concrete_rules(const abstract_rule_t& rule, const configuration_t& conf) override {
             _temps.emplace_back(); // We store all configurations in _temps. TODO: Make efficient range implementation. That was the hole point of returning iterators.
             make_configurations(_temps.back(), rule, std::vector<state_t>{conf.first._to}, conf.second);
             return _temps.back();

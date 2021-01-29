@@ -119,7 +119,7 @@ namespace pdaaal {
     template <typename label_t, typename state_t, typename configuration_range_t, typename concrete_trace_t, typename W = void, typename C = std::less<W>, typename A = add<W>>
     class CegarPdaReconstruction {
     private:
-        using configuration_t = typename configuration_range_t::value_type;
+        using configuration_t = typename std::remove_cv_t<std::remove_reference_t<configuration_range_t>>::value_type;
 
         using pda_t = AbstractionPDA<label_t,W,C,fut::type::vector>;
         using nfa_state_t = typename NFA<label_t>::state_t;
@@ -268,9 +268,9 @@ namespace pdaaal {
         }
 
     protected:
-        virtual const configuration_range_t& initial_concrete_rules(const abstract_rule_t&) = 0;
+        virtual configuration_range_t initial_concrete_rules(const abstract_rule_t&) = 0;
         virtual refinement_t find_initial_refinement(const abstract_rule_t& abstract_rule) = 0;
-        virtual const configuration_range_t& search_concrete_rules(const abstract_rule_t&, const configuration_t&) = 0;
+        virtual configuration_range_t search_concrete_rules(const abstract_rule_t&, const configuration_t&) = 0;
         virtual refinement_t find_refinement(const abstract_rule_t&, const std::vector<configuration_t>&) = 0;
         virtual header_t get_header(const configuration_t&) = 0;
         virtual concrete_trace_t get_concrete_trace(std::vector<configuration_t>&&, std::vector<label_t>&&, size_t) = 0;
