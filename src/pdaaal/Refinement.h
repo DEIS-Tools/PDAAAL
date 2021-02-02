@@ -187,15 +187,156 @@ public:
 };
 
 template <typename A, typename B>
+struct CompFirst {
+    bool operator() ( const std::pair<A,B>& a, const std::pair<A,B>& b ) const { return a.first < b.first; }
+    bool operator() ( const std::pair<A,B>& p, const A& a ) const { return p.first < a; }
+    bool operator() ( const A& a, const std::pair<A,B>& p ) const { return a < p.first; }
+};
+template <typename A, typename B>
+struct EqFirst {
+    bool operator() ( const std::pair<A,B>& a, const std::pair<A,B>& b ) const { return a.first == b.first; }
+    bool operator() ( const std::pair<A,B>& p, const A& a ) const { return p.first == a; }
+    bool operator() ( const A& a, const std::pair<A,B>& p ) const { return a == p.first; }
+};
+
+template <typename A, typename B>
+static inline std::vector<B> BmatchA(const std::vector<std::pair<A,B>> input, const A& a) {
+    assert(std::is_sorted(input.begin(), input.end()));
+    std::vector<B> result;
+    auto [it,end] = std::equal_range(input.begin(), input.end(), a, CompFirst<A,B>{});
+    for (; it != end; ++it) {
+        if (result.empty() || result.back() != it->second) {
+            result.emplace_back(it->second);
+        }
+    }
+    return result;
+}
+
+template <typename A, typename B>
+static inline std::vector<size_t> AmatchB_bucket(const std::vector<std::pair<A,B>> input, const B& b, const std::vector<std::pair<A,size_t>>& bucket_map) {
+    assert(std::is_sorted(input.begin(), input.end()));
+    assert(std::is_sorted(bucket_map.begin(), bucket_map.end(), CompFirst<A,size_t>{}));
+    std::vector<A> set;
+    // Since input is sorted by first element, we need to iterate through it all, but at least the result is still sorted.
+    for (const auto& [a,bb] : input) {
+        if (bb == b && (set.empty() || set.back() != a)) {
+            set.emplace_back(a);
+        }
+    }
+    std::vector<size_t> result;
+    auto lb = bucket_map.begin();
+    for (const auto& a : set) {
+        // Since set is sorted, we can start searching from the previous lower bound...
+        lb = std::lower_bound(lb, bucket_map.end(), a, CompFirst<A,size_t>{});
+        assert(lb != bucket_map.end() && lb->first == a);
+        result.emplace_back(lb->second);
+        ++lb; // ... plus one, since elements are unique.
+    }
+    std::sort(result.begin(), result.end());
+    result.erase(std::unique(result.begin(), result.end()), result.end());
+    return result;
+}
+
+template <typename A, typename B>
 static inline std::pair<Refinement<A>, Refinement<B>>
-make_pair_refinement(const std::vector<std::pair<A,B>>& X, const std::vector<std::pair<A,B>>& Y, size_t A_id, size_t B_id) {
+make_pair_refinement(std::vector<std::pair<A,B>>&& X, std::vector<std::pair<A,B>>&& Y, size_t A_id, size_t B_id) {
+    assert(!X.empty());
+    assert(!Y.empty());
+    Refinement<A> a_partition(A_id);
+    Refinement<B> b_partition(B_id);
+    // Initialize first partitions
+    a_partition.partitions().emplace_back();
+    b_partition.partitions().emplace_back();
+
+    std::sort(X.begin(), X.end()); std::sort(Y.begin(), Y.end());
+
+    // Find A's and B's and end up with a sorted vector without duplicates.
+    std::vector<std::pair<A,size_t>> As; // Map from elements of A to the partition it is in
+    std::vector<B> Bs;
+    for (const auto& [a,b] : X) {
+        if (As.empty() || As.back().first != a) As.emplace_back(a, std::numeric_limits<size_t>::max());
+        if (Bs.empty() || Bs.back() != b) Bs.emplace_back(b);
+    }
+    size_t ax = As.size(), bx = Bs.size();
+    for (const auto& [a,b] : Y) {
+        if (As.empty() || As.back().first != a) As.emplace_back(a, std::numeric_limits<size_t>::max());
+        if (Bs.empty() || Bs.back() != b) Bs.emplace_back(b);
+    }
+    std::inplace_merge(As.begin(), As.begin() + ax, As.end(), CompFirst<A,size_t>{});
+    std::inplace_merge(Bs.begin(), Bs.begin() + bx, Bs.end());
+    As.erase(std::unique(As.begin(), As.end(), EqFirst<A,size_t>{}), As.end());
+    Bs.erase(std::unique(Bs.begin(), Bs.end()), Bs.end());
+
+    // First (greedily) find small partitioning for A that does not make B's partitioning impossible.
+    for (auto& [a,a_bucket] : As) {
+        bool placed_in_bucket = false;
+        size_t bucket_i = 0;
+        for (auto& bucket : a_partition.partitions()) {
+            bool bucket_ok = true;
+            std::vector<B> X_b = BmatchA(X,a), Y_b = BmatchA(Y,a);
+            for (const auto& a_prime : bucket) {
+                std::vector<B> temp, Z_X = BmatchA(X, a_prime);
+                std::set_intersection(Z_X.begin(), Z_X.end(), Y_b.begin(), Y_b.end(), std::back_inserter(temp));
+                if (!temp.empty()) { bucket_ok = false; break; }
+                auto Z_Y = BmatchA(Y, a_prime);
+                std::set_intersection(Z_Y.begin(), Z_Y.end(), X_b.begin(), X_b.end(), std::back_inserter(temp));
+                if (!temp.empty()) { bucket_ok = false; break; }
+            }
+            if (bucket_ok) {
+                bucket.emplace_back(a);
+                a_bucket = bucket_i;
+                placed_in_bucket = true;
+                break;
+            }
+            ++bucket_i;
+        }
+        if (!placed_in_bucket) { // New bucket with a.
+            a_partition.partitions().emplace_back();
+            a_partition.partitions().back().emplace_back(a);
+            a_bucket = bucket_i;
+        }
+    }
+
+    // Find (greedily) a small partitioning of B respecting the partitioning of A.
+    for (const auto& b : Bs) {
+        bool placed_in_bucket = false;
+        for (auto& bucket : b_partition.partitions()) {
+            bool bucket_ok = true;
+            auto X_a = AmatchB_bucket(X, b, As), Y_a = AmatchB_bucket(Y, b, As);
+            for (const auto& b_prime : bucket) {
+                std::vector<size_t> temp, Z_X = AmatchB_bucket(X, b_prime, As);
+                std::set_intersection(Z_X.begin(), Z_X.end(), Y_a.begin(), Y_a.end(), std::back_inserter(temp));
+                if (!temp.empty()) { bucket_ok = false; break; }
+                auto Z_Y = AmatchB_bucket(Y, b_prime, As);
+                std::set_intersection(Z_Y.begin(), Z_Y.end(), X_a.begin(), X_a.end(), std::back_inserter(temp));
+                if (!temp.empty()) { bucket_ok = false; break; }
+            }
+            if (bucket_ok) {
+                bucket.emplace_back(b);
+                placed_in_bucket = true;
+                break;
+            }
+        }
+        if (!placed_in_bucket) { // New bucket with b.
+            b_partition.partitions().emplace_back();
+            b_partition.partitions().back().emplace_back(b);
+        }
+    }
+
+    assert(a_partition.partitions().size() >= 2 || b_partition.partitions().size() >= 2);
+    return std::make_pair(a_partition, b_partition);
+}
+
+
+
+template <typename A, typename B>
+static inline std::pair<Refinement<A>, Refinement<B>>
+make_simple_pair_refinement(std::vector<std::pair<A,B>>&& X, std::vector<std::pair<A,B>>&& Y, size_t A_id, size_t B_id) {
     assert(!X.empty());
     assert(!Y.empty());
     Refinement<A> a_partition(A_id);
     Refinement<B> b_partition(B_id);
 
-    // FIXME: For now we just have simple (but inefficient) implementation, that is still safe.
-    // TODO: Implement better version, which uses all information.
     // Just use first pairs in X and Y.
     const auto& [Xa,Xb] = X[0];
     const auto& [Ya,Yb] = Y[0];

@@ -367,7 +367,7 @@ namespace pdaaal {
                     }
                 }
             }
-            return make_pair_refinement<state_t,label_t>(X, Y, abstract_rule._from, abstract_rule._pre);
+            return make_pair_refinement<state_t,label_t>(std::move(X), std::move(Y), abstract_rule._from, abstract_rule._pre);
         }
         refinement_t find_refinement(const abstract_rule_t& abstract_rule, const std::vector<configuration_t>& configurations) override {
             std::vector<std::pair<state_t,label_t>> X, Y;
@@ -389,7 +389,7 @@ namespace pdaaal {
                     }
                 }
             }
-            return make_pair_refinement<state_t,label_t>(X, Y, abstract_rule._from, abstract_rule._pre);
+            return make_pair_refinement<state_t,label_t>(std::move(X), std::move(Y), abstract_rule._from, abstract_rule._pre);
         }
         header_t get_header(const configuration_t& conf) override {
             return conf.second;
