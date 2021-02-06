@@ -30,6 +30,7 @@
 #include "PAutomaton.h"
 #include "AbstractionPDA.h"
 #include "AbstractionPAutomaton.h"
+#include <limits>
 
 namespace pdaaal {
 
@@ -198,7 +199,7 @@ namespace pdaaal {
                 std::vector<path_state<abstraction>> path;
                 std::vector<uint32_t> label_stack;
 
-                std::vector<std::pair<size_t,size_t>> waiting; // state_id, stack_index
+                std::vector<std::tuple<size_t,size_t,uint32_t>> waiting; // state_id, stack_index, last_label (if stack_index > 0)
                 waiting.reserve(_pda_size);
                 for (size_t i = 0; i < _pda_size; ++i) {
                     if (_product.states()[i]->_accepting) { // Initial accepting state
@@ -209,33 +210,36 @@ namespace pdaaal {
                         }
                         return std::make_tuple(path, label_stack);
                     }
-                    waiting.emplace_back(i,0); // Add all initial states in _product.
+                    waiting.emplace_back(i, 0, std::numeric_limits<uint32_t>::max()); // Add all initial states in _product.
                 }
                 std::unordered_set<size_t> seen;
 
                 while (!waiting.empty()) {
-                    auto [current, stack_index] = waiting.back();
+                    auto [current, stack_index, last_label] = waiting.back();
                     waiting.pop_back();
+                    path.resize(stack_index + 2);
+                    label_stack.resize(stack_index + 1);
+                    if constexpr (abstraction) {
+                        path[stack_index] = get_original_ids(current).to_pair();
+                    } else {
+                        path[stack_index] = get_original_ids(current).first;
+                    }
+                    if (stack_index > 0) {
+                        label_stack[stack_index - 1] = last_label;
+                    }
                     for (const auto &[to,labels] : _product.states()[current]->_edges) {
                         if (!labels.empty() && seen.emplace(to).second) {
                             uint32_t label = labels[0].first;
-                            path.resize(stack_index + 2);
-                            label_stack.resize(stack_index + 1);
-                            if constexpr (abstraction) {
-                                path[stack_index] = get_original_ids(current).to_pair();
-                            } else {
-                                path[stack_index] = get_original_ids(current).first;
-                            }
-                            label_stack[stack_index] = label;
                             if (_product.states()[to]->_accepting) {
                                 if constexpr (abstraction) {
                                     path[stack_index + 1] = get_original_ids(to).to_pair();
                                 } else {
                                     path[stack_index + 1] = get_original_ids(to).first;
                                 }
+                                label_stack[stack_index] = label;
                                 return std::make_tuple(path, label_stack);
                             }
-                            waiting.emplace_back(to, stack_index + 1);
+                            waiting.emplace_back(to, stack_index + 1, label);
                         }
                     }
                 }
