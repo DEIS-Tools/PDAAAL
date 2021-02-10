@@ -237,6 +237,48 @@ static inline std::vector<size_t> AmatchB_bucket(const std::vector<std::pair<A,B
     return result;
 }
 
+template<typename T, typename U>
+static inline size_t
+assign_to_bucket(Refinement<T>& refinement, std::vector<std::vector<U>>& Z_X, std::vector<std::vector<U>>& Z_Y, std::vector<U>&& Xs, std::vector<U>&& Ys, const T& elem) {
+    bool placed_in_bucket = false;
+    size_t bucket_i = 0;
+    for (auto& bucket : refinement.partitions()) {
+        assert(bucket_i < Z_X.size() && bucket_i < Z_Y.size());
+        std::vector<U> intersection;
+        std::set_intersection(Z_Y[bucket_i].begin(), Z_Y[bucket_i].end(), Xs.begin(), Xs.end(),
+                              std::back_inserter(intersection));
+        if (intersection.empty()) {
+            std::set_intersection(Z_X[bucket_i].begin(), Z_X[bucket_i].end(), Ys.begin(), Ys.end(),
+                                  std::back_inserter(intersection));
+            if (intersection.empty()) {
+                // Assign a to bucket
+                bucket.emplace_back(elem);
+                placed_in_bucket = true;
+                // Update Z_X and Z_Y for this bucket with X_b and Y_b.
+                std::vector<U> temp_union;
+                temp_union.reserve(Z_X[bucket_i].size() + Xs.size());
+                std::set_union(Z_X[bucket_i].begin(), Z_X[bucket_i].end(), Xs.begin(), Xs.end(), std::back_inserter(temp_union));
+                std::swap(temp_union, Z_X[bucket_i]);
+                temp_union.clear();
+                temp_union.reserve(Z_Y[bucket_i].size() + Ys.size());
+                std::set_union(Z_Y[bucket_i].begin(), Z_Y[bucket_i].end(), Ys.begin(), Ys.end(), std::back_inserter(temp_union));
+                std::swap(temp_union, Z_Y[bucket_i]);
+                break;
+            }
+        }
+        ++bucket_i;
+    }
+    if (!placed_in_bucket) { // New bucket with a.
+        refinement.partitions().emplace_back();
+        refinement.partitions().back().emplace_back(elem);
+        // Initialize Z_X and Z_Y for the new bucket.
+        Z_X.emplace_back(std::move(Xs));
+        Z_Y.emplace_back(std::move(Ys));
+    }
+    return bucket_i;
+}
+
+
 template <typename A, typename B>
 static inline std::pair<Refinement<A>, Refinement<B>>
 make_pair_refinement(std::vector<std::pair<A,B>>&& X, std::vector<std::pair<A,B>>&& Y, size_t A_id, size_t B_id) {
@@ -249,14 +291,15 @@ make_pair_refinement(std::vector<std::pair<A,B>>&& X, std::vector<std::pair<A,B>
     b_partition.partitions().emplace_back();
 
     if (X.size() > Y.size()) {
-        std::swap(X,Y);
+        std::swap(X, Y);
     }
-    std::sort(X.begin(), X.end()); std::sort(Y.begin(), Y.end());
+    std::sort(X.begin(), X.end());
+    std::sort(Y.begin(), Y.end());
 
     if (X.size() == 1) {
         // For |X|=1 things are a lot simpler.
-        auto partition_on_a = [&X,&Y,&a_partition](){
-            for (const auto& [a,b] : Y) { // TODO: Optimize Refinement data structure, so we don't need to explicitly store the (big) partition that stays.
+        auto partition_on_a = [&X, &Y, &a_partition]() {
+            for (const auto&[a, b] : Y) { // TODO: Optimize Refinement data structure, so we don't need to explicitly store the (big) partition that stays.
                 if (a_partition.partitions().back().empty() || a_partition.partitions().back().back() != a) {
                     a_partition.partitions().back().emplace_back(a);
                 }
@@ -264,8 +307,8 @@ make_pair_refinement(std::vector<std::pair<A,B>>&& X, std::vector<std::pair<A,B>
             a_partition.partitions().emplace_back();
             a_partition.partitions().back().emplace_back(X[0].first);
         };
-        auto partition_on_b = [&X,&Y,&b_partition](){
-            for (const auto& [a,b] : Y) {
+        auto partition_on_b = [&X, &Y, &b_partition]() {
+            for (const auto&[a, b] : Y) {
                 if (b_partition.partitions().back().empty() || b_partition.partitions().back().back() != b) {
                     b_partition.partitions().back().emplace_back(b);
                 }
@@ -273,11 +316,12 @@ make_pair_refinement(std::vector<std::pair<A,B>>&& X, std::vector<std::pair<A,B>
             b_partition.partitions().emplace_back();
             b_partition.partitions().back().emplace_back(X[0].second);
         };
-        auto lb = std::lower_bound(Y.begin(), Y.end(), X[0].first, CompFirst<A,B>{});
+        auto lb = std::lower_bound(Y.begin(), Y.end(), X[0].first, CompFirst<A, B>{});
         if (lb == Y.end() || lb->first != X[0].first) {
             // X and Y does not overlap on As, so it is enough to partition on A.
             partition_on_a();
-        } else if (std::find_if(Y.begin(), Y.end(), [&X](const auto& p){ return p.second == X[0].second; }) == Y.end()) {
+        } else if (std::find_if(Y.begin(), Y.end(), [&X](const auto& p) { return p.second == X[0].second; }) ==
+                   Y.end()) {
             // X and Y does not overlap on Bs, so it is enough to partition on B.
             partition_on_b();
         } else {
@@ -285,82 +329,42 @@ make_pair_refinement(std::vector<std::pair<A,B>>&& X, std::vector<std::pair<A,B>
             partition_on_a();
             partition_on_b();
         }
-        return std::make_pair(a_partition,b_partition);
+        return std::make_pair(a_partition, b_partition);
     } // Moving on to the general case...
 
     // Find A's and B's and end up with a sorted vector without duplicates.
-    std::vector<std::pair<A,size_t>> As; // Map from elements of A to the partition it is in
+    std::vector<std::pair<A, size_t>> As; // Map from elements of A to the partition it is in
     std::vector<B> Bs;
-    for (const auto& [a,b] : X) {
+    for (const auto&[a, b] : X) {
         if (As.empty() || As.back().first != a) As.emplace_back(a, std::numeric_limits<size_t>::max());
         if (Bs.empty() || Bs.back() != b) Bs.emplace_back(b);
     }
     size_t ax = As.size(), bx = Bs.size();
-    for (const auto& [a,b] : Y) {
+    for (const auto&[a, b] : Y) {
         if (As.empty() || As.back().first != a) As.emplace_back(a, std::numeric_limits<size_t>::max());
         if (Bs.empty() || Bs.back() != b) Bs.emplace_back(b);
     }
-    std::inplace_merge(As.begin(), As.begin() + ax, As.end(), CompFirst<A,size_t>{});
+    std::inplace_merge(As.begin(), As.begin() + ax, As.end(), CompFirst<A, size_t>{});
     std::inplace_merge(Bs.begin(), Bs.begin() + bx, Bs.end());
-    As.erase(std::unique(As.begin(), As.end(), EqFirst<A,size_t>{}), As.end());
+    As.erase(std::unique(As.begin(), As.end(), EqFirst<A, size_t>{}), As.end());
     Bs.erase(std::unique(Bs.begin(), Bs.end()), Bs.end());
 
-    // First (greedily) find small partitioning for A that does not make B's partitioning impossible.
-    for (auto& [a,a_bucket] : As) {
-        bool placed_in_bucket = false;
-        size_t bucket_i = 0;
-        for (auto& bucket : a_partition.partitions()) {
-            bool bucket_ok = true;
-            std::vector<B> X_b = BmatchA(X,a), Y_b = BmatchA(Y,a);
-            for (const auto& a_prime : bucket) {
-                std::vector<B> temp, Z_X = BmatchA(X, a_prime);
-                std::set_intersection(Z_X.begin(), Z_X.end(), Y_b.begin(), Y_b.end(), std::back_inserter(temp));
-                if (!temp.empty()) { bucket_ok = false; break; }
-                auto Z_Y = BmatchA(Y, a_prime);
-                std::set_intersection(Z_Y.begin(), Z_Y.end(), X_b.begin(), X_b.end(), std::back_inserter(temp));
-                if (!temp.empty()) { bucket_ok = false; break; }
-            }
-            if (bucket_ok) {
-                bucket.emplace_back(a);
-                a_bucket = bucket_i;
-                placed_in_bucket = true;
-                break;
-            }
-            ++bucket_i;
-        }
-        if (!placed_in_bucket) { // New bucket with a.
-            a_partition.partitions().emplace_back();
-            a_partition.partitions().back().emplace_back(a);
-            a_bucket = bucket_i;
+    {
+        std::vector<std::vector<B>> Z_X, Z_Y; // Build up Z_X per bucket when adding to that bucket.
+        Z_X.emplace_back(); Z_Y.emplace_back(); // Initialize for first (empty) bucket.
+        // First (greedily) find small partitioning for A that does not make B's partitioning impossible.
+        for (auto&[a, a_bucket] : As) {
+            a_bucket = assign_to_bucket(a_partition, Z_X, Z_Y, BmatchA(X, a), BmatchA(Y, a), a);
         }
     }
-
-    // Find (greedily) a small partitioning of B respecting the partitioning of A.
-    for (const auto& b : Bs) {
-        bool placed_in_bucket = false;
-        for (auto& bucket : b_partition.partitions()) {
-            bool bucket_ok = true;
-            auto X_a = AmatchB_bucket(X, b, As), Y_a = AmatchB_bucket(Y, b, As);
-            for (const auto& b_prime : bucket) {
-                std::vector<size_t> temp, Z_X = AmatchB_bucket(X, b_prime, As);
-                std::set_intersection(Z_X.begin(), Z_X.end(), Y_a.begin(), Y_a.end(), std::back_inserter(temp));
-                if (!temp.empty()) { bucket_ok = false; break; }
-                auto Z_Y = AmatchB_bucket(Y, b_prime, As);
-                std::set_intersection(Z_Y.begin(), Z_Y.end(), X_a.begin(), X_a.end(), std::back_inserter(temp));
-                if (!temp.empty()) { bucket_ok = false; break; }
-            }
-            if (bucket_ok) {
-                bucket.emplace_back(b);
-                placed_in_bucket = true;
-                break;
-            }
-        }
-        if (!placed_in_bucket) { // New bucket with b.
-            b_partition.partitions().emplace_back();
-            b_partition.partitions().back().emplace_back(b);
+    {
+        std::vector<std::vector<size_t>> Z_X, Z_Y;
+        Z_X.emplace_back(); Z_Y.emplace_back(); // Initialize for first (empty) bucket.
+        // Find (greedily) a small partitioning of B respecting the partitioning of A.
+        for (const auto& b : Bs) {
+            assign_to_bucket(b_partition, Z_X, Z_Y, AmatchB_bucket(X, b, As), AmatchB_bucket(Y, b, As), b);
         }
     }
-
     assert(a_partition.partitions().size() >= 2 || b_partition.partitions().size() >= 2);
     return std::make_pair(a_partition, b_partition);
 }
