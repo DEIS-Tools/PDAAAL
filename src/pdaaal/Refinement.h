@@ -200,8 +200,8 @@ struct EqFirst {
 };
 
 template <typename A, typename B>
-static inline std::vector<B> BmatchA(const std::vector<std::pair<A,B>> input, const A& a) {
-    assert(std::is_sorted(input.begin(), input.end()));
+static inline std::vector<B> BmatchA(const std::vector<std::pair<A,B>>& input, const A& a) {
+    //assert(std::is_sorted(input.begin(), input.end())); // This one will be satisfied, but it spends a long time on this in Debug mode..
     std::vector<B> result;
     auto [it,end] = std::equal_range(input.begin(), input.end(), a, CompFirst<A,B>{});
     for (; it != end; ++it) {
@@ -213,8 +213,8 @@ static inline std::vector<B> BmatchA(const std::vector<std::pair<A,B>> input, co
 }
 
 template <typename A, typename B>
-static inline std::vector<size_t> AmatchB_bucket(const std::vector<std::pair<A,B>> input, const B& b, const std::vector<std::pair<A,size_t>>& bucket_map) {
-    assert(std::is_sorted(input.begin(), input.end()));
+static inline std::vector<size_t> AmatchB_bucket(const std::vector<std::pair<A,B>>& input, const B& b, const std::vector<std::pair<A,size_t>>& bucket_map) {
+    //assert(std::is_sorted(input.begin(), input.end())); // This one will be satisfied, but it spends a long time on this in Debug mode..
     assert(std::is_sorted(bucket_map.begin(), bucket_map.end(), CompFirst<A,size_t>{}));
     std::vector<A> set;
     // Since input is sorted by first element, we need to iterate through it all, but at least the result is still sorted.
@@ -248,7 +248,45 @@ make_pair_refinement(std::vector<std::pair<A,B>>&& X, std::vector<std::pair<A,B>
     a_partition.partitions().emplace_back();
     b_partition.partitions().emplace_back();
 
+    if (X.size() > Y.size()) {
+        std::swap(X,Y);
+    }
     std::sort(X.begin(), X.end()); std::sort(Y.begin(), Y.end());
+
+    if (X.size() == 1) {
+        // For |X|=1 things are a lot simpler.
+        auto partition_on_a = [&X,&Y,&a_partition](){
+            for (const auto& [a,b] : Y) { // TODO: Optimize Refinement data structure, so we don't need to explicitly store the (big) partition that stays.
+                if (a_partition.partitions().back().empty() || a_partition.partitions().back().back() != a) {
+                    a_partition.partitions().back().emplace_back(a);
+                }
+            }
+            a_partition.partitions().emplace_back();
+            a_partition.partitions().back().emplace_back(X[0].first);
+        };
+        auto partition_on_b = [&X,&Y,&b_partition](){
+            for (const auto& [a,b] : Y) {
+                if (b_partition.partitions().back().empty() || b_partition.partitions().back().back() != b) {
+                    b_partition.partitions().back().emplace_back(b);
+                }
+            }
+            b_partition.partitions().emplace_back();
+            b_partition.partitions().back().emplace_back(X[0].second);
+        };
+        auto lb = std::lower_bound(Y.begin(), Y.end(), X[0].first, CompFirst<A,B>{});
+        if (lb == Y.end() || lb->first != X[0].first) {
+            // X and Y does not overlap on As, so it is enough to partition on A.
+            partition_on_a();
+        } else if (std::find_if(Y.begin(), Y.end(), [&X](const auto& p){ return p.second == X[0].second; }) == Y.end()) {
+            // X and Y does not overlap on Bs, so it is enough to partition on B.
+            partition_on_b();
+        } else {
+            // X and Y overlaps on both As and Bs, so it is necessary to partition on both.
+            partition_on_a();
+            partition_on_b();
+        }
+        return std::make_pair(a_partition,b_partition);
+    } // Moving on to the general case...
 
     // Find A's and B's and end up with a sorted vector without duplicates.
     std::vector<std::pair<A,size_t>> As; // Map from elements of A to the partition it is in
@@ -354,6 +392,21 @@ make_simple_pair_refinement(std::vector<std::pair<A,B>>&& X, std::vector<std::pa
     }
     assert(a_partition.partitions().size() >= 2 || b_partition.partitions().size() >= 2);
     return std::make_pair(a_partition, b_partition);
+}
+
+enum class refinement_option_t {fast_refinement, best_refinement};
+
+template<refinement_option_t refinement_option, typename A, typename B>
+static inline std::pair<Refinement<A>, Refinement<B>>
+make_refinement(std::vector<std::pair<A,B>>&& X, std::vector<std::pair<A,B>>&& Y, size_t A_id, size_t B_id) {
+    if constexpr (refinement_option == refinement_option_t::fast_refinement) {
+        return make_simple_pair_refinement(std::move(X), std::move(Y), A_id, B_id);
+    } else if constexpr (refinement_option == refinement_option_t::best_refinement) {
+        return make_pair_refinement(std::move(X), std::move(Y), A_id, B_id);
+    } else {
+        assert(false);
+        //static_assert(false, "Invalid refinement option.");
+    }
 }
 
 #endif //PDAAAL_REFINEMENT_H
