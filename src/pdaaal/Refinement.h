@@ -223,7 +223,7 @@ namespace pdaaal {
 
     template<typename A, typename B>
     static inline std::vector<B> BmatchA(const std::vector<std::pair<A, B>>& input, const A& a) {
-        //assert(std::is_sorted(input.begin(), input.end())); // This one will be satisfied, but it spends a long time on this in Debug mode..
+        assert(std::is_sorted(input.begin(), input.end()));
         std::vector<B> result;
         auto[it, end] = std::equal_range(input.begin(), input.end(), a, CompFirst<A, B>{});
         for (; it != end; ++it) {
@@ -237,7 +237,7 @@ namespace pdaaal {
     template<typename A, typename B>
     static inline std::vector<size_t> AmatchB_bucket(const std::vector<std::pair<A, B>>& input, const B& b,
                                                      const std::vector<std::pair<A, size_t>>& bucket_map) {
-        //assert(std::is_sorted(input.begin(), input.end())); // This one will be satisfied, but it spends a long time on this in Debug mode..
+        assert(std::is_sorted(input.begin(), input.end()));
         assert(std::is_sorted(bucket_map.begin(), bucket_map.end(), CompFirst<A, size_t>{}));
         std::vector<A> set;
         // Since input is sorted by first element, we need to iterate through it all, but at least the result is still sorted.

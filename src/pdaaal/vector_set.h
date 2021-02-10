@@ -78,7 +78,7 @@ namespace pdaaal::fut {
             elem_t elem(key, std::forward<Args>(args)...);
             auto lb = std::lower_bound(elems.begin(), elems.end(), elem);
             if (lb == elems.end() || *lb != elem) {
-                lb = elems.insert(lb, elem);
+                lb = elems.insert(lb, std::move(elem));
                 return std::make_pair(lb, true);
             }
             return std::make_pair(lb, false);
@@ -88,7 +88,7 @@ namespace pdaaal::fut {
             elem_t elem(std::move(key), std::forward<Args>(args)...);
             auto lb = std::lower_bound(elems.begin(), elems.end(), elem);
             if (lb == elems.end() || *lb != elem) {
-                lb = elems.insert(lb, elem);
+                lb = elems.insert(lb, std::move(elem));
                 return std::make_pair(lb, true);
             }
             return std::make_pair(lb, false);
@@ -166,7 +166,7 @@ namespace pdaaal::fut {
             Key elem{std::forward<Args>(args)...};
             auto lb = std::lower_bound(elems.begin(), elems.end(), elem);
             if (lb == elems.end() || *lb != elem) {
-                lb = elems.insert(lb, elem);
+                lb = elems.insert(lb, std::move(elem));
                 return std::make_pair(lb, true);
             }
             return std::make_pair(lb, false);
