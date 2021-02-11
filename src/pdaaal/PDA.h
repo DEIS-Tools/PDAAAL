@@ -277,6 +277,10 @@ namespace pdaaal {
         void add_rule(user_rule_t<W,C> rule) {
             add_untyped_rule_impl(rule._from, rule.to_impl_rule(), false, std::vector<uint32_t>{rule._pre});
         }
+        void add_wildcard_rule(user_rule_t<W,C> rule) {
+            // Ignore rule._pre
+            add_untyped_rule_impl(rule._from, rule.to_impl_rule(), true, std::vector<uint32_t>());
+        }
 
     protected:
 

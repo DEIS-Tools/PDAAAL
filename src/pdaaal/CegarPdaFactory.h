@@ -66,7 +66,11 @@ namespace pdaaal {
         void add_rule(const abstract_rule_t& rule) {
             _temp_pda.add_rule(rule);
         }
-        std::pair<bool,size_t> abstract_label(const label_t& label){
+        void add_wildcard_rule(const abstract_rule_t& rule) {
+            // Ignores rule._pre
+            _temp_pda.add_wildcard_rule(rule);
+        }
+        std::pair<bool,size_t> abstract_label(const label_t& label) const {
             return _temp_pda.abstract_label(label);
         }
         [[nodiscard]] size_t number_of_labels() const {

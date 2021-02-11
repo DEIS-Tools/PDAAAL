@@ -48,7 +48,8 @@ namespace pdaaal {
     public:
         using rule_t = typename Temp_PDA::rule_t;
 
-        explicit NewPDAFactory(std::unordered_set<T>&& all_labels) : _all_labels(std::move(all_labels)) { };
+        NewPDAFactory(std::unordered_set<T>&& all_labels, T wildcard_label)
+        : _all_labels(std::move(all_labels)), _wildcard_label(wildcard_label) { };
 
         // NFAs must be already compiled before passing them to this function.
         SolverInstance<T,W,C,A> compile(const NFA<T>& initial_headers, const NFA<T>& final_headers) {
@@ -70,10 +71,13 @@ namespace pdaaal {
                     accepting_states.push_back(from);
                 }
                 for (const auto &r : rules(from)) {
-                    assert(_all_labels.count(r._pre) == 1);
                     assert(from == r._from);
-
-                    pda.add_rule(r);
+                    if (r._pre == _wildcard_label) {
+                        pda.add_wildcard_rule(r);
+                    } else {
+                        assert(_all_labels.count(r._pre) == 1);
+                        pda.add_rule(r);
+                    }
 
                     if (seen.emplace(r._to).second) {
                         waiting.push_back(r._to);
@@ -89,6 +93,7 @@ namespace pdaaal {
         virtual std::vector<rule_t> rules(size_t) = 0;
 
         std::unordered_set<T> _all_labels;
+        T _wildcard_label;
 
     private:
         std::vector<size_t> accepting_states;

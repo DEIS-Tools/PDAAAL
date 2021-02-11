@@ -53,7 +53,7 @@ namespace pdaaal {
             return _label_abstraction.size();
         }
 
-        std::pair<bool,size_t> abstract_label(const label_t& label){
+        std::pair<bool,size_t> abstract_label(const label_t& label) const {
             return _label_abstraction.exists(label);
         }
 
