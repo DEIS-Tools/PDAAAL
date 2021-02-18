@@ -185,7 +185,7 @@ namespace pdaaal::utils {
         }
         static constexpr void from_bytes(const std::vector<std::byte>& bytes, size_t& bytes_id, T& data){
             size_type size;
-            byte_vector_converter<Elem>::from_bytes(bytes, bytes_id, size);
+            byte_vector_converter<size_type>::from_bytes(bytes, bytes_id, size);
             for (size_type i = 0; i < size; ++i) {
                 data.emplace_back();
                 byte_vector_converter<Elem>::from_bytes(bytes, bytes_id, data.back());
