@@ -52,12 +52,14 @@ namespace pdaaal::fut {
         };
 
         vector_map() = default;
-        explicit vector_map(const std::unordered_map<Key,Value>& other) : elems(other.begin(), other.end()) {
+        template<typename Hash, typename Pred, typename Alloc>
+        explicit vector_map(const std::unordered_map<Key,Value,Hash,Pred,Alloc>& other) : elems(other.begin(), other.end()) {
             std::sort(elems.begin(), elems.end());
-        };
-        explicit vector_map(std::unordered_map<Key,Value>&& other) : elems(std::make_move_iterator(other.begin()), std::make_move_iterator(other.end())) {
+        }
+        template<typename Hash, typename Pred, typename Alloc>
+        explicit vector_map(std::unordered_map<Key,Value,Hash,Pred,Alloc>&& other) : elems(std::make_move_iterator(other.begin()), std::make_move_iterator(other.end())) {
             std::sort(elems.begin(), elems.end());
-        };
+        }
 
         using value_type = typename std::vector<elem_t>::value_type;
         using iterator = typename std::vector<elem_t>::iterator;
@@ -140,12 +142,14 @@ namespace pdaaal::fut {
     struct vector_set {
 
         vector_set() = default;
-        explicit vector_set(const std::unordered_set<Key>& other) : elems(other.begin(), other.end()) {
+        template<typename Hash, typename Pred, typename Alloc>
+        explicit vector_set(const std::unordered_set<Key,Hash,Pred,Alloc>& other) : elems(other.begin(), other.end()) {
             std::sort(elems.begin(), elems.end());
-        };
-        explicit vector_set(std::unordered_set<Key>&& other) : elems(std::make_move_iterator(other.begin()), std::make_move_iterator(other.end())) {
+        }
+        template<typename Hash, typename Pred, typename Alloc>
+        explicit vector_set(std::unordered_set<Key,Hash,Pred,Alloc>&& other) : elems(std::make_move_iterator(other.begin()), std::make_move_iterator(other.end())) {
             std::sort(elems.begin(), elems.end());
-        };
+        }
 
         using value_type = typename std::vector<Key>::value_type;
         using iterator = typename std::vector<Key>::iterator;
