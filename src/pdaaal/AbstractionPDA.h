@@ -38,7 +38,7 @@ namespace pdaaal {
 
         template <typename Fn>
         AbstractionPDA(const std::unordered_set<label_t>& all_labels, Fn&& label_abstraction_fn)
-        : _label_abstraction(AbstractionMapping(all_labels, std::forward<Fn>(label_abstraction_fn))) { }
+        : _label_abstraction(AbstractionMapping(std::forward<Fn>(label_abstraction_fn), all_labels.begin(), all_labels.end())) { }
 
         template<fut::type OtherContainer>
         explicit AbstractionPDA(AbstractionPDA<label_t,W,C,OtherContainer>&& other_pda)
