@@ -118,6 +118,9 @@ namespace pdaaal::fut {
                 return it == elems.end() ? nullptr : it->second.get(tail...);
             }
 
+            const_iterator find(const Head &head) const { return elems.find(head); }
+            iterator find(const Head &head) { return elems.find(head); }
+
         private:
             container_type elems;
         };
