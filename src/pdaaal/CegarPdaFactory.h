@@ -320,7 +320,7 @@ namespace pdaaal {
             if (header.empty()) return std::vector<label_t>();
             if (header.top_is_concrete()) return std::vector<label_t>{header.concrete_part.back()};
             size_t i = _initial_path.size() - header.count_wildcards;
-            auto labels = _instance.pda().get_concrete_labels(_initial_abstract_stack[i]);
+            auto labels = get_concrete_labels(_initial_abstract_stack[i]);
             std::sort(labels.begin(), labels.end());
             return intersect_edge_labels(_initial_nfa, _initial_path, labels, i);
         }
@@ -350,14 +350,14 @@ namespace pdaaal {
             return res;
         }
 
-        /*
+
         std::vector<label_t> get_concrete_labels(size_t label) const {
-            return _pda.get_concrete_labels(label);
+            return _instance.pda().get_concrete_labels(label);
         }
         auto get_concrete_labels_range(size_t label) const {
-            return _pda.get_concrete_labels_range(label);
+            return _instance.pda().get_concrete_labels_range(label);
         }
-        */
+
         bool label_maps_to(const label_t& label, size_t id) const {
             return _instance.pda().maps_to(label, id);
         }
