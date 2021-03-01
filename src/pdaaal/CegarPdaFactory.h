@@ -129,13 +129,13 @@ namespace pdaaal {
         using nfa_state_t = typename NFA<label_t>::state_t;
         using automaton_t = AbstractionPAutomaton<label_t,W,C,A>;
     public:
+        using abstract_rule_t = user_rule_t<W,C>; // FIXME: This does not yet work for weighted rules.
         using solver_instance_t = AbstractionSolverInstance<label_t,W,C,A>;
         using header_t = Header<label_t>;
         using state_refinement_t = Refinement<state_t>;
         using label_refinement_t = Refinement<label_t>;
         using header_refinement_t = HeaderRefinement<label_t>;
-        using refinement_t = std::pair<state_refinement_t, label_refinement_t>;
-        using abstract_rule_t = user_rule_t<W,C>; // FIXME: This does not yet work for weighted rules.
+        using refinement_t = std::variant<std::pair<state_refinement_t, label_refinement_t>, abstract_rule_t>;
 
     public:
 
@@ -448,7 +448,11 @@ namespace pdaaal {
                 if (std::holds_alternative<concrete_trace_t>(res)) {
                     return std::get<concrete_trace_t>(res);
                 } else if (std::holds_alternative<refinement_t>(res)) {
-                    factory.reset_pda(instance.move_pda_refinement_mapping(std::get<refinement_t>(res).second));
+                    if (std::get<refinement_t>(res).index() == 0) {
+                        factory.reset_pda(instance.move_pda_refinement_mapping(std::get<0>(std::get<refinement_t>(res)).second));
+                    } else {
+                        factory.reset_pda(instance.move_pda_refinement_mapping());
+                    }
                     factory.refine(std::get<refinement_t>(std::move(res)));
                 } else {
                     assert(std::holds_alternative<header_refinement_t>(res));

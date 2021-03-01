@@ -220,7 +220,8 @@ namespace pdaaal {
 
     public:
         void refine(typename ParsingCegarPdaReconstruction<W,C,A>::refinement_t&& refinement) {
-            _state_abstraction.refine(refinement.first);
+            assert(refinement.index() == 0);
+            _state_abstraction.refine(std::get<0>(refinement).first);
         }
         void refine(typename ParsingCegarPdaReconstruction<W,C,A>::header_refinement_t&& refinement) {
             // No refinement of states.

@@ -326,7 +326,7 @@ A,B,C
     auto res = reconstruction.reconstruct_trace();
     BOOST_CHECK(res.index() == 1);
 
-    auto [state_refinement, label_refinement] = std::get<1>(res);
+    auto [state_refinement, label_refinement] = std::get<0>(std::get<1>(res));
     BOOST_CHECK(!state_refinement.empty() || !label_refinement.empty());
     // TODO: More test...
 }

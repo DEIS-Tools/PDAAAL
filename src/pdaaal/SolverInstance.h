@@ -352,6 +352,9 @@ namespace pdaaal {
                                   const NFA<T>& final_nfa,   const std::vector<size_t>& final_states)
         : SolverInstance_impl<pda_t, pautomaton_t, T, W, C, A>(std::move(pda), initial_nfa, initial_states, final_nfa, final_states) { };
 
+        auto move_pda_refinement_mapping() {
+            return this->_pda.move_label_map();
+        }
         auto move_pda_refinement_mapping(const Refinement<T>& refinement) {
             auto map = this->_pda.move_label_map();
             map.refine(refinement);
