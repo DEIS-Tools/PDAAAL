@@ -179,11 +179,11 @@ namespace pdaaal {
 
                 // Depth first search, using this as states:
                 struct search_state_t {
-                    decltype(std::declval<const configuration_range_t&>().begin()) _it;
-                    decltype(std::declval<const configuration_range_t&>().end()) _end;
+                    std::remove_reference_t<decltype(std::declval<configuration_range_t&&>().end())> _end;
+                    std::remove_reference_t<decltype(std::declval<configuration_range_t&&>().begin())> _it;
                     size_t _trace_id;
-                    search_state_t(const configuration_range_t& config_range, size_t trace_id)
-                            : _it(config_range.begin()), _end(config_range.end()), _trace_id(trace_id) {};
+                    search_state_t(configuration_range_t&& config_range, size_t trace_id)
+                    : _end(config_range.end()), _it(std::move(config_range).begin()), _trace_id(trace_id) {};
                     [[nodiscard]] bool end() const noexcept {
                         return _it == _end;
                     }
