@@ -316,64 +316,25 @@ namespace pdaaal {
         a_partition.partitions().emplace_back();
         b_partition.partitions().emplace_back();
 
-        if (X.size() > Y.size()) {
-            std::swap(X, Y);
-        }
         std::sort(X.begin(), X.end());
         std::sort(Y.begin(), Y.end());
 
-        if (X.size() == 1) {
-            // For |X|=1 things are a lot simpler.
-            auto partition_on_a = [&X, &Y, &a_partition]() {
-                for (const auto&[a, b] : Y) { // TODO: Optimize Refinement data structure, so we don't need to explicitly store the (big) partition that stays.
-                    if (a_partition.partitions().back().empty() || a_partition.partitions().back().back() != a) {
-                        a_partition.partitions().back().emplace_back(a);
-                    }
-                }
-                a_partition.partitions().emplace_back();
-                a_partition.partitions().back().emplace_back(X[0].first);
-            };
-            auto partition_on_b = [&X, &Y, &b_partition]() {
-                for (const auto&[a, b] : Y) {
-                    if (b_partition.partitions().back().empty() || b_partition.partitions().back().back() != b) {
-                        b_partition.partitions().back().emplace_back(b);
-                    }
-                }
-                b_partition.partitions().emplace_back();
-                b_partition.partitions().back().emplace_back(X[0].second);
-            };
-            auto lb = std::lower_bound(Y.begin(), Y.end(), X[0].first, CompFirst<A, B>{});
-            if (lb == Y.end() || lb->first != X[0].first) {
-                // X and Y does not overlap on As, so it is enough to partition on A.
-                partition_on_a();
-            } else if (std::find_if(Y.begin(), Y.end(), [&X](const auto& p) { return p.second == X[0].second; }) ==
-                       Y.end()) {
-                // X and Y does not overlap on Bs, so it is enough to partition on B.
-                partition_on_b();
-            } else {
-                // X and Y overlaps on both As and Bs, so it is necessary to partition on both.
-                partition_on_a();
-                partition_on_b();
-            }
-            return std::make_pair(a_partition, b_partition);
-        } // Moving on to the general case...
-
-        // Find A's and B's and end up with a sorted vector without duplicates.
+        // Find the sets of As and Bs occuring in X and Y.
+        // We can easily make As sorted and avoid duplicates, and we use that it is sorted in AmatchB_bucket.
+        // Bs is only iterated through once, so an unordered_set is suitable here.
         std::vector<std::pair<A, size_t>> As; // Map from elements of A to the partition it is in
-        std::vector<B> Bs;
+        std::unordered_set<B> Bs;
         for (const auto&[a, b] : X) {
             if (As.empty() || As.back().first != a) As.emplace_back(a, std::numeric_limits<size_t>::max());
-            if (Bs.empty() || Bs.back() != b) Bs.emplace_back(b);
+            Bs.emplace(b);
         }
-        size_t ax = As.size(), bx = Bs.size();
+        size_t ax = As.size();
         for (const auto&[a, b] : Y) {
             if (As.empty() || As.back().first != a) As.emplace_back(a, std::numeric_limits<size_t>::max());
-            if (Bs.empty() || Bs.back() != b) Bs.emplace_back(b);
+            Bs.emplace(b);
         }
         std::inplace_merge(As.begin(), As.begin() + ax, As.end(), CompFirst<A, size_t>{});
-        std::inplace_merge(Bs.begin(), Bs.begin() + bx, Bs.end());
         As.erase(std::unique(As.begin(), As.end(), EqFirst<A, size_t>{}), As.end());
-        Bs.erase(std::unique(Bs.begin(), Bs.end()), Bs.end());
 
         {
             std::vector<std::vector<B>> Z_X, Z_Y; // Build up Z_X per bucket when adding to that bucket.
