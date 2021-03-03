@@ -315,6 +315,46 @@ namespace pdaaal {
             header.append(post);
             return header;
         }
+        /**
+         * Updates header assuming pre is a wildcard (i.e. can be any label that fits).
+         * Check if a matching pre_label exists, and then pop that and 'additional_pops', then push post.
+         * @param header
+         * @param post is bottom to top vector.
+         * @param additional_pops is the number of pops after popping pre. These pops are not checked (i.e. we assume they match)
+         * @return The updated header and the valid pre_label used, or std::nullopt if no valid pre_label exists.
+         */
+        std::optional<std::pair<header_t,label_t>> update_header_wildcard_pre(const header_t& input_header, const std::vector<label_t>& post, size_t additional_pops = 0) const {
+            auto header = input_header;
+            assert(1 + additional_pops <= header.size());
+            label_t pre_label; // We need to return which label we used as pre. This is necessary for constructing the trace.
+            if (header.top_is_concrete()) {
+                // Use the current top label as pre.
+                pre_label = header.concrete_part.back();
+            } else {
+                size_t i = _initial_path.size() - header.count_wildcards;
+                bool found = false;
+                for (const auto& label : _instance.pda().get_concrete_labels_range(_initial_abstract_stack[i])) {
+                    if (check_nfa_path(_initial_nfa, _initial_path, label, i)) {
+                        pre_label = label;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    // No valid pre_label exists that fits with initial_nfa_path, so return error value.
+                    return std::nullopt;
+                }
+            }
+            // pre_label taken care of, so we can pop header.
+            header.pop();
+            for (size_t i = 0; i < additional_pops; ++i) {
+                assert(!header.empty());
+                header.pop();
+            }
+            header.append(post);
+            return std::make_pair(header, pre_label);
+        }
+
         // Returns the labels, pre, for which update(header, pre, ...) succeeds. Can be used when computing refinement.
         std::vector<label_t> pre_labels(const header_t& header) const {
             if (header.empty()) return std::vector<label_t>();
