@@ -225,7 +225,7 @@ namespace pdaaal::utils {
     public:
         using elem_type = KEY;
 
-        using pt::set_stable;
+        using typename pt::set_stable;
         using pt::unpack;
         using pt::size;
 
@@ -251,7 +251,7 @@ namespace pdaaal::utils {
     public:
         using elem_type = KEY;
 
-        using pt::map;
+        using typename pt::map;
         using pt::unpack;
         using pt::size;
         using pt::get_data;
