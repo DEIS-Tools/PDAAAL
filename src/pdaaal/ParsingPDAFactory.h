@@ -467,7 +467,7 @@ namespace pdaaal {
                     }
                     auto new_header = this->update_header(header, rule._pre, post);
                     if (new_header) {
-                        result.emplace_back(rule, new_header.value());
+                        result.emplace_back(rule, new_header.value().first);
                     }
                 }
             }

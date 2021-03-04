@@ -288,15 +288,15 @@ namespace pdaaal {
         }
 
         /**
-         * Updates header by popping the label pre and 'additional_pops' without checks, and then pushing post.
+         * Updates header by popping the label pre and 'additional_pops', and then pushing post.
          * Before popping, we check if pre matches current labels and (when relevant) is a valid concreterization of wildcard label.
          * @param header
          * @param pre is label.
          * @param post is bottom to top vector.
-         * @param additional_pops is the number of pops after popping pre. These pops are not checked (i.e. we assume they match)
-         * @return The updated header if valid, or std::nullopt if pre was not valid.
+         * @param additional_pops is the number of pops after popping pre. If these pops wildcards, we return valid labels that specialize the wildcard.
+         * @return The updated header if valid and specialized wildcard labels, or std::nullopt if pre was not valid.
          */
-        std::optional<header_t> update_header(const header_t& input_header, const label_t& pre, const std::vector<label_t>& post, size_t additional_pops = 0) const {
+        std::optional<std::pair<header_t,std::vector<label_t>>> update_header(const header_t& input_header, const label_t& pre, const std::vector<label_t>& post, size_t additional_pops = 0) const {
             auto header = input_header;
             assert(1 + additional_pops <= header.size());
             if (header.top_is_concrete()
@@ -308,51 +308,43 @@ namespace pdaaal {
                 // pre label violates some condition for the header (match header value or be okay with initial_nfa_path), so return error value.
                 return std::nullopt;
             }
-            for (size_t i = 0; i < additional_pops; ++i) {
-                assert(!header.empty());
-                header.pop();
-            }
-            header.append(post);
-            return header;
+            return update_header_wildcard_pre(std::move(header), post, additional_pops);
         }
         /**
-         * Updates header assuming pre is a wildcard (i.e. can be any label that fits).
-         * Check if a matching pre_label exists, and then pop that and 'additional_pops', then push post.
+         * Updates header assuming pre is a wildcard.
+         * First pop 'pops' labels (and record specialized label if it was a wildcard), then push post.
          * @param header
          * @param post is bottom to top vector.
-         * @param additional_pops is the number of pops after popping pre. These pops are not checked (i.e. we assume they match)
-         * @return The updated header and the valid pre_label used, or std::nullopt if no valid pre_label exists.
+         * @param pops is the number of pops. If these pops wildcards, we return valid labels that specialize the wildcard.
+         * @return The updated header and the valid pre_labels used.
          */
-        std::optional<std::pair<header_t,label_t>> update_header_wildcard_pre(const header_t& input_header, const std::vector<label_t>& post, size_t additional_pops = 0) const {
+        std::pair<header_t,std::vector<label_t>> update_header_wildcard_pre(const header_t& input_header, const std::vector<label_t>& post, size_t pops = 0) const {
             auto header = input_header;
-            assert(1 + additional_pops <= header.size());
-            label_t pre_label; // We need to return which label we used as pre. This is necessary for constructing the trace.
-            if (header.top_is_concrete()) {
-                // Use the current top label as pre.
-                pre_label = header.concrete_part.back();
-            } else {
-                size_t i = _initial_path.size() - header.count_wildcards;
-                bool found = false;
-                for (const auto& label : _instance.pda().get_concrete_labels_range(_initial_abstract_stack[i])) {
-                    if (check_nfa_path(_initial_nfa, _initial_path, label, i)) {
-                        pre_label = label;
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    // No valid pre_label exists that fits with initial_nfa_path, so return error value.
-                    return std::nullopt;
-                }
-            }
-            // pre_label taken care of, so we can pop header.
-            header.pop();
-            for (size_t i = 0; i < additional_pops; ++i) {
+            return update_header_wildcard_pre(std::move(header), post, pops);
+        }
+        std::pair<header_t,std::vector<label_t>> update_header_wildcard_pre(header_t&& header, const std::vector<label_t>& post, size_t pops = 0) const {
+            assert(pops <= header.size());
+            std::vector<label_t> pre_labels; // Remember the wildcards we specialized (if not derivable) for trace reconstruction.
+            for (size_t i = 0; i < pops; ++i) {
                 assert(!header.empty());
+                if (!header.top_is_concrete()) {
+                    pre_labels.emplace_back(find_wildcard_specialization(header));
+                }
                 header.pop();
             }
             header.append(post);
-            return std::make_pair(header, pre_label);
+            return std::make_pair(header, pre_labels);
+        }
+        label_t find_wildcard_specialization(const header_t& header) const {
+            assert(!header.empty() && !header.top_is_concrete());
+            size_t i = _initial_path.size() - header.count_wildcards;
+            for (const auto& label : _instance.pda().get_concrete_labels_range(_initial_abstract_stack[i])) {
+                if (check_nfa_path(_initial_nfa, _initial_path, label, i)) {
+                    return label;
+                }
+            }
+            assert(false); // There must exist a concrete label the matches abstract label and the current NFA edge.
+            return label_t{};
         }
 
         // Returns the labels, pre, for which update(header, pre, ...) succeeds. Can be used when computing refinement.
