@@ -27,6 +27,7 @@
 #ifndef PDAAAL_CEGARPDAFACTORY_H
 #define PDAAAL_CEGARPDAFACTORY_H
 
+#include "PDAFactory.h"
 #include "AbstractionMapping.h"
 #include "PDA.h"
 #include "AbstractionPDA.h"
@@ -38,51 +39,34 @@ namespace pdaaal {
 
     // NOTE: CEGAR construction with weights is not yet implemented.
     template <typename label_t, typename W = void, typename C = std::less<W>, typename A = add<W>>
-    class CegarPdaFactory {
+    class CegarPdaFactory : public PDAFactory<label_t, AbstractionPDA<label_t,W,C,fut::type::hash>, AbstractionPDA<label_t,W,C,fut::type::vector>,
+                                       user_rule_t<W,C>, AbstractionSolverInstance<label_t,W,C,A>> {
     private:
-        using builder_pda_t = AbstractionPDA<label_t,W,C,fut::type::hash>; // We optimize for set insertion while building,
-        using pda_t = AbstractionPDA<label_t,W,C,fut::type::vector>;       // and then optimize for iteration when analyzing.
+        using parent_t = PDAFactory<label_t,AbstractionPDA<label_t,W,C,fut::type::hash>, // We optimize for set insertion while building,
+                                    AbstractionPDA<label_t,W,C,fut::type::vector>,       // and then optimize for iteration when analyzing.
+                                    user_rule_t<W,C>, // FIXME: This does not yet work for weighted rules.
+                                    AbstractionSolverInstance<label_t,W,C,A>>;
+        using builder_pda_t = typename parent_t::builder_pda_t;
     protected:
-        using solver_instance_t = AbstractionSolverInstance<label_t,W,C,A>;
+        using solver_instance_t = typename parent_t::solver_instance_t;
     public:
-        using abstract_rule_t = user_rule_t<W,C>; // FIXME: This does not yet work for weighted rules.
-
+        using abstract_rule_t = typename parent_t::rule_t;
     public:
         template<typename Fn>
         CegarPdaFactory(const std::unordered_set<label_t>& all_labels, Fn&& label_abstraction_fn)
-        : _temp_pda(all_labels, std::forward<Fn>(label_abstraction_fn)) { }
+        : parent_t(all_labels, std::forward<Fn>(label_abstraction_fn)) { }
 
         void reset_pda(RefinementMapping<label_t>&& mapping) {
-            _temp_pda = builder_pda_t(std::move(mapping));
-        }
-
-        // NFAs must be already compiled before passing them to this function.
-        solver_instance_t compile(const NFA<label_t>& initial_headers, const NFA<label_t>& final_headers) {
-            build_pda();
-            return solver_instance_t(pda_t{std::move(_temp_pda)}, initial_headers, initial(), final_headers, accepting());
+            this->_temp_pda = builder_pda_t(std::move(mapping));
         }
 
     protected:
-        void add_rule(const abstract_rule_t& rule) {
-            _temp_pda.add_rule(rule);
-        }
-        void add_wildcard_rule(const abstract_rule_t& rule) {
-            // Ignores rule._pre
-            _temp_pda.add_wildcard_rule(rule);
-        }
         std::pair<bool,size_t> abstract_label(const label_t& label) const {
-            return _temp_pda.abstract_label(label);
+            return this->_temp_pda.abstract_label(label);
         }
         [[nodiscard]] size_t number_of_labels() const {
-            return _temp_pda.number_of_labels();
+            return this->_temp_pda.number_of_labels();
         }
-
-        virtual void build_pda() = 0;
-        virtual const std::vector<size_t>& initial() = 0;
-        virtual const std::vector<size_t>& accepting() = 0;
-
-    private:
-        builder_pda_t _temp_pda;
     };
 
     // header_t contains the state needed for representing the header in the search.

@@ -40,43 +40,80 @@
 
 namespace pdaaal {
 
-    template<typename T, typename W = void, typename C = std::less<W>, typename A = add<W>>
+    template<typename Label, typename BuilderPDA, typename ResultPDA, typename Rule, typename SolverInstance>
     class PDAFactory {
-    private:
-        using Temp_PDA = TypedPDA<T,W,C,fut::type::hash>;
-        using Result_PDA = TypedPDA<T,W,C,fut::type::vector>;
+        // Expose template parameters for convenience in deriving/consuming classes.
+    protected:
+        using builder_pda_t = BuilderPDA;
+        using pda_t = ResultPDA;
     public:
-        using rule_t = typename Temp_PDA::rule_t;
+        using label_t = Label;
+        using rule_t = Rule;
+        using solver_instance_t = SolverInstance;
 
-        PDAFactory(std::unordered_set<T>&& all_labels, T wildcard_label)
-        : _all_labels(std::move(all_labels)), _wildcard_label(wildcard_label) { };
+        template<typename... Args>
+        explicit PDAFactory(Args&&... args) : _temp_pda(std::forward<Args>(args)...) { }
 
         // NFAs must be already compiled before passing them to this function.
-        SolverInstance<T,W,C,A> compile(const NFA<T>& initial_headers, const NFA<T>& final_headers) {
-            Temp_PDA temp_pda(_all_labels);
-            build_pda(temp_pda);
-            return SolverInstance<T,W,C,A>{Result_PDA{std::move(temp_pda)}, initial_headers, initial(), final_headers, accepting_states};
+        solver_instance_t compile(const NFA<label_t>& initial_headers, const NFA<label_t>& final_headers) {
+            build_pda();
+            return solver_instance_t{pda_t{std::move(_temp_pda)}, initial_headers, initial(), final_headers, accepting()};
+        }
+    protected:
+        virtual void build_pda() = 0;
+        virtual const std::vector<size_t>& initial() = 0;
+        virtual const std::vector<size_t>& accepting() = 0;
+
+        void add_rule(const rule_t& rule) {
+            _temp_pda.add_rule(rule);
+        }
+        void add_wildcard_rule(const rule_t& rule) {
+            // Ignores rule._pre
+            _temp_pda.add_wildcard_rule(rule);
         }
 
+        builder_pda_t _temp_pda;
+    };
+
+    template<typename T, typename W = void, typename C = std::less<W>, typename A = add<W>>
+    class TypedPDAFactory : public PDAFactory<T, TypedPDA<T,W,C,fut::type::hash>, TypedPDA<T,W,C,fut::type::vector>,
+                                       typename TypedPDA<T,W,C,fut::type::hash>::rule_t, SolverInstance<T,W,C,A>> {
     private:
-        void build_pda(Temp_PDA& pda) {
+        using parent_t = PDAFactory<T, TypedPDA<T,W,C,fut::type::hash>, TypedPDA<T,W,C,fut::type::vector>,
+                                    typename TypedPDA<T,W,C,fut::type::hash>::rule_t, SolverInstance<T,W,C,A>>;
+    public:
+        using rule_t = typename parent_t::rule_t;
+        explicit TypedPDAFactory(const std::unordered_set<T>& all_labels) : parent_t(all_labels) { };
+    };
+
+    // This is the 'old' PDAFactory.
+    template<typename T, typename W = void, typename C = std::less<W>, typename A = add<W>>
+    class DFS_PDAFactory : public TypedPDAFactory<T,W,C,A> {
+    private:
+        using parent_t = TypedPDAFactory<T,W,C,A>;
+    public:
+        using rule_t = typename parent_t::rule_t;
+        DFS_PDAFactory(const std::unordered_set<T>& all_labels, T wildcard_label)
+        : parent_t(all_labels), _wildcard_label(wildcard_label) { };
+
+    protected:
+        void build_pda() override {
             // Build up PDA by searching through reachable states from initial states.
             // Derived class must define initial states, successor function (rules), and accepting state predicate.
-            std::vector<size_t> waiting = initial();
+            std::vector<size_t> waiting = this->initial();
             std::unordered_set<size_t> seen(waiting.begin(), waiting.end());
             while (!waiting.empty()) {
                 auto from = waiting.back();
                 waiting.pop_back();
                 if (accepting(from)) {
-                    accepting_states.push_back(from);
+                    _accepting_states.push_back(from);
                 }
                 for (const auto &r : rules(from)) {
                     assert(from == r._from);
                     if (r._pre == _wildcard_label) {
-                        pda.add_wildcard_rule(r);
+                        this->add_wildcard_rule(r);
                     } else {
-                        assert(_all_labels.count(r._pre) == 1);
-                        pda.add_rule(r);
+                        this->add_rule(r);
                     }
 
                     if (seen.emplace(r._to).second) {
@@ -84,19 +121,18 @@ namespace pdaaal {
                     }
                 }
             }
-            std::sort(accepting_states.begin(), accepting_states.end());
+            std::sort(_accepting_states.begin(), _accepting_states.end());
         }
 
-    protected:
-        virtual const std::vector<size_t>& initial() = 0;
+        const std::vector<size_t>& accepting() override {
+            return _accepting_states;
+        }
         virtual bool accepting(size_t) = 0;
         virtual std::vector<rule_t> rules(size_t) = 0;
 
-        std::unordered_set<T> _all_labels;
         T _wildcard_label;
-
     private:
-        std::vector<size_t> accepting_states;
+        std::vector<size_t> _accepting_states;
     };
 
 }
