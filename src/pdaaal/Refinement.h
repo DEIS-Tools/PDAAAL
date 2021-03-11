@@ -33,6 +33,43 @@
 
 namespace pdaaal {
 
+    // Auxiliary function... Why is something like this not in <algorithm>??.
+    template<typename T>
+    inline bool is_disjoint(const std::vector<T>& a, const std::vector<T>& b) {
+        // Inspired by: https://stackoverflow.com/a/29123390
+        assert(std::is_sorted(a.begin(), a.end()));
+        assert(std::is_sorted(b.begin(), b.end()));
+        auto it_a = a.begin();
+        auto it_b = b.begin();
+        while (it_a != a.end() && it_b != b.end()) {
+            if (*it_a < *it_b) {
+                it_a = std::lower_bound(++it_a, a.end(), *it_b);
+            } else if (*it_b < *it_a) {
+                it_b = std::lower_bound(++it_b, b.end(), *it_a);
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+    template<typename T, typename U, typename Compare>
+    inline bool is_disjoint(const std::vector<T>& a, const std::vector<U>& b, Compare comp) {
+        // Inspired by: https://stackoverflow.com/a/29123390
+        assert(std::is_sorted(a.begin(), a.end(), comp));
+        assert(std::is_sorted(b.begin(), b.end(), comp));
+        auto it_a = a.begin();
+        auto it_b = b.begin();
+        while (it_a != a.end() && it_b != b.end()) {
+            if (comp(*it_a,*it_b)) {
+                it_a = std::lower_bound(++it_a, a.end(), *it_b, comp);
+            } else if (comp(*it_b, *it_a)) {
+                it_b = std::lower_bound(++it_b, b.end(), *it_a, comp);
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
 
     template<typename T>
     class Refinement {
@@ -49,13 +86,7 @@ namespace pdaaal {
             assert(!_partitions[1].empty());
             std::sort(_partitions[0].begin(), _partitions[0].end());
             std::sort(_partitions[1].begin(), _partitions[1].end());
-#ifndef NDEBUG
-            std::vector<T> intersection;
-            std::set_intersection(_partitions[0].begin(), _partitions[0].end(),
-                                  _partitions[1].begin(), _partitions[1].end(),
-                                  std::back_inserter(intersection));
-            assert(intersection.empty());
-#endif
+            assert(is_disjoint(_partitions[0], _partitions[1]));
         };
 
         void combine(Refinement<T>&& other) {
@@ -91,10 +122,8 @@ namespace pdaaal {
                     prev_size[other_i] = already_in_partitions[other_i].size();
                     std::set_intersection(_partitions[i].begin(), _partitions[i].end(),
                                           other._partitions[other_i].begin(), other._partitions[other_i].end(),
-                                          std::back_inserter(
-                                                  already_in_partitions[other_i])); // We exploit that _partitions are disjoint, so temp and std::set_union is not needed.
-                    if (already_in_partitions[other_i].size() ==
-                        prev_size[other_i]) { // Empty intersection with this partition.
+                                          std::back_inserter(already_in_partitions[other_i])); // We exploit that _partitions are disjoint, so temp and std::set_union is not needed.
+                    if (already_in_partitions[other_i].size() == prev_size[other_i]) { // Empty intersection with this partition.
                         empty_intersection_found = true;
                         if (ok_partition_id[1 - other_i] ==
                             std::numeric_limits<size_t>::max() // Are we still looking for an available partition?
@@ -157,11 +186,7 @@ namespace pdaaal {
             // Assert that all partitions are pairwise disjoint.
             for (size_t i = 0; i < _partitions.size(); ++i) {
                 for (size_t j = i + 1; j < _partitions.size(); ++j) {
-                    std::vector<T> intersection;
-                    std::set_intersection(_partitions[i].begin(), _partitions[i].end(),
-                                          _partitions[j].begin(), _partitions[j].end(),
-                                          std::back_inserter(intersection));
-                    assert(intersection.empty());
+                    assert(is_disjoint(_partitions[i], _partitions[j]));
                 }
             }
 #endif
@@ -205,20 +230,18 @@ namespace pdaaal {
 
     template<typename A, typename B>
     struct CompFirst {
-        bool operator()(const std::pair<A, B>& a, const std::pair<A, B>& b) const { return a.first < b.first; }
-
-        bool operator()(const std::pair<A, B>& p, const A& a) const { return p.first < a; }
-
-        bool operator()(const A& a, const std::pair<A, B>& p) const { return a < p.first; }
+        bool operator()(const std::pair<A, B>& lhs, const std::pair<A, B>& rhs) const { return lhs.first < rhs.first; }
+        bool operator()(const std::pair<A, B>& lhs, const A& rhs) const { return lhs.first < rhs; }
+        bool operator()(const A& lhs, const std::pair<A, B>& rhs) const { return lhs < rhs.first; }
+        bool operator()(const A& lhs, const A& rhs) const { return lhs < rhs; }
     };
 
     template<typename A, typename B>
     struct EqFirst {
-        bool operator()(const std::pair<A, B>& a, const std::pair<A, B>& b) const { return a.first == b.first; }
-
-        bool operator()(const std::pair<A, B>& p, const A& a) const { return p.first == a; }
-
-        bool operator()(const A& a, const std::pair<A, B>& p) const { return a == p.first; }
+        bool operator()(const std::pair<A, B>& lhs, const std::pair<A, B>& rhs) const { return lhs.first == rhs.first; }
+        bool operator()(const std::pair<A, B>& lhs, const A& rhs) const { return lhs.first == rhs; }
+        bool operator()(const A& lhs, const std::pair<A, B>& rhs) const { return lhs == rhs.first; }
+        bool operator()(const A& lhs, const A& rhs) const { return lhs == rhs; }
     };
 
     template<typename A, typename B>
@@ -269,32 +292,26 @@ namespace pdaaal {
         for (auto& bucket : refinement.partitions()) {
             assert(bucket_i < Z_X.size() && bucket_i < Z_Y.size());
             std::vector<U> intersection;
-            std::set_intersection(Z_Y[bucket_i].begin(), Z_Y[bucket_i].end(), Xs.begin(), Xs.end(),
-                                  std::back_inserter(intersection));
-            if (intersection.empty()) {
-                std::set_intersection(Z_X[bucket_i].begin(), Z_X[bucket_i].end(), Ys.begin(), Ys.end(),
-                                      std::back_inserter(intersection));
-                if (intersection.empty()) {
-                    // Assign a to bucket
-                    bucket.emplace_back(elem);
-                    placed_in_bucket = true;
-                    // Update Z_X and Z_Y for this bucket with X_b and Y_b.
-                    std::vector<U> temp_union;
-                    temp_union.reserve(Z_X[bucket_i].size() + Xs.size());
-                    std::set_union(Z_X[bucket_i].begin(), Z_X[bucket_i].end(), Xs.begin(), Xs.end(),
-                                   std::back_inserter(temp_union));
-                    std::swap(temp_union, Z_X[bucket_i]);
-                    temp_union.clear();
-                    temp_union.reserve(Z_Y[bucket_i].size() + Ys.size());
-                    std::set_union(Z_Y[bucket_i].begin(), Z_Y[bucket_i].end(), Ys.begin(), Ys.end(),
-                                   std::back_inserter(temp_union));
-                    std::swap(temp_union, Z_Y[bucket_i]);
-                    break;
-                }
+            if (is_disjoint(Z_Y[bucket_i], Xs) && is_disjoint(Z_X[bucket_i], Ys)) {
+                // Assign elem to bucket
+                bucket.emplace_back(elem);
+                placed_in_bucket = true;
+                // Update Z_X and Z_Y for this bucket with Xs and Ys.
+                std::vector<U> temp_union;
+                temp_union.reserve(Z_X[bucket_i].size() + Xs.size());
+                std::set_union(Z_X[bucket_i].begin(), Z_X[bucket_i].end(), Xs.begin(), Xs.end(),
+                               std::back_inserter(temp_union));
+                std::swap(temp_union, Z_X[bucket_i]);
+                temp_union.clear();
+                temp_union.reserve(Z_Y[bucket_i].size() + Ys.size());
+                std::set_union(Z_Y[bucket_i].begin(), Z_Y[bucket_i].end(), Ys.begin(), Ys.end(),
+                               std::back_inserter(temp_union));
+                std::swap(temp_union, Z_Y[bucket_i]);
+                break;
             }
             ++bucket_i;
         }
-        if (!placed_in_bucket) { // New bucket with a.
+        if (!placed_in_bucket) { // New bucket with elem.
             refinement.partitions().emplace_back();
             refinement.partitions().back().emplace_back(elem);
             // Initialize Z_X and Z_Y for the new bucket.
@@ -307,9 +324,9 @@ namespace pdaaal {
 
     template<typename A, typename B>
     static inline std::pair<Refinement<A>, Refinement<B>>
-    make_pair_refinement(std::vector<std::pair<A, B>>&& X, std::vector<std::pair<A, B>>&& Y, size_t A_id, size_t B_id) {
+    make_pair_refinement(std::vector<std::pair<A, B>>&& X, std::vector<std::pair<A, B>>&& Y, std::vector<A>&& Y_wildcard, size_t A_id, size_t B_id) {
         assert(!X.empty());
-        assert(!Y.empty());
+        assert(!Y.empty() || !Y_wildcard.empty());
         Refinement<A> a_partition(A_id);
         Refinement<B> b_partition(B_id);
         // Initialize first partitions
@@ -318,6 +335,9 @@ namespace pdaaal {
 
         std::sort(X.begin(), X.end());
         std::sort(Y.begin(), Y.end());
+        assert(std::is_sorted(Y_wildcard.begin(), Y_wildcard.end()));
+        assert(is_disjoint(Y, Y_wildcard, CompFirst<A,B>{}));
+        assert(is_disjoint(X, Y_wildcard, CompFirst<A,B>{}));
 
         // Find the sets of As and Bs occuring in X and Y.
         // We can easily make As sorted and avoid duplicates, and we use that it is sorted in AmatchB_bucket.
@@ -330,7 +350,7 @@ namespace pdaaal {
         }
         size_t ax = As.size();
         for (const auto&[a, b] : Y) {
-            if (As.empty() || As.back().first != a) As.emplace_back(a, std::numeric_limits<size_t>::max());
+            if (As.back().first != a) As.emplace_back(a, std::numeric_limits<size_t>::max());
             Bs.emplace(b);
         }
         std::inplace_merge(As.begin(), As.begin() + ax, As.end(), CompFirst<A, size_t>{});
@@ -354,6 +374,14 @@ namespace pdaaal {
                 assign_to_bucket(b_partition, Z_X, Z_Y, AmatchB_bucket(X, b, As), AmatchB_bucket(Y, b, As), b);
             }
         }
+
+        if (!Y_wildcard.empty()) { // Wildcards is just put in its own bucket. Might not always be minimal, but it is good enough.
+            a_partition.partitions().emplace_back();
+            for (const auto& a : Y_wildcard) {
+                a_partition.partitions().back().emplace_back(a);
+            }
+        }
+
         assert(a_partition.partitions().size() >= 2 || b_partition.partitions().size() >= 2);
         return std::make_pair(a_partition, b_partition);
     }
@@ -361,27 +389,37 @@ namespace pdaaal {
 
     template<typename A, typename B>
     static inline std::pair<Refinement<A>, Refinement<B>>
-    make_simple_pair_refinement(std::vector<std::pair<A, B>>&& X, std::vector<std::pair<A, B>>&& Y, size_t A_id,
-                                size_t B_id) {
+    make_simple_pair_refinement(std::vector<std::pair<A, B>>&& X, std::vector<std::pair<A, B>>&& Y, std::vector<A>&& Y_wildcard,
+                                size_t A_id, size_t B_id) {
         assert(!X.empty());
-        assert(!Y.empty());
+        assert(!Y.empty() || !Y_wildcard.empty());
         Refinement<A> a_partition(A_id);
         Refinement<B> b_partition(B_id);
 
         // Just use first pairs in X and Y.
         const auto&[Xa, Xb] = X[0];
-        const auto&[Ya, Yb] = Y[0];
-        if (Xa != Ya) {
+        if (!Y_wildcard.empty()) {
+            const auto& Ya = Y_wildcard[0];
+            assert(Xa != Ya);
             a_partition.partitions().emplace_back();
             a_partition.partitions().back().emplace_back(Xa);
             a_partition.partitions().emplace_back();
             a_partition.partitions().back().emplace_back(Ya);
-        }
-        if (Xb != Yb) {
-            b_partition.partitions().emplace_back();
-            b_partition.partitions().back().emplace_back(Xb);
-            b_partition.partitions().emplace_back();
-            b_partition.partitions().back().emplace_back(Yb);
+        } else {
+            assert(!Y.empty());
+            const auto&[Ya, Yb] = Y[0];
+            if (Xa != Ya) {
+                a_partition.partitions().emplace_back();
+                a_partition.partitions().back().emplace_back(Xa);
+                a_partition.partitions().emplace_back();
+                a_partition.partitions().back().emplace_back(Ya);
+            }
+            if (Xb != Yb) {
+                b_partition.partitions().emplace_back();
+                b_partition.partitions().back().emplace_back(Xb);
+                b_partition.partitions().emplace_back();
+                b_partition.partitions().back().emplace_back(Yb);
+            }
         }
         assert(a_partition.partitions().size() >= 2 || b_partition.partitions().size() >= 2);
         return std::make_pair(a_partition, b_partition);
@@ -393,11 +431,11 @@ namespace pdaaal {
 
     template<refinement_option_t refinement_option, typename A, typename B>
     static inline std::pair<Refinement<A>, Refinement<B>>
-    make_refinement(std::vector<std::pair<A, B>>&& X, std::vector<std::pair<A, B>>&& Y, size_t A_id, size_t B_id) {
+    make_refinement(std::vector<std::pair<A, B>>&& X, std::vector<std::pair<A, B>>&& Y, size_t A_id, size_t B_id, std::vector<A>&& Y_wildcard = std::vector<A>()) {
         if constexpr (refinement_option == refinement_option_t::fast_refinement) {
-            return make_simple_pair_refinement(std::move(X), std::move(Y), A_id, B_id);
+            return make_simple_pair_refinement(std::move(X), std::move(Y), std::move(Y_wildcard), A_id, B_id);
         } else if constexpr (refinement_option == refinement_option_t::best_refinement) {
-            return make_pair_refinement(std::move(X), std::move(Y), A_id, B_id);
+            return make_pair_refinement(std::move(X), std::move(Y), std::move(Y_wildcard), A_id, B_id);
         } else {
             assert(false);
             //static_assert(false, "Invalid refinement option.");
