@@ -245,7 +245,7 @@ namespace pdaaal {
     };
 
     template<typename A, typename B>
-    static inline std::vector<B> BmatchA(const std::vector<std::pair<A, B>>& input, const A& a) {
+    inline std::vector<B> BmatchA(const std::vector<std::pair<A, B>>& input, const A& a) {
         assert(std::is_sorted(input.begin(), input.end()));
         std::vector<B> result;
         auto[it, end] = std::equal_range(input.begin(), input.end(), a, CompFirst<A, B>{});
@@ -258,7 +258,7 @@ namespace pdaaal {
     }
 
     template<typename A, typename B>
-    static inline std::vector<size_t> AmatchB_bucket(const std::vector<std::pair<A, B>>& input, const B& b,
+    inline std::vector<size_t> AmatchB_bucket(const std::vector<std::pair<A, B>>& input, const B& b,
                                                      const std::vector<std::pair<A, size_t>>& bucket_map) {
         assert(std::is_sorted(input.begin(), input.end()));
         assert(std::is_sorted(bucket_map.begin(), bucket_map.end(), CompFirst<A, size_t>{}));
@@ -284,7 +284,7 @@ namespace pdaaal {
     }
 
     template<typename T, typename U>
-    static inline size_t
+    inline size_t
     assign_to_bucket(Refinement<T>& refinement, std::vector<std::vector<U>>& Z_X, std::vector<std::vector<U>>& Z_Y,
                      std::vector<U>&& Xs, std::vector<U>&& Ys, const T& elem) {
         bool placed_in_bucket = false;
@@ -323,7 +323,7 @@ namespace pdaaal {
 
 
     template<typename A, typename B>
-    static inline std::pair<Refinement<A>, Refinement<B>>
+    inline std::pair<Refinement<A>, Refinement<B>>
     make_pair_refinement(std::vector<std::pair<A, B>>&& X, std::vector<std::pair<A, B>>&& Y, std::vector<A>&& Y_wildcard, size_t A_id, size_t B_id) {
         assert(!X.empty());
         assert(!Y.empty() || !Y_wildcard.empty());
@@ -388,7 +388,7 @@ namespace pdaaal {
 
 
     template<typename A, typename B>
-    static inline std::pair<Refinement<A>, Refinement<B>>
+    inline std::pair<Refinement<A>, Refinement<B>>
     make_simple_pair_refinement(std::vector<std::pair<A, B>>&& X, std::vector<std::pair<A, B>>&& Y, std::vector<A>&& Y_wildcard,
                                 size_t A_id, size_t B_id) {
         assert(!X.empty());
@@ -430,7 +430,7 @@ namespace pdaaal {
     };
 
     template<refinement_option_t refinement_option, typename A, typename B>
-    static inline std::pair<Refinement<A>, Refinement<B>>
+    inline std::pair<Refinement<A>, Refinement<B>>
     make_refinement(std::vector<std::pair<A, B>>&& X, std::vector<std::pair<A, B>>&& Y, size_t A_id, size_t B_id, std::vector<A>&& Y_wildcard = std::vector<A>()) {
         if constexpr (refinement_option == refinement_option_t::fast_refinement) {
             return make_simple_pair_refinement(std::move(X), std::move(Y), std::move(Y_wildcard), A_id, B_id);
