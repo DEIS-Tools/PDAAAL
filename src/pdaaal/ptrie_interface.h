@@ -29,7 +29,10 @@
 
 #include <ptrie/ptrie_map.h>
 #include <vector>
+#include <variant>
 #include "std20.h"
+
+#include <boost/mp11.hpp>
 
 namespace pdaaal::utils {
     // This file defines interfacing functionality for using more types with ptrie.
@@ -181,6 +184,48 @@ namespace pdaaal::utils {
             for (size_type i = 0; i < size; ++i) {
                 data.emplace_back();
                 byte_vector_converter<Elem>::from_bytes(bytes, bytes_id, data.back());
+            }
+        }
+    };
+
+    // Byte converter for variants of elements that has a byte converter that knows its size (i.e. vector stores size, so it can parse it back correctly).
+    template <typename... Args>
+    struct byte_vector_converter<std::variant<Args...>, std::enable_if_t<((has_byte_vector_converter_v<Args>) && ...)>> {
+        static constexpr size_t variant_size = std::variant_size_v<std::variant<Args...>>;
+        using T = std::variant<Args...>;
+        using index_type = std::conditional_t<(variant_size <= std::numeric_limits<unsigned char>::max()), unsigned char, size_t>; // Just use one byte if variant has less than 256 options, which is common.
+        static constexpr size_t size(const T& data) {
+            if constexpr (variant_size == 1) {
+                return byte_vector_converter<std::variant_alternative_t<0,T>>::size(std::get<0>(data));
+            } else {
+                return fixed_byte_size<index_type>::size() +
+                       boost::mp11::mp_with_index<variant_size>(data.index(), [&data](auto I) {
+                           return byte_vector_converter<std::variant_alternative_t<I, T>>::size(std::get<I>(data));
+                       });
+            }
+        }
+        static constexpr void push_back_bytes(std::vector<std::byte>& result, const T& data){
+            if constexpr (variant_size == 1) {
+                byte_vector_converter<std::variant_alternative_t<0,T>>::push_back_bytes(result, std::get<0>(data));
+            } else {
+                if (data.valueless_by_exception()) { // This would mess up the static_cast, but should not happen in general.
+                    assert(false); return;
+                }
+                byte_vector_converter<index_type>::push_back_bytes(result, static_cast<index_type>(data.index()));
+                boost::mp11::mp_with_index<variant_size>(data.index(), [&result, &data](auto I) {
+                    byte_vector_converter<std::variant_alternative_t<I, T>>::push_back_bytes(result, std::get<I>(data));
+                });
+            }
+        }
+        static constexpr void from_bytes(const std::vector<std::byte>& bytes, size_t& bytes_id, T& data){
+            if constexpr (variant_size == 1) {
+                byte_vector_converter<std::variant_alternative_t<0,T>>::from_bytes(bytes, bytes_id, std::get<0>(data));
+            } else {
+                index_type index = 0;
+                byte_vector_converter<index_type>::from_bytes(bytes, bytes_id, index);
+                boost::mp11::mp_with_index<variant_size>(index, [&bytes,&bytes_id,&data](auto I){
+                    byte_vector_converter<std::variant_alternative_t<I,T>>::from_bytes(bytes, bytes_id, data.template emplace<I>());
+                });
             }
         }
     };
