@@ -90,8 +90,8 @@ namespace pdaaal {
             }
         }
 
-        template <typename T, typename W, typename C, typename A>
-        static bool pre_star_accepts(SolverInstance<T,W,C,A>& instance) {
+        template <typename pda_t, typename automaton_t, typename T, typename W, typename C, typename A>
+        static bool pre_star_accepts(SolverInstance_impl<pda_t,automaton_t,T,W,C,A>& instance) {
             instance.enable_pre_star();
             return instance.initialize_product() ||
                    pre_star<W,C,A,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
@@ -239,15 +239,8 @@ namespace pdaaal {
             }
         }
 
-        template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
-        static bool post_star_accepts(SolverInstance<T,W,C,A>& instance) {
-            return instance.initialize_product() ||
-            post_star<trace_type,W,C,A,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
-                return instance.add_edge_product(from, label, to, trace);
-            });
-        }
-        template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
-        static bool post_star_accepts(AbstractionSolverInstance<T,W,C,A>& instance) {
+        template <Trace_Type trace_type = Trace_Type::Any, typename pda_t, typename automaton_t, typename T, typename W, typename C, typename A>
+        static bool post_star_accepts(SolverInstance_impl<pda_t,automaton_t,T,W,C,A>& instance) {
             return instance.initialize_product() ||
                    post_star<trace_type,W,C,A,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
                        return instance.add_edge_product(from, label, to, trace);

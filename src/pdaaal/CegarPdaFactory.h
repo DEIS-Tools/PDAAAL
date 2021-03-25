@@ -448,11 +448,17 @@ namespace pdaaal {
         using refinement_t = typename Reconstruction::refinement_t;
         using header_refinement_t = typename Reconstruction::header_refinement_t;
     public:
+        template<bool use_pre_star=false>
         std::optional<concrete_trace_t> cegar_solve(Factory&& factory, const NFA<label_t>& initial_headers, const NFA<label_t>& final_headers) {
             while(true) {
                 auto instance = factory.compile(initial_headers, final_headers);
 
-                bool result = Solver::post_star_accepts(instance);
+                bool result;
+                if constexpr (use_pre_star) {
+                    result = Solver::pre_star_accepts(instance);
+                } else {
+                    result = Solver::post_star_accepts(instance);
+                }
                 if (!result) {
                     return std::nullopt; // No trace.
                 }
