@@ -78,6 +78,284 @@ namespace pdaaal {
 
     public:
 
+        template <typename pda_t, typename automaton_t, typename T, typename W, typename C, typename A>
+        static bool dual_search_accepts(SolverInstance_impl<pda_t,automaton_t,T,W,C,A>& instance) {
+            if (instance.initialize_product()) {
+                return true;
+            }
+            return dual_search<W,C,A,true>(instance.final_automaton(), instance.initial_automaton(),
+                [&instance](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
+                    return instance.add_final_edge(from, label, to, trace);
+                },
+                [&instance](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
+                    return instance.add_initial_edge(from, label, to, trace);
+                }
+            );
+            // Somewhat equivalent to running the following in parallel/interleaved:
+            /*pre_star<W,C,A,true>(instance.final_automaton(), [&instance](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
+                return instance.add_final_edge(from, label, to, trace);
+            });
+            post_star_any<W,C,A,true>(instance.initial_automaton(), [&instance](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
+                return instance.add_initial_edge(from, label, to, trace);
+            });*/
+        }
+        template <typename W, typename C, typename A, bool ET=false>
+        static bool dual_search(PAutomaton<W,C,A> &pre_star_automaton, PAutomaton<W,C,A> &post_star_automaton,
+                                const early_termination_fn<W>& pre_star_early_termination, const early_termination_fn<W>& post_star_early_termination) {
+            // This is copied from pre_star() and post_star_any(). A bit ugly, but easy for now...
+            assert(pre_star_automaton.pda().states().size() == post_star_automaton.pda().states().size());
+            //assert(pre_star_automaton.pda() == post_star_automaton.pda()); // operator== not implemented for PDA
+            const auto& pda_states = pre_star_automaton.pda().states();
+            const auto n_pda_states = pda_states.size();
+            bool found = false;
+
+            // ************************************
+            // *** Start of pre* preliminaries ***
+            const auto pre_star_n_automaton_states = pre_star_automaton.states().size();
+            std::unordered_set<temp_edge_t, temp_edge_hasher> pre_star_edges;
+            std::stack<temp_edge_t> pre_star_workset;
+            std::vector<std::vector<std::pair<size_t,uint32_t>>> pre_star_rel(pre_star_n_automaton_states);
+
+            const auto pre_star_insert_edge = [&found, &pre_star_early_termination, &pre_star_edges, &pre_star_workset, &pre_star_automaton](size_t from, uint32_t label, size_t to, const trace_t *trace) {
+                auto res = pre_star_edges.emplace(from, label, to);
+                if (res.second) { // New edge is not already in edges (rel U workset).
+                    pre_star_workset.emplace(from, label, to);
+                    if (trace != nullptr) { // Don't add existing edges
+                        if constexpr (ET) {
+                            found = found || pre_star_early_termination(from, label, to, trace_ptr_from<W>(trace));
+                        }
+                        pre_star_automaton.add_edge(from, to, label, trace_ptr_from<W>(trace));
+                    }
+                }
+            };
+            const auto n_pda_labels = pre_star_automaton.number_of_labels();
+            const auto pre_star_insert_edge_bulk = [&pre_star_insert_edge, n_pda_labels](size_t from, const labels_t &precondition, size_t to, const trace_t *trace) {
+                if (precondition.wildcard()) {
+                    for (uint32_t i = 0; i < n_pda_labels; i++) {
+                        pre_star_insert_edge(from, i, to, trace);
+                    }
+                } else {
+                    for (auto &label : precondition.labels()) {
+                        pre_star_insert_edge(from, label, to, trace);
+                    }
+                }
+            };
+
+            // workset := ->_0  (line 1)
+            for (const auto &from : pre_star_automaton.states()) {
+                for (const auto &[to,labels] : from->_edges) {
+                    for (const auto &[label,_] : labels) {
+                        pre_star_insert_edge(from->_id, label, to, nullptr);
+                    }
+                }
+            }
+
+            // for all <p, y> --> <p', epsilon> : workset U= (p, y, p') (line 2)
+            for (size_t state = 0; state < n_pda_states; ++state) {
+                size_t rule_id = 0;
+                for (const auto&[rule,labels] : pda_states[state]._rules) {
+                    if (rule._operation == POP) {
+                        pre_star_insert_edge_bulk(state, labels, rule._to, pre_star_automaton.new_pre_trace(rule_id));
+                    }
+                    ++rule_id;
+                }
+            }
+
+            // delta_prime[q] = [p,rule_id]    where states[p]._rules[rule_id]._labels.contains(y)    for each p, rule_id
+            // corresponds to <p, y> --> <q, y>   (the y is the same, since we only have PUSH and not arbitrary <p, y> --> <q, y1 y2>, i.e. y==y2)
+            std::vector<std::vector<std::pair<size_t, size_t>>> delta_prime(pre_star_n_automaton_states);
+
+            // ************************************
+            // *** Start of post* preliminaries ***
+            const auto post_star_n_Q = post_star_automaton.states().size();
+            // for <p, y> -> <p', y1 y2> do  (line 3)
+            //   Q' U= {q_p'y1}              (line 4)
+            std::unordered_map<std::pair<size_t, uint32_t>, size_t, boost::hash<std::pair<size_t, uint32_t>>> q_prime{};
+            for (auto &state : pda_states) {
+                for (auto &[rule, labels] : state._rules) {
+                    if (rule._operation == PUSH) {
+                        auto res = q_prime.emplace(std::make_pair(rule._to, rule._op_label), post_star_automaton.next_state_id());
+                        if (res.second) {
+                            post_star_automaton.add_state(false, false);
+                        }
+                    }
+                }
+            }
+            const auto post_star_n_automata_states = post_star_automaton.states().size();
+
+            std::unordered_set<temp_edge_t, temp_edge_hasher> post_star_edges;
+            std::queue<temp_edge_t> post_star_workset;
+            std::vector<std::vector<std::pair<size_t,uint32_t>>> post_star_rel1(post_star_n_automata_states); // faster access for lookup _from -> (_to, _label)
+            std::vector<std::vector<size_t>> post_star_rel2(post_star_n_automata_states - post_star_n_Q); // faster access for lookup _to -> _from  (when _label is uint32_t::max)
+
+            const auto post_star_insert_edge = [&found, &post_star_early_termination, &post_star_edges, &post_star_workset, &post_star_rel1, &post_star_rel2, &post_star_automaton, post_star_n_Q]
+                    (size_t from, uint32_t label, size_t to, const trace_t *trace, bool direct_to_rel = false) {
+                auto res = post_star_edges.emplace(from, label, to);
+                if (res.second) { // New edge is not already in edges (rel U workset).
+                    if (direct_to_rel) {
+                        post_star_rel1[from].emplace_back(to, label);
+                        if (label == epsilon && to >= post_star_n_Q) {
+                            post_star_rel2[to - post_star_n_Q].push_back(from);
+                        }
+                    } else {
+                        post_star_workset.emplace(from, label, to);
+                    }
+                    if (trace != nullptr) { // Don't add existing edges
+                        if (label == epsilon) {
+                            post_star_automaton.add_epsilon_edge(from, to, trace_ptr_from<W>(trace));
+                        } else {
+                            post_star_automaton.add_edge(from, to, label, trace_ptr_from<W>(trace));
+                        }
+                    }
+                    if constexpr (ET) {
+                        found = found || post_star_early_termination(from, label, to, trace_ptr_from<W>(trace));
+                    }
+                }
+            };
+
+            // workset := ->_0 intersect (P x Gamma x Q)  (line 1)
+            // rel := ->_0 \ workset (line 2)
+            for (const auto &from : post_star_automaton.states()) {
+                for (const auto &[to,labels] : from->_edges) {
+                    assert(!labels.contains(epsilon)); // PostStar algorithm assumes no epsilon transitions in the NFA.
+                    for (const auto &[label,_] : labels) {
+                        post_star_insert_edge(from->_id, label, to, nullptr, from->_id >= n_pda_states);
+                    }
+                }
+            }
+
+            // ****************************************
+            // *** Star to combined saturation loop ***
+            while (!pre_star_workset.empty() && !post_star_workset.empty()) { // Exit if one approach terminates.
+                if constexpr (ET) {
+                    if (found) {
+                        return true;
+                    }
+                }
+
+                // ******************************
+                // *** Do one post* iteration ***
+                {
+                    // pop t = (q, y, q') from workset (line 6)
+                    temp_edge_t t;
+                    t = post_star_workset.front();
+                    post_star_workset.pop();
+                    // rel = rel U {t} (line 8)   (membership test on line 7 is done in insert_edge).
+                    post_star_rel1[t._from].emplace_back(t._to, t._label);
+                    if (t._label == epsilon && t._to >= post_star_n_Q) {
+                        post_star_rel2[t._to - post_star_n_Q].push_back(t._from);
+                    }
+
+                    // if y != epsilon (line 9)
+                    if (t._label != epsilon) {
+                        const auto& rules = pda_states[t._from]._rules;
+                        for (size_t rule_id = 0; rule_id < rules.size(); ++rule_id) {
+                            const auto &[rule, labels] = rules[rule_id];
+                            if (!labels.contains(t._label)) { continue; }
+                            auto trace = post_star_automaton.new_post_trace(t._from, rule_id, t._label);
+                            switch (rule._operation) {
+                                case POP: // (line 10-11)
+                                    post_star_insert_edge(rule._to, epsilon, t._to, trace, false);
+                                    break;
+                                case SWAP: // (line 12-13)
+                                    post_star_insert_edge(rule._to, rule._op_label, t._to, trace, false);
+                                    break;
+                                case NOOP:
+                                    post_star_insert_edge(rule._to, t._label, t._to, trace, false);
+                                    break;
+                                case PUSH: // (line 14)
+                                    assert(q_prime.find(std::make_pair(rule._to, rule._op_label)) != std::end(q_prime));
+                                    size_t q_new = q_prime[std::make_pair(rule._to, rule._op_label)];
+                                    post_star_insert_edge(rule._to, rule._op_label, q_new, trace, false); // (line 15)
+                                    post_star_insert_edge(q_new, t._label, t._to, trace, true); // (line 16)
+                                    if (!post_star_rel2[q_new - post_star_n_Q].empty()) {
+                                        auto trace_q_new = post_star_automaton.new_post_trace(q_new);
+                                        for (auto f : post_star_rel2[q_new - post_star_n_Q]) { // (line 17)
+                                            post_star_insert_edge(f, t._label, t._to, trace_q_new, false); // (line 18)
+                                        }
+                                    }
+                                    break;
+                            }
+                        }
+                    } else {
+                        if (!post_star_rel1[t._to].empty()) {
+                            auto trace = post_star_automaton.new_post_trace(t._to);
+                            for (auto e : post_star_rel1[t._to]) { // (line 20)
+                                post_star_insert_edge(t._from, e.second, e.first, trace, false); // (line 21)
+                            }
+                        }
+                    }
+                }
+
+                // Try to early terminate
+                if constexpr (ET) {
+                    if (found) {
+                        return true;
+                    }
+                }
+
+                // ******************************
+                // *** Do one pre* iteration ***
+                {
+                    // pop t = (q, y, q') from workset (line 4)
+                    auto t = pre_star_workset.top();
+                    pre_star_workset.pop();
+                    // rel = rel U {t} (line 6)   (membership test on line 5 is done in insert_edge).
+                    pre_star_rel[t._from].emplace_back(t._to, t._label);
+
+                    // (line 7-8 for \Delta')
+                    for (auto pair : delta_prime[t._from]) { // Loop over delta_prime (that match with t->from)
+                        auto state = pair.first;
+                        auto rule_id = pair.second;
+                        if (pda_states[state]._rules[rule_id].second.contains(t._label)) {
+                            pre_star_insert_edge(state, t._label, t._to, pre_star_automaton.new_pre_trace(rule_id, t._from));
+                        }
+                    }
+                    // Loop over \Delta (filter rules going into q) (line 7 and 9)
+                    if (t._from >= n_pda_states) { continue; }
+                    for (auto pre_state : pda_states[t._from]._pre_states) {
+                        const auto& rules = pda_states[pre_state]._rules;
+                        auto lb = rules.lower_bound(details::rule_t<W, C>{t._from});
+                        while (lb != rules.end() && lb->first._to == t._from) {
+                            const auto &[rule, labels] = *lb;
+                            size_t rule_id = lb - rules.begin();
+                            ++lb;
+                            switch (rule._operation) {
+                                case POP:
+                                    break;
+                                case SWAP: // (line 7-8 for \Delta)
+                                    if (rule._op_label == t._label) {
+                                        pre_star_insert_edge_bulk(pre_state, labels, t._to, pre_star_automaton.new_pre_trace(rule_id));
+                                    }
+                                    break;
+                                case NOOP: // (line 7-8 for \Delta)
+                                    if (labels.contains(t._label)) {
+                                        pre_star_insert_edge(pre_state, t._label, t._to, pre_star_automaton.new_pre_trace(rule_id));
+                                    }
+                                    break;
+                                case PUSH: // (line 9)
+                                    if (rule._op_label == t._label) {
+                                        // (line 10)
+                                        delta_prime[t._to].emplace_back(pre_state, rule_id);
+                                        const trace_t* trace = nullptr;
+                                        for (auto rel_rule : pre_star_rel[t._to]) { // (line 11-12)
+                                            if (labels.contains(rel_rule.second)) {
+                                                trace = trace == nullptr ? pre_star_automaton.new_pre_trace(rule_id,t._to) : trace;
+                                                pre_star_insert_edge(pre_state, rel_rule.second, rel_rule.first, trace);
+                                            }
+                                        }
+                                    }
+                                    break;
+                                default:
+                                    assert(false);
+                            }
+                        }
+                    }
+                }
+            }
+            return found;
+        }
+
         template <typename W, typename C, typename A>
         static bool pre_star_accepts(PAutomaton<W,C,A> &automaton, size_t state, const std::vector<uint32_t> &stack) {
             if (stack.size() == 1) {

@@ -424,3 +424,48 @@ A,B,C
     BOOST_CHECK(std::all_of(trace.begin(), trace.end(), [](const auto& trace_state){ return trace_state._stack.back() == "C"; }));
     print_trace<std::string>(trace);
 }
+
+
+BOOST_AUTO_TEST_CASE(DualSearch_Test)
+{
+    std::istringstream i_stream(R"(
+# You can make a comment like this
+
+# Labels
+A,B
+# Initial states
+0
+# Accepting states
+0
+# Rules
+0 A -> 2 B
+0 B -> 0 A
+0 A -> 1 -
+1 B -> 2 +B
+2 B -> 0 -
+
+# POP  rules use -
+# PUSH rules use +LABEL
+# SWAP rules use LABEL
+)");
+    auto factory = ParsingPDAFactory<>::create(i_stream);
+
+    // initial stack: [A,B]
+    NFA<std::string> initial(std::unordered_set<std::string>{"A"});
+    NFA<std::string> temp(std::unordered_set<std::string>{"B"});
+    initial.concat(std::move(temp));
+    // final stack: [A]
+    NFA<std::string> final(std::unordered_set<std::string>{"A"});
+    // Yeah, a small regex -> NFA parser could be nice here...
+
+    auto instance = factory.compile(initial, final);
+
+    bool result = Solver::dual_search_accepts(instance);
+    BOOST_CHECK(result);
+
+    auto trace = Solver::get_trace(instance);
+    BOOST_CHECK_GE(trace.size(), 4);
+    BOOST_CHECK_LE(trace.size(), 5);
+
+    print_trace<std::string>(trace);
+}

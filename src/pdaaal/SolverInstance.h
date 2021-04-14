@@ -84,6 +84,59 @@ namespace pdaaal {
             return construct_reachable(waiting, initial, final);
         }
 
+        // This is for the dual_search mode:
+        bool add_initial_edge(size_t from, uint32_t label, size_t to, trace_ptr<W> trace) {
+            std::vector<std::pair<size_t,size_t>> from_states;
+            if (from < _id_fast_lookup.size()) { // Avoid out-of-bounds.
+                from_states = _id_fast_lookup[from]; // Copy here, since loop-body might alter _id_fast_lookup[from].
+            }
+            if (from < _pda_size) {
+                from_states.emplace_back(from, from); // Initial states are not stored in _id_fast_lookup.
+            }
+            std::vector<size_t> waiting;
+            for (auto [final_from, product_from] : from_states) { // Iterate through reachable 'from-states'.
+                for (const auto& [final_to,final_labels] : _final.states()[final_from]->_edges) {
+                    if (final_labels.contains(label)) {
+                        auto [fresh, product_to] = get_product_state(_initial.states()[to].get(), _final.states()[final_to].get());
+                        _product.add_edge(product_from, product_to, label, trace);
+                        if (_product.has_accepting_state()) {
+                            return true; // Early termination
+                        }
+                        if (fresh) {
+                            waiting.push_back(product_to); // If the 'to-state' is new (was not previously reachable), we need to continue constructing from there.
+                        }
+                    }
+                }
+            }
+            return construct_reachable(waiting, _initial, _final);
+        }
+        bool add_final_edge(size_t from, uint32_t label, size_t to, trace_ptr<W> trace) {
+            std::vector<std::pair<size_t,size_t>> from_states;
+            if (from < _id_fast_lookup_back.size()) { // Avoid out-of-bounds.
+                from_states = _id_fast_lookup_back[from]; // Copy here, since loop-body might alter _id_fast_lookup[from].
+            }
+            if (from < _pda_size) {
+                from_states.emplace_back(from, from); // Initial states are not stored in _id_fast_lookup.
+            }
+            std::vector<size_t> waiting;
+            for (auto [initial_from, product_from] : from_states) { // Iterate through reachable 'from-states'.
+                for (const auto& [initial_to,initial_labels] : _initial.states()[initial_from]->_edges) {
+                    if (initial_labels.contains(label)) {
+                        auto [fresh, product_to] = get_product_state(_initial.states()[initial_to].get(), _final.states()[to].get());
+                        _product.add_edge(product_from, product_to, label, trace);
+                        if (_product.has_accepting_state()) {
+                            return true; // Early termination
+                        }
+                        if (fresh) {
+                            waiting.push_back(product_to); // If the 'to-state' is new (was not previously reachable), we need to continue constructing from there.
+                        }
+                    }
+                }
+            }
+            return construct_reachable(waiting, _initial, _final);
+        }
+
+
         automaton_t& automaton() {
             return _swap_initial_final ? _final : _initial;
         }
@@ -91,8 +144,14 @@ namespace pdaaal {
             return _swap_initial_final ? _final : _initial;
         }
 
+        automaton_t& initial_automaton() {
+            return _initial;
+        }
         const automaton_t& initial_automaton() const {
             return _initial;
+        }
+        automaton_t& final_automaton() {
+            return _final;
         }
         const automaton_t& final_automaton() const {
             return _final;
@@ -314,6 +373,10 @@ namespace pdaaal {
                     _id_fast_lookup.resize(a->_id + 1);
                 }
                 _id_fast_lookup[a->_id].emplace_back(b->_id, state_id);
+                if (b->_id >= _id_fast_lookup_back.size()) {
+                    _id_fast_lookup_back.resize(b->_id + 1);
+                }
+                _id_fast_lookup_back[b->_id].emplace_back(a->_id, state_id);
                 return std::make_pair(true, state_id);
             } else {
                 return std::make_pair(false ,id + _pda_size);
@@ -328,7 +391,8 @@ namespace pdaaal {
         product_automaton_t _product;
         bool _swap_initial_final = false;
         ptrie::set_stable<pair_size_t> _id_map;
-        std::vector<std::vector<std::pair<size_t,size_t>>> _id_fast_lookup;
+        std::vector<std::vector<std::pair<size_t,size_t>>> _id_fast_lookup; // maps initial_state -> (final_state, product_state)
+        std::vector<std::vector<std::pair<size_t,size_t>>> _id_fast_lookup_back; // maps final_state -> (initial_state, product_state)
     };
 
     template <typename T, typename W, typename C, typename A>
