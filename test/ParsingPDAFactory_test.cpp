@@ -463,7 +463,7 @@ A,B
     bool result = Solver::dual_search_accepts(instance);
     BOOST_CHECK(result);
 
-    auto trace = Solver::get_trace(instance);
+    auto trace = Solver::get_trace_dual_search(instance);
     BOOST_CHECK_GE(trace.size(), 4);
     BOOST_CHECK_LE(trace.size(), 5);
 

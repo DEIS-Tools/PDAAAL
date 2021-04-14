@@ -46,12 +46,13 @@ namespace pdaaal {
           _product(_pda, intersect_vector(initial_states, final_states), initial_nfa.empty_accept() && final_nfa.empty_accept()) { };
 
         // Returns whether an accepting state in the product automaton was reached.
+        template<bool needs_back_lookup = false>
         bool initialize_product() {
             std::vector<size_t> ids(_product.states().size());
             std::iota (ids.begin(), ids.end(), 0); // Fill with 0,1,...,size-1;
-            return construct_reachable(ids,
-                                       _swap_initial_final ? _final : _initial,
-                                       _swap_initial_final ? _initial : _final);
+            return construct_reachable<needs_back_lookup>(ids,
+                                                          _swap_initial_final ? _final : _initial,
+                                                          _swap_initial_final ? _initial : _final);
         }
 
         // Returns whether an accepting state in the product automaton was reached.
@@ -97,7 +98,7 @@ namespace pdaaal {
             for (auto [final_from, product_from] : from_states) { // Iterate through reachable 'from-states'.
                 for (const auto& [final_to,final_labels] : _final.states()[final_from]->_edges) {
                     if (final_labels.contains(label)) {
-                        auto [fresh, product_to] = get_product_state(_initial.states()[to].get(), _final.states()[final_to].get());
+                        auto [fresh, product_to] = get_product_state<true>(_initial.states()[to].get(), _final.states()[final_to].get());
                         _product.add_edge(product_from, product_to, label, trace);
                         if (_product.has_accepting_state()) {
                             return true; // Early termination
@@ -108,7 +109,7 @@ namespace pdaaal {
                     }
                 }
             }
-            return construct_reachable(waiting, _initial, _final);
+            return construct_reachable<true>(waiting, _initial, _final);
         }
         bool add_final_edge(size_t from, uint32_t label, size_t to, trace_ptr<W> trace) {
             std::vector<std::pair<size_t,size_t>> from_states;
@@ -122,7 +123,7 @@ namespace pdaaal {
             for (auto [initial_from, product_from] : from_states) { // Iterate through reachable 'from-states'.
                 for (const auto& [initial_to,initial_labels] : _initial.states()[initial_from]->_edges) {
                     if (initial_labels.contains(label)) {
-                        auto [fresh, product_to] = get_product_state(_initial.states()[initial_to].get(), _final.states()[to].get());
+                        auto [fresh, product_to] = get_product_state<true>(_initial.states()[initial_to].get(), _final.states()[to].get());
                         _product.add_edge(product_from, product_to, label, trace);
                         if (_product.has_accepting_state()) {
                             return true; // Early termination
@@ -133,7 +134,7 @@ namespace pdaaal {
                     }
                 }
             }
-            return construct_reachable(waiting, _initial, _final);
+            return construct_reachable<true>(waiting, _initial, _final);
         }
 
 
@@ -309,6 +310,7 @@ namespace pdaaal {
     private:
 
         // Returns whether an accepting state in the product automaton was reached.
+        template<bool needs_back_lookup = false>
         bool construct_reachable(std::vector<size_t>& waiting, const automaton_t& initial, const automaton_t& final) {
             while (!waiting.empty()) {
                 size_t top = waiting.back();
@@ -319,7 +321,7 @@ namespace pdaaal {
                         std::vector<typename decltype(i_labels)::value_type> labels;
                         std::set_intersection(i_labels.begin(), i_labels.end(), f_labels.begin(), f_labels.end(), std::back_inserter(labels));
                         if (!labels.empty()) {
-                            auto [fresh, to_id] = get_product_state(initial.states()[i_to].get(), final.states()[f_to].get());
+                            auto [fresh, to_id] = get_product_state<needs_back_lookup>(initial.states()[i_to].get(), final.states()[f_to].get());
                             for (const auto & [label, trace] : labels) {
                                 _product.add_edge(top, to_id, label, trace);
                             }
@@ -361,6 +363,7 @@ namespace pdaaal {
             _id_map.unpack(id - _pda_size, &res);
             return res;
         }
+        template<bool needs_back_lookup = false>
         std::pair<bool,size_t> get_product_state(const state_t* a, const state_t* b) {
             if (a->_id == b->_id && a->_id < _pda_size) {
                 return std::make_pair(false, a->_id);
@@ -373,10 +376,12 @@ namespace pdaaal {
                     _id_fast_lookup.resize(a->_id + 1);
                 }
                 _id_fast_lookup[a->_id].emplace_back(b->_id, state_id);
-                if (b->_id >= _id_fast_lookup_back.size()) {
-                    _id_fast_lookup_back.resize(b->_id + 1);
+                if constexpr(needs_back_lookup) {
+                    if (b->_id >= _id_fast_lookup_back.size()) {
+                        _id_fast_lookup_back.resize(b->_id + 1);
+                    }
+                    _id_fast_lookup_back[b->_id].emplace_back(a->_id, state_id);
                 }
-                _id_fast_lookup_back[b->_id].emplace_back(a->_id, state_id);
                 return std::make_pair(true, state_id);
             } else {
                 return std::make_pair(false ,id + _pda_size);
@@ -392,7 +397,7 @@ namespace pdaaal {
         bool _swap_initial_final = false;
         ptrie::set_stable<pair_size_t> _id_map;
         std::vector<std::vector<std::pair<size_t,size_t>>> _id_fast_lookup; // maps initial_state -> (final_state, product_state)
-        std::vector<std::vector<std::pair<size_t,size_t>>> _id_fast_lookup_back; // maps final_state -> (initial_state, product_state)
+        std::vector<std::vector<std::pair<size_t,size_t>>> _id_fast_lookup_back; // maps final_state -> (initial_state, product_state)  Only used in dual_search
     };
 
     template <typename T, typename W, typename C, typename A>

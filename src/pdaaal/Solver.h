@@ -80,7 +80,7 @@ namespace pdaaal {
 
         template <typename pda_t, typename automaton_t, typename T, typename W, typename C, typename A>
         static bool dual_search_accepts(SolverInstance_impl<pda_t,automaton_t,T,W,C,A>& instance) {
-            if (instance.initialize_product()) {
+            if (instance.template initialize_product<true>()) {
                 return true;
             }
             return dual_search<W,C,A,true>(instance.final_automaton(), instance.initial_automaton(),
@@ -535,6 +535,21 @@ namespace pdaaal {
                 auto [path, stack] = instance.template find_path<trace_type>();
                 return _get_trace(instance.pda(), instance.automaton(), path, stack);
             }
+        }
+        template <typename T, typename W, typename C, typename A>
+        static auto get_trace_dual_search(const SolverInstance<T,W,C,A>& instance) {
+            auto [paths, stack] = instance.template find_path<Trace_Type::Any, true>();
+            std::vector<size_t> i_path, f_path;
+            for (const auto& [i_state, f_state] : paths) {
+                i_path.emplace_back(i_state);
+                f_path.emplace_back(f_state);
+            }
+            auto trace1 = _get_trace(instance.pda(), instance.initial_automaton(), i_path, stack);
+            auto trace2 = _get_trace(instance.pda(), instance.final_automaton(), f_path, stack);
+            assert(trace1.back()._pdastate == trace2.front()._pdastate);
+            assert(trace1.back()._stack.size() == trace2.front()._stack.size()); // Should also check == for contents of stack, but T might not implement ==.
+            trace1.insert(trace1.end(), trace2.begin() + 1, trace2.end());
+            return trace1;
         }
         template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
         static auto get_rule_trace_and_paths(const AbstractionSolverInstance<T,W,C,A>& instance) {
