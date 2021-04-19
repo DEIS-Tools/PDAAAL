@@ -524,6 +524,17 @@ namespace pdaaal {
                        return instance.add_edge_product(from, label, to, trace);
                    });
         }
+        template <Trace_Type trace_type = Trace_Type::Any, typename pda_t, typename automaton_t, typename T, typename W, typename C, typename A>
+        static bool post_star_accepts_no_ET(SolverInstance_impl<pda_t,automaton_t,T,W,C,A>& instance) {
+            post_star<trace_type,W,C,A,false>(instance.automaton());
+            return instance.initialize_product();
+        }
+        template <typename pda_t, typename automaton_t, typename T, typename W, typename C, typename A>
+        static bool pre_star_accepts_no_ET(SolverInstance_impl<pda_t,automaton_t,T,W,C,A>& instance) {
+            instance.enable_pre_star();
+            pre_star<W,C,A,false>(instance.automaton());
+            return instance.initialize_product();
+        }
 
         template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
         static auto get_trace(const SolverInstance<T,W,C,A>& instance) {
