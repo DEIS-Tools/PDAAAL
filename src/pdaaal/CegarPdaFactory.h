@@ -126,6 +126,7 @@ namespace pdaaal {
         CegarPdaReconstruction(const solver_instance_t& instance, const NFA<label_t>& initial_headers, const NFA<label_t>& final_headers)
         : _instance(instance), _initial_nfa(initial_headers), _final_nfa(final_headers) {};
 
+        template<bool use_dual = false>
         std::variant<concrete_trace_t,// Concrete trace (of configurations) and final concrete header.
                 refinement_t,
                 header_refinement_t>
@@ -137,7 +138,7 @@ namespace pdaaal {
                 size_t init_state;
                 std::vector<user_rule_t<W,C>> trace;
                 std::vector<size_t> initial_path, final_path;
-                std::tie(init_state, trace, _initial_abstract_stack, _final_abstract_stack, initial_path, final_path) = Solver::get_rule_trace_and_paths(_instance);
+                std::tie(init_state, trace, _initial_abstract_stack, _final_abstract_stack, initial_path, final_path) = Solver::get_rule_trace_and_paths<Trace_Type::Any, use_dual>(_instance);
                 assert(init_state != std::numeric_limits<size_t>::max()); // Assume that a trace exists (otherwise don't call this function!)
 
                 auto build_nfa_path = [](const automaton_t& automaton, const std::vector<size_t>& path) -> std::vector<const nfa_state_t*> {
@@ -448,7 +449,7 @@ namespace pdaaal {
         using refinement_t = typename Reconstruction::refinement_t;
         using header_refinement_t = typename Reconstruction::header_refinement_t;
     public:
-        template<bool use_pre_star=false>
+        template<bool use_pre_star=false, bool use_dual_star=false>
         std::optional<concrete_trace_t> cegar_solve(Factory&& factory, const NFA<label_t>& initial_headers, const NFA<label_t>& final_headers) {
             while(true) {
                 auto instance = factory.compile(initial_headers, final_headers);
@@ -456,6 +457,8 @@ namespace pdaaal {
                 bool result;
                 if constexpr (use_pre_star) {
                     result = Solver::pre_star_accepts(instance);
+                } else if constexpr (use_dual_star) {
+                    result = Solver::dual_search_accepts(instance);
                 } else {
                     result = Solver::post_star_accepts(instance);
                 }
@@ -465,7 +468,7 @@ namespace pdaaal {
 
                 Reconstruction reconstruction(factory, instance, initial_headers, final_headers);
 
-                auto res = reconstruction.reconstruct_trace();
+                auto res = reconstruction.template reconstruct_trace<use_dual_star>();
 
                 if (std::holds_alternative<concrete_trace_t>(res)) {
                     return std::get<concrete_trace_t>(res);

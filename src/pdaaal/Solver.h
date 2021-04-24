@@ -562,12 +562,15 @@ namespace pdaaal {
             trace1.insert(trace1.end(), trace2.begin() + 1, trace2.end());
             return trace1;
         }
-        template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename C, typename A>
+        template <Trace_Type trace_type = Trace_Type::Any, bool use_dual=false, typename T, typename W, typename C, typename A>
         static auto get_rule_trace_and_paths(const AbstractionSolverInstance<T,W,C,A>& instance) {
             static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
             if constexpr (trace_type == Trace_Type::Shortest) {
                 auto [paths, stack, weight] = instance.template find_path<trace_type, true>();
                 return std::make_pair(_get_rule_trace_and_paths(instance.automaton(), paths, stack), weight);
+            } else if constexpr(use_dual) {
+                    auto [paths, stack] = instance.template find_path<trace_type, true>();
+                    return _get_rule_trace_and_paths(instance.initial_automaton(), instance.final_automaton(), paths, stack);
             } else {
                 auto [paths, stack] = instance.template find_path<trace_type, true>();
                 return _get_rule_trace_and_paths(instance.automaton(), paths, stack);
@@ -1168,6 +1171,121 @@ namespace pdaaal {
                 return std::make_tuple(paths[0].first, trace, stack, start_stack, goal_path, start_path);
             }
         }
+
+        /**
+         * For dual search. Refactor some more later... TODO
+         */
+        template <typename W, typename C, typename A>
+        static std::tuple<
+                size_t, // Initial state. (State is size_t::max if no trace exists.)
+                std::vector<user_rule_t<W,C>>, // Sequence of rules applied to the initial configuration to reach the final configuration.
+        std::vector<uint32_t>, // Initial stack
+        std::vector<uint32_t>, // Final stack
+        std::vector<size_t>, // Path in initial PAutomaton (accepting initial stack)
+        std::vector<size_t>  // Path in final PAutomaton (accepting final stack) (independent of whether pre* or post* was used)
+        > _get_rule_trace_and_paths(const PAutomaton<W,C,A>& initial_automaton, const PAutomaton<W,C,A>& final_automaton,
+                                    const std::vector<std::pair<size_t,size_t>>& paths, // The paths as retrieved from the product automaton. First number is the state in initial_automaton, second number is state in final_automaton.
+                                    const std::vector<uint32_t>& stack) {
+            using rule_t = user_rule_t<W,C>;
+
+            if (paths.empty()) {
+                return std::make_tuple(std::numeric_limits<size_t>::max(), std::vector<rule_t>(), std::vector<uint32_t>(), std::vector<uint32_t>(), std::vector<size_t>(), std::vector<size_t>());
+            }
+            assert(stack.size() + 1 == paths.size());
+            // Build up stack of edges in the PAutomaton. Each PDA rule corresponds to changing some of the top edges.
+            std::deque<std::tuple<size_t, uint32_t, size_t>> initial_edges;
+            for (size_t i = stack.size(); i > 0; --i) {
+                initial_edges.emplace_back(paths[i - 1].first, stack[i - 1], paths[i].first);
+            }
+            auto [trace, initial_stack, initial_path] = _get_trace_stack_path(initial_automaton, std::move(initial_edges));
+
+            std::deque<std::tuple<size_t, uint32_t, size_t>> final_edges;
+            for (size_t i = stack.size(); i > 0; --i) {
+                final_edges.emplace_back(paths[i - 1].second, stack[i - 1], paths[i].second);
+            }
+            auto [trace2, final_stack, final_path] = _get_trace_stack_path(final_automaton, std::move(final_edges));
+            // Concat traces
+            trace.insert(trace.end(), trace2.begin(), trace2.end());
+            return std::make_tuple(trace[0].from(), trace, initial_stack, final_stack, initial_path, final_path);
+        }
+
+        template <typename W, typename C, typename A>
+        static std::tuple<std::vector<user_rule_t<W,C>>, std::vector<uint32_t>, std::vector<size_t>>
+        _get_trace_stack_path(const PAutomaton<W,C,A>& automaton, std::deque<std::tuple<size_t, uint32_t, size_t>>&& edges) {
+            auto trace = _follow_trace_labels(automaton, edges);
+            // Get accepting path of initial stack (and the initial stack itself - for post*)
+            std::vector<uint32_t> stack; stack.reserve(edges.size());
+            std::vector<size_t> path; path.reserve(edges.size() + 1);
+            path.push_back(std::get<0>(edges.back()));
+            for (auto it = edges.crbegin(); it != edges.crend(); ++it) {
+                path.push_back(std::get<2>(*it));
+                stack.push_back(std::get<1>(*it));
+            }
+            return {trace, stack, path};
+        }
+
+        template <typename W, typename C, typename A>
+        static std::vector<user_rule_t<W,C>> _follow_trace_labels(const PAutomaton<W,C,A>& automaton, std::deque<std::tuple<size_t, uint32_t, size_t>>& edges) {
+            bool post = false;
+            std::vector<user_rule_t<W,C>> trace;
+            while (true) {
+                auto[from, label, to] = edges.back();
+                const trace_t* trace_label = automaton.get_trace_label(from, label, to);
+                if (trace_label == nullptr) break; // Done
+                edges.pop_back();
+
+                if (trace_label->is_pre_trace()) {
+                    // pre* trace
+                    const auto &[rule, labels] = automaton.pda().states()[from]._rules[trace_label->_rule_id];
+                    switch (rule._operation) {
+                        case POP:
+                            break;
+                        case SWAP:
+                            edges.emplace_back(rule._to, rule._op_label, to);
+                            break;
+                        case NOOP:
+                            edges.emplace_back(rule._to, label, to);
+                            break;
+                        case PUSH:
+                            edges.emplace_back(trace_label->_state, label, to);
+                            edges.emplace_back(rule._to, rule._op_label, trace_label->_state);
+                            break;
+                    }
+                    trace.emplace_back(from, label, rule);
+                } else if (trace_label->is_post_epsilon_trace()) {
+                    // Intermediate post* trace
+                    // Current edge is the result of merging with an epsilon edge.
+                    // Reconstruct epsilon edge and the other edge.
+                    edges.emplace_back(trace_label->_state, label, to);
+                    edges.emplace_back(from, std::numeric_limits<uint32_t>::max(), trace_label->_state);
+
+                } else { // post* trace
+                    post = true;
+                    const auto &[rule, labels] = automaton.pda().states()[trace_label->_state]._rules[trace_label->_rule_id];
+                    switch (rule._operation) {
+                        case POP:
+                        case SWAP:
+                        case NOOP:
+                            edges.emplace_back(trace_label->_state, trace_label->_label, to);
+                            break;
+                        case PUSH:
+                            auto[from2, label2, to2] = edges.back();
+                            edges.pop_back();
+                            trace_label = automaton.get_trace_label(from2, label2, to2);
+                            assert(trace_label != nullptr);
+                            edges.emplace_back(trace_label->_state, trace_label->_label, to2);
+                            break;
+                    }
+                    assert(from == rule._to);
+                    trace.emplace_back(trace_label->_state, trace_label->_label, rule);
+                }
+            }
+            if (post) {
+                std::reverse(trace.begin(), trace.end());
+            }
+            return trace;
+        }
+
     };
 }
 
