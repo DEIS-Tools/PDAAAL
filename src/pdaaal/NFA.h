@@ -75,6 +75,13 @@ namespace pdaaal {
                 else //if(!_negated)
                     return _symbols.size() == n;
             }
+
+            std::vector<state_t*> follow_epsilon() const {
+                std::vector<state_t*> next{_destination};
+                NFA<T>::follow_epsilon(next);
+                return next;
+            }
+
         };
         
         struct state_t {
@@ -184,6 +191,12 @@ namespace pdaaal {
             (*this) = other;
         }
 
+        [[nodiscard]] bool empty_accept() const {
+            assert(std::is_sorted(_initial.begin(), _initial.end()));
+            // Also assume that follow_epsilon(_initial) has been executed (e.g. in compile()).
+            return std::any_of(_initial.begin(), _initial.end(), [](const state_t* s){ return s->_accepting; });
+        }
+
         template<typename C>
         static void follow_epsilon(std::vector<C>& states)
         {
@@ -198,7 +211,7 @@ namespace pdaaal {
                     {
                         auto lb = std::lower_bound(states.begin(), states.end(), e._destination);
                         if(lb == std::end(states) || *lb != e._destination)
-                        {
+                        {   // FIXME: Vector.insert is usually slow for large vectors.
                             states.insert(lb, e._destination);
                             waiting.push_back(e._destination);
                         }
@@ -384,9 +397,9 @@ namespace pdaaal {
             out << "}\n";
         }
 
-        const std::vector<state_t*>& initial() { return _initial; }
-        const std::vector<state_t*>& accepting() { return _accepting; }
-        const std::vector<std::unique_ptr<state_t>> states() { return _states; }
+        const std::vector<state_t*>& initial() const { return _initial; }
+        const std::vector<state_t*>& accepting() const { return _accepting; }
+        const std::vector<std::unique_ptr<state_t>>& states() { return _states; }
         
     private:
         const static std::vector<state_t*> empty;

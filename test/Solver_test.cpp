@@ -38,11 +38,11 @@ BOOST_AUTO_TEST_CASE(SolverTest1)
     std::unordered_set<char> labels{'A', 'B', 'C'};
     TypedPDA<char, std::array<double, 3>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
-    pda.add_rule(0, 1, PUSH, 'B', false, 'A', w);
-    pda.add_rule(0, 0, POP , '*', false, 'B', w);
-    pda.add_rule(1, 3, SWAP, 'A', false, 'B', w);
-    pda.add_rule(2, 0, SWAP, 'B', false, 'C', w);
-    pda.add_rule(3, 2, PUSH, 'C', false, 'A', w);
+    pda.add_rule(0, 1, PUSH, 'B', 'A', w);
+    pda.add_rule(0, 0, POP , '*', 'B', w);
+    pda.add_rule(1, 3, SWAP, 'A', 'B', w);
+    pda.add_rule(2, 0, SWAP, 'B', 'C', w);
+    pda.add_rule(3, 2, PUSH, 'C', 'A', w);
 
     std::vector<char> init_stack{'A', 'A'};
     PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
@@ -61,11 +61,11 @@ BOOST_AUTO_TEST_CASE(SolverTest2)
     std::unordered_set<uint32_t> labels{2,3,4};
     TypedPDA<uint32_t, std::array<double, 3>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
-    pda.add_rule(0, 1, PUSH, 3, false, 2, w);
-    pda.add_rule(0, 0, POP , '*', false, 3, w);
-    pda.add_rule(1, 3, SWAP, 2, false, 3, w);
-    pda.add_rule(2, 0, SWAP, 3, false, 4, w);
-    pda.add_rule(3, 2, PUSH, 4, false, 2, w);
+    pda.add_rule(0, 1, PUSH, 3, 2, w);
+    pda.add_rule(0, 0, POP , '*', 3, w);
+    pda.add_rule(1, 3, SWAP, 2, 3, w);
+    pda.add_rule(2, 0, SWAP, 3, 4, w);
+    pda.add_rule(3, 2, PUSH, 4, 2, w);
 
     std::vector<uint32_t> init_stack{2, 2};
     PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
@@ -84,11 +84,11 @@ BOOST_AUTO_TEST_CASE(SolverTest3)
     std::unordered_set<char> labels{'A', 'B', 'C'};
     TypedPDA<char, std::array<double, 3>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
-    pda.add_rule(0, 1, PUSH, 'B', false, 'A', w);
-    pda.add_rule(0, 0, POP , '*', false, 'B', w);
-    pda.add_rule(1, 3, SWAP, 'A', false, 'B', w);
-    pda.add_rule(2, 0, SWAP, 'B', false, 'C', w);
-    pda.add_rule(3, 2, PUSH, 'C', false, 'A', w);
+    pda.add_rule(0, 1, PUSH, 'B', 'A', w);
+    pda.add_rule(0, 0, POP , '*', 'B', w);
+    pda.add_rule(1, 3, SWAP, 'A', 'B', w);
+    pda.add_rule(2, 0, SWAP, 'B', 'C', w);
+    pda.add_rule(3, 2, PUSH, 'C', 'A', w);
 
     std::vector<char> init_stack{'A', 'A'};
     PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
@@ -108,11 +108,11 @@ BOOST_AUTO_TEST_CASE(EarlyTerminationPostStar)
     std::unordered_set<char> labels{'A', 'B', 'C'};
     TypedPDA<char, std::array<double, 3>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
-    pda.add_rule(0, 1, PUSH, 'B', false, 'A', w);
-    pda.add_rule(0, 0, POP , '*', false, 'B', w);
-    pda.add_rule(1, 3, SWAP, 'A', false, 'B', w);
-    pda.add_rule(2, 0, SWAP, 'B', false, 'C', w);
-    pda.add_rule(3, 2, PUSH, 'C', false, 'A', w);
+    pda.add_rule(0, 1, PUSH, 'B', 'A', w);
+    pda.add_rule(0, 0, POP , '*', 'B', w);
+    pda.add_rule(1, 3, SWAP, 'A', 'B', w);
+    pda.add_rule(2, 0, SWAP, 'B', 'C', w);
+    pda.add_rule(3, 2, PUSH, 'C', 'A', w);
 
     std::vector<char> init_stack{'A', 'A'};
     PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
@@ -133,11 +133,11 @@ BOOST_AUTO_TEST_CASE(EarlyTerminationPreStar)
     std::unordered_set<char> labels{'A', 'B', 'C'};
     TypedPDA<char, std::array<double, 3>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
-    pda.add_rule(0, 1, PUSH, 'B', false, 'A', w);
-    pda.add_rule(0, 0, POP , '*', false, 'B', w);
-    pda.add_rule(1, 3, SWAP, 'A', false, 'B', w);
-    pda.add_rule(2, 0, SWAP, 'B', false, 'C', w);
-    pda.add_rule(3, 2, PUSH, 'C', false, 'A', w);
+    pda.add_rule(0, 1, PUSH, 'B', 'A', w);
+    pda.add_rule(0, 0, POP , '*', 'B', w);
+    pda.add_rule(1, 3, SWAP, 'A', 'B', w);
+    pda.add_rule(2, 0, SWAP, 'B', 'C', w);
+    pda.add_rule(3, 2, PUSH, 'C', 'A', w);
 
     std::vector<char> init_stack{'B', 'A', 'A', 'A'};
     PAutomaton automaton(pda, 1, pda.encode_pre(init_stack));
