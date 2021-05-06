@@ -28,6 +28,7 @@
 #define TPDA_H
 
 #include "PDA.h"
+#include "ptrie_interface.h"
 
 #include <vector>
 #include <queue>
@@ -36,7 +37,6 @@
 #include <set>
 #include <cassert>
 #include <iostream>
-#include <ptrie/ptrie_map.h>
 
 namespace pdaaal {
 
@@ -98,9 +98,7 @@ namespace pdaaal {
         }
 
         T get_symbol(size_t i) const {
-            T res;
-            _label_map.unpack(i, &res);
-            return res;
+            return _label_map.at(i);
         }
 
         template<typename... Args>
@@ -113,6 +111,14 @@ namespace pdaaal {
                 add_rule(r._from, r._to, r._op, r._op_label, r._pre, r._weight);
             } else {
                 add_rule(r._from, r._to, r._op, r._op_label, r._pre);
+            }
+        }
+        void add_wildcard_rule(const rule_t& r) {
+            auto lid = find_labelid(r._op, r._op_label);
+            if constexpr (is_weighted<W>) {
+                this->add_untyped_rule(r._from, r._to, r._op, lid, r._weight, true, std::vector<uint32_t>());
+            } else {
+                this->add_untyped_rule(r._from, r._to, r._op, lid, true, std::vector<uint32_t>());
             }
         }
 
@@ -214,7 +220,7 @@ namespace pdaaal {
             add_rule(from, to, op, label, false, _pre, weight);
         }
 
-        ptrie::set_stable<T> _label_map;
+        utils::ptrie_set<T> _label_map;
 
     };
 }

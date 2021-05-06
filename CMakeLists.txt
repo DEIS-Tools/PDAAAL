@@ -19,6 +19,7 @@ option(PDAAAL_GetDependencies "Fetch external dependencies from web." ON)
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wpedantic -fPIC")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2 -DNDEBUG -Wall -Wpedantic -fPIC")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lstdc++ -lm")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -37,8 +38,8 @@ if (PDAAAL_GetDependencies)
         include_directories(${PTRIE_INSTALL_DIR})
     else()
         ExternalProject_add(ptrie-ext
-                URL https://github.com/petergjoel/ptrie/archive/v1.1.0.zip
-                URL_HASH SHA512=092a8f50ca21d1199b19a10c4e0273c93a717a9f6491998a16bf21d21d37e6537ffd8a06ac41a2b623241da6036546d44b754567441944565e2a16646378cf29
+                URL https://github.com/MortenSchou/ptrie/archive/refs/tags/v1.1.2beta.zip
+                URL_HASH SHA512=7dbfd54839509187d27e2ddea34c253ac1f26712012c29eca0d96b9f7bcf9844bdc3b40955aa98e391344745b734aa2f28cf115572b4b0ab2873582b32dfe228
                 CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EXTERNAL_INSTALL_LOCATION} -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
                 )
         file(MAKE_DIRECTORY ${EXTERNAL_INSTALL_LOCATION}/include)
@@ -69,4 +70,6 @@ if(BUILD_TESTING AND PDAAAL_BuildTests)
     add_test(NAME Reducer           COMMAND Reducer)
     add_test(NAME PDAFactory        COMMAND PDAFactory)
     add_test(NAME fut_set           COMMAND fut_set)
+    add_test(NAME NFA               COMMAND NFA)
+    add_test(NAME ParsingPDAFactory COMMAND ParsingPDAFactory)
 endif()

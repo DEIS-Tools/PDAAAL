@@ -105,7 +105,7 @@ namespace pdaaal {
         return !empty();
     }
 
-    bool labels_t::noop_pre_filter(const std::set<uint32_t>& usefull) {
+    bool labels_t::noop_pre_filter(const std::set<uint32_t>& usefull) { // TODO: Remove this. post* (and to some extent pre*) is optimized to handle wildcard labels well. This ruins that.
         if (_wildcard) {
             _labels.insert(_labels.begin(), usefull.begin(), usefull.end());
             _wildcard = false;
