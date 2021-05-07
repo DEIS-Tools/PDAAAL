@@ -78,7 +78,7 @@ namespace pdaaal {
         explicit TypedPDA(TypedPDA<T,W,C,OtherContainer>&& other_pda)
         : PDA<W,C,Container>(std::move(other_pda)), _label_map(other_pda.move_label_map()) {}
 
-        explicit TypedPDA(const std::unordered_set<T> &all_labels) {
+        explicit TypedPDA(const std::unordered_set<T>& all_labels) {
             std::set<T> sorted(all_labels.begin(), all_labels.end());
             for (auto &l : sorted) {
 #ifndef NDEBUG

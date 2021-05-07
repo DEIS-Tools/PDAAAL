@@ -121,7 +121,7 @@ namespace pdaaal {
     };
 
     template <typename W = void, typename C = std::less<W>, typename A = add<W>>
-    class ParsingPDAFactory : public PDAFactory<std::string, W, C, A> {
+    class ParsingPDAFactory : public DFS_PDAFactory<std::string, W, C, A> {
     public:
         static ParsingPDAFactory<W,C,A> create(std::istream& input) {
             auto all_labels = PDAParser::parse_all_labels(input);
@@ -129,10 +129,10 @@ namespace pdaaal {
         }
     private:
         ParsingPDAFactory(std::istream& input, std::unordered_set<std::string>&& all_labels)
-                : PDAFactory<std::string, W, C, A>(std::move(all_labels), "."), _input(input) {
+        : DFS_PDAFactory<std::string, W, C, A>(std::move(all_labels), "."), _input(input) {
             initialize();
         };
-        using rule_t = typename PDAFactory<std::string, W, C, A>::rule_t;
+        using rule_t = typename DFS_PDAFactory<std::string, W, C, A>::rule_t;
     protected:
         const std::vector<size_t>& initial() override {
             return _initial;
