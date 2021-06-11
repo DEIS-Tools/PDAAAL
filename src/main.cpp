@@ -1,0 +1,70 @@
+/* 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/*
+ *  Copyright Morten K. Schou
+ */
+
+/* 
+ * File:   main.cpp
+ * Author: Morten K. Schou <morten@h-schou.dk>
+ *
+ * Created on 11-06-2021.
+ */
+
+
+#include <boost/program_options.hpp>
+#include <iostream>
+
+#include "git_hash.h" // Generated at build time. Defines PDAAAL_GIT_HASH and PDAAAL_GIT_HASH_STR
+
+namespace po = boost::program_options;
+//using namespace pdaaal;
+
+int main(int argc, const char** argv) {
+    po::options_description opts;
+    opts.add_options()
+            ("help,h", "produce help message")
+            ("version,v", "print version");
+
+    po::options_description main_options("Options");
+    bool my_option = false;
+    main_options.add_options()
+            ("option", po::bool_switch(&my_option), "my_option")
+            ;
+
+    opts.add(main_options);
+
+    po::variables_map vm;
+    po::store(po::parse_command_line(argc, argv, opts), vm);
+    po::notify(vm);
+
+    if (vm.count("help")) {
+        std::cout << opts << std::endl;
+        return 1;
+    }
+    if (vm.count("version")) {
+        std::cout << "PDAAAL v0.3.0 - git hash: " PDAAAL_GIT_HASH_STR << std::endl
+                  << "Copyright (C) 2021  Morten K. Schou, Peter G. Jensen, Dan Kristiansen, Bernhard C. Schrenk" << std::endl
+                  << "License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>." << std::endl
+                  << "This is free software: you are free to change and redistribute it." << std::endl
+                  << "There is NO WARRANTY, to the extent permitted by law." << std::endl;
+        return 1;
+    }
+
+    // TODO: Do stuff
+
+    return 0;
+}
