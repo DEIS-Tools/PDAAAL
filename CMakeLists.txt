@@ -44,6 +44,13 @@ if (PDAAAL_GetDependencies)
                 )
         file(MAKE_DIRECTORY ${EXTERNAL_INSTALL_LOCATION}/include)
     endif()
+
+    file(DOWNLOAD
+            https://github.com/nlohmann/json/releases/download/v3.9.1/json.hpp
+            ${EXTERNAL_INSTALL_LOCATION}/include/json.hpp
+            EXPECTED_HASH SHA256=7804b38146921d03374549c9e2a5e3acda097814c43caf2b96a0278e58df26e0
+    )
+
     # we can now include external libraries
     include_directories(${EXTERNAL_INSTALL_LOCATION}/include)
     link_directories(${EXTERNAL_INSTALL_LOCATION}/lib)
