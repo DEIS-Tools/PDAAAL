@@ -28,7 +28,6 @@
 
 #include <pdaaal/parsing/Parsing.h>
 #include <pdaaal/parsing/JsonParser.h>
-#include <pdaaal/ParsingPDAFactory.h>
 
 namespace pdaaal {
 
@@ -42,9 +41,7 @@ namespace pdaaal {
 
     auto parse_stream(std::istream& stream, const parsing_options_t& parse_opts) {
         // TODO: More parsing options...
-//        auto factory = ParsingPDAFactory<>::create(stream);
         return JsonParser::parse(stream, parse_opts.warnings);
-//        return factory;
     }
 
     auto parse_file(const std::string& input_file, const parsing_options_t& parse_opts) {
@@ -74,7 +71,7 @@ namespace pdaaal {
         }
     }
 
-    size_t Parsing::parse(bool no_warnings) {
+    StateTypedPDA<std::string,std::string> Parsing::parse(bool no_warnings) {
         auto format = get_format(input_format);
         std::stringstream dummy;
         parsing_options_t parse_opts(no_warnings ? dummy : std::cerr, format);

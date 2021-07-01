@@ -38,9 +38,6 @@ namespace pdaaal {
             case PdaaalSAXHandler::keys::pda:
                 s << "pda";
                 break;
-            case PdaaalSAXHandler::keys::labels:
-                s << "labels";
-                break;
             case PdaaalSAXHandler::keys::states:
                 s << "states";
                 break;
@@ -77,9 +74,6 @@ namespace pdaaal {
             case PdaaalSAXHandler::context::context_type::pda:
                 s << "pda";
                 break;
-            case PdaaalSAXHandler::context::context_type::label_array:
-                s << "labels";
-                break;
             case PdaaalSAXHandler::context::context_type::state_array:
                 s << "states array";
                 break;
@@ -108,8 +102,6 @@ namespace pdaaal {
             case PdaaalSAXHandler::context::context_type::pda:
                 switch (flag) {
                     case PdaaalSAXHandler::context::key_flag::FLAG_1:
-                        return PdaaalSAXHandler::keys::labels;
-                    case PdaaalSAXHandler::context::key_flag::FLAG_2:
                         return PdaaalSAXHandler::keys::states;
                     default:
                         break;
@@ -193,24 +185,10 @@ namespace pdaaal {
         return true;
     }
 
-    bool PdaaalSAXHandler::add_label(const std::string& label) {
-        if (!labels.emplace(label).second) {
-            errors << "error: Duplicate label \"" << label << "\" in labels array." << std::endl;
-            return false;
-        }
-        return true;
-    }
-
     bool PdaaalSAXHandler::string(PdaaalSAXHandler::string_t &value) {
         if (context_stack.empty()) {
             errors << "error: Unexpected string value: \"" << value << "\" outside of object." << std::endl;
             return false;
-        }
-        switch (context_stack.top().type) {
-            case context::context_type::label_array:
-                return add_label(value);
-            default:
-                break;
         }
         switch (last_key) {
             case keys::to:
@@ -218,21 +196,20 @@ namespace pdaaal {
                     errors << "error: Rule \"to\" state was string: " << value << ", but numeric state indices are used." << std::endl;
                     return false;
                 }
-                // TODO: use state_name_mapping ... value
-                //current_to_state = value;
+                current_to_state = build_pda.insert_state(value);
                 break;
             case keys::pop:
                 assert(value.empty()); // TODO: Should this be error?
                 current_op = op_t::POP;
-                current_op_label = value;
+                current_op_label = std::numeric_limits<uint32_t>::max();
                 break;
             case keys::swap:
                 current_op = op_t::SWAP;
-                current_op_label = value;
+                current_op_label = build_pda.insert_label(value);
                 break;
             case keys::push:
                 current_op = op_t::PUSH;
-                current_op_label = value;
+                current_op_label = build_pda.insert_label(value);
                 break;
             case keys::unknown:
                 break;
@@ -325,21 +302,25 @@ namespace pdaaal {
                 }
                 break;
             case context::context_type::pda:
-                if (key == "labels") {
-                    if (!handle_key<context::context_type::pda,context::FLAG_1,keys::labels>()) return false;
-                } else if (key == "states") {
-                    if (!handle_key<context::context_type::pda,context::FLAG_2,keys::states>()) return false;
+                if (key == "states") {
+                    if (!handle_key<context::context_type::pda,context::FLAG_1,keys::states>()) return false;
                 } else { // "additionalProperties": true
                     last_key = keys::unknown;
                 }
                 break;
             case context::context_type::states_object:
                 last_key = keys::state_name;
-                current_state_name = key;
+                current_from_state = build_pda.insert_state(key);
                 break;
             case context::context_type::state:
                 last_key = keys::from_label;
-                current_from_label = key;
+                if (key == "*") {
+                    current_pre = std::vector<uint32_t>{};
+                    current_negated = true;
+                } else {
+                    current_pre = std::vector<uint32_t>{build_pda.insert_label(key)};
+                    current_negated = false;
+                }
                 break;
             case context::context_type::rule:
                 if (key == "to") {
@@ -392,11 +373,7 @@ namespace pdaaal {
                 }
                 break;
             case context::context_type::rule:
-                if (build_pda) {
-                    build_pda->add_rule(current_from_state, current_to_state, current_op, current_op_label, current_from_label);
-                } else {
-                    // TODO: Store rule for later.
-                }
+                build_pda.add_rule_detail(current_from_state, {current_to_state, current_op, current_op_label}, current_negated, current_pre);
                 break;
             default:
                 break;
@@ -411,9 +388,6 @@ namespace pdaaal {
             return false;
         }
         switch (last_key) {
-            case keys::labels:
-                context_stack.push(label_array);
-                break;
             case keys::states:
                 numeric_states = true;
                 context_stack.push(state_array);
@@ -435,13 +409,6 @@ namespace pdaaal {
         if (context_stack.empty()) {
             errors << "error: Unexpected end of array." << std::endl;
             return false;
-        }
-        switch (context_stack.top().type) {
-            case context::context_type::label_array:
-                build_pda.emplace(labels);
-                break;
-            default:
-                break;
         }
         context_stack.pop();
         return true;

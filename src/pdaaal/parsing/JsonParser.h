@@ -30,6 +30,7 @@
 #include <json.hpp>
 
 #include <pdaaal/TypedPDA.h>
+#include <pdaaal/StateTypedPDA.h>
 
 #include <iostream>
 #include <fstream>
@@ -44,12 +45,14 @@ namespace pdaaal {
 
     class PdaaalSAXHandler {
     private:
-        enum class keys : uint32_t { none, unknown, pda, labels, states, state_name, from_label, to, pop, swap, push };
+        enum class keys : uint32_t { none, unknown, pda, states, state_name, from_label, to, pop, swap, push };
         friend constexpr std::ostream& operator<<( std::ostream&, keys key );
 
+        using build_pda_t = StateTypedPDA<std::string,std::string, weight<void>, fut::type::hash>;
+        using pda_t = StateTypedPDA<std::string,std::string>;
     public:
         struct context {
-            enum class context_type : uint32_t { unknown, initial, pda, label_array, state_array, states_object, state, rule_array, rule };
+            enum class context_type : uint32_t { unknown, initial, pda, state_array, states_object, state, rule_array, rule };
             friend constexpr std::ostream& operator<<(std::ostream&, context_type type );
             enum key_flag : uint32_t {
                 NO_FLAGS = 0,
@@ -79,8 +82,7 @@ namespace pdaaal {
     private:
         constexpr static context unknown_context = {context::context_type::unknown, context::NO_FLAGS };
         constexpr static context initial_context = {context::context_type::initial, context::REQUIRES_1 };
-        constexpr static context pda_context = {context::context_type::pda, context::REQUIRES_2 };
-        constexpr static context label_array = {context::context_type::label_array, context::NO_FLAGS };
+        constexpr static context pda_context = {context::context_type::pda, context::REQUIRES_1 };
         constexpr static context state_array = {context::context_type::state_array, context::NO_FLAGS };
         constexpr static context states_object = {context::context_type::states_object, context::NO_FLAGS };
         constexpr static context state_context = {context::context_type::state, context::NO_FLAGS };
@@ -91,17 +93,16 @@ namespace pdaaal {
         keys last_key = keys::none;
         std::ostream& errors;
 
-        std::optional<TypedPDA<std::string>> build_pda;
+        build_pda_t build_pda;
 
         std::unordered_set<std::string> labels;
         bool numeric_states = false;
-        std::string current_state_name;
         size_t current_from_state = 0;
         size_t current_to_state = 0;
         op_t current_op = op_t::POP;
-        std::string current_from_label, current_op_label;
-
-        bool add_label(const std::string& label);
+        std::vector<uint32_t> current_pre;
+        bool current_negated;
+        uint32_t current_op_label;
 
         template <context::context_type type, context::key_flag flag, keys key, keys... alternatives> bool handle_key();
     public:
@@ -113,8 +114,8 @@ namespace pdaaal {
 
         explicit PdaaalSAXHandler(std::ostream& errors = std::cerr) : errors(errors) {};
 
-        size_t get_stuff() {
-            return build_pda->number_of_labels();
+        pda_t get_pda() {
+            return pda_t(std::move(build_pda));
         }
 
         bool null();
@@ -140,7 +141,7 @@ namespace pdaaal {
             if (!json::sax_parse(stream, &my_sax, format)) {
                 throw std::runtime_error(es.str());
             }
-            return my_sax.get_stuff();
+            return my_sax.get_pda();
         }
     };
 }

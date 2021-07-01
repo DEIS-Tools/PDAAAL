@@ -72,8 +72,8 @@ int main(int argc, const char** argv) {
 
     if (silent) { no_parser_warnings = true; }
 
-    auto input = parsing.parse(no_parser_warnings);
-    std::cout << input;
+    auto pda = parsing.parse(no_parser_warnings);
+    std::cout << "States: " << pda.states().size() << ". Labels: " << pda.number_of_labels() << std::endl;
     // TODO: Do stuff
 
     return 0;

@@ -32,7 +32,7 @@
 #include <fstream>
 
 #include <pdaaal/utils/stopwatch.h>
-#include <pdaaal/ParsingPDAFactory.h>
+#include <pdaaal/StateTypedPDA.h>
 
 namespace po = boost::program_options;
 
@@ -48,7 +48,7 @@ namespace pdaaal {
         }
         [[nodiscard]] const po::options_description& options() const { return input_options; }
         [[nodiscard]] double duration() const { return parsing_stopwatch.duration(); }
-        size_t parse(bool no_warnings = false);
+        StateTypedPDA<std::string,std::string> parse(bool no_warnings = false);
 
     private:
         po::options_description input_options;

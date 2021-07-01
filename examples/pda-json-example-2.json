@@ -1,6 +1,5 @@
 {
   "pda": {
-    "labels": ["A", "B", "C"],
     "states": [
       {
 	    "A": [{"to": 2, "swap": "B"},
