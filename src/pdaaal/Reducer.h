@@ -62,8 +62,8 @@ namespace pdaaal {
         };
 
     public:
-        template <typename W, typename C>
-        static std::pair<size_t, size_t> reduce(PDA<W,C> &pda, int aggresivity, size_t initial_id, size_t terminal_id) {
+        template <typename W>
+        static std::pair<size_t, size_t> reduce(PDA<W> &pda, int aggresivity, size_t initial_id, size_t terminal_id) {
             size_t cnt = Reducer::size(pda, initial_id, terminal_id);
             if (aggresivity == 0)
                 return std::make_pair(cnt, cnt);
@@ -167,8 +167,8 @@ namespace pdaaal {
             return std::make_pair(cnt, after_cnt);
         }
 
-        template <typename W, typename C>
-        static void forwards_prune(PDA<W,C> &pda, size_t initial_id) {
+        template <typename W>
+        static void forwards_prune(PDA<W> &pda, size_t initial_id) {
             std::queue<size_t> waiting;
             std::vector<bool> seen(pda.states().size());
             waiting.push(initial_id);
@@ -190,8 +190,8 @@ namespace pdaaal {
             }
         }
 
-        template <typename W, typename C>
-        static void backwards_prune(PDA<W,C> &pda, size_t terminal) {
+        template <typename W>
+        static void backwards_prune(PDA<W> &pda, size_t terminal) {
             std::queue<size_t> waiting;
             std::vector<bool> seen(pda.states().size());
             waiting.push(terminal);
@@ -214,8 +214,8 @@ namespace pdaaal {
             }
         }
 
-        template <typename W, typename C>
-        static void target_tos_prune(PDA<W,C> &pda, size_t terminal_id) {
+        template <typename W>
+        static void target_tos_prune(PDA<W> &pda, size_t terminal_id) {
             std::queue<size_t> waiting;
             std::vector<bool> in_waiting(pda.states().size());
             for (size_t t = 0; t < pda.states().size(); ++t) {
@@ -279,8 +279,8 @@ namespace pdaaal {
         }
 
     private:
-        template <typename W, typename C>
-        static size_t size(const PDA<W,C> &pda, size_t initial_id, size_t terminal_id)
+        template <typename W>
+        static size_t size(const PDA<W> &pda, size_t initial_id, size_t terminal_id)
         {
             size_t cnt = 1;
             // lets start by the initial transitions

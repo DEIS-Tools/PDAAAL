@@ -78,17 +78,17 @@ namespace pdaaal {
         }
     };
 
-    template<typename W> using trace_ptr = std::conditional_t<is_weighted<W>, std::pair<const trace_t*, W>, const trace_t*>;
+    template<typename W> using trace_ptr = std::conditional_t<is_weighted<W>, std::pair<const trace_t*, typename W::type>, const trace_t*>;
     template<typename W> inline constexpr trace_ptr<W> default_trace_ptr() {
         if constexpr (is_weighted<W>) {
-            return std::make_pair<const trace_t*, W>(nullptr, zero<W>()());
+            return std::make_pair<const trace_t*, typename W::type>(nullptr, W::zero());
         } else {
             return nullptr;
         }
     }
     template<typename W> inline constexpr trace_ptr<W> trace_ptr_from(const trace_t *trace) {
         if constexpr (is_weighted<W>) {
-            return std::make_pair(trace, zero<W>()());
+            return std::make_pair(trace, W::zero());
         } else {
             return trace;
         }
@@ -102,7 +102,7 @@ namespace pdaaal {
     }
 
 
-    template <typename W = void, typename C = std::less<W>, typename adder = add<W>>
+    template <typename W = weight<void>>
     class PAutomaton {
     public:
         static constexpr auto epsilon = std::numeric_limits<uint32_t>::max();
@@ -119,7 +119,7 @@ namespace pdaaal {
 
     public:
         // Accept one control state with given stack.
-        PAutomaton(const PDA<W,C> &pda, size_t initial_state, const std::vector<uint32_t> &initial_stack) : _pda(pda) {
+        PAutomaton(const PDA<W> &pda, size_t initial_state, const std::vector<uint32_t> &initial_stack) : _pda(pda) {
             const size_t size = pda.states().size();
             const size_t accepting = initial_stack.empty() ? initial_state : size;
             for (size_t i = 0; i < size; ++i) {
@@ -135,7 +135,7 @@ namespace pdaaal {
 
         // Construct a PAutomaton that accepts a configuration <p,w> iff states contains p and nfa accepts w.
         template<typename T>
-        PAutomaton(const TypedPDA<T,W,C>& pda, const NFA<T>& nfa, const std::vector<size_t>& states)
+        PAutomaton(const TypedPDA<T,W>& pda, const NFA<T>& nfa, const std::vector<size_t>& states)
         : PAutomaton(pda, states, nfa.empty_accept()) {
             using nfastate_t = typename NFA<T>::state_t;
             std::unordered_map<const nfastate_t*, size_t> nfastate_to_id;
@@ -174,7 +174,7 @@ namespace pdaaal {
             }
         }
 
-        PAutomaton(const PDA<W,C>& pda, const std::vector<size_t>& special_initial_states, bool special_accepting = true) : _pda(pda) {
+        PAutomaton(const PDA<W>& pda, const std::vector<size_t>& special_initial_states, bool special_accepting = true) : _pda(pda) {
             assert(std::is_sorted(special_initial_states.begin(), special_initial_states.end()));
             const size_t size = pda.states().size();
             size_t j = 0;
@@ -207,7 +207,7 @@ namespace pdaaal {
 
         [[nodiscard]] const std::vector<std::unique_ptr<state_t>> &states() const { return _states; }
         
-        [[nodiscard]] const PDA<W,C> &pda() const { return _pda; }
+        [[nodiscard]] const PDA<W> &pda() const { return _pda; }
 
         void to_dot(std::ostream &out, const std::function<void(std::ostream &, const uint32_t&)> &printer = [](auto &s, auto &l) {
                         s << l;
@@ -280,23 +280,23 @@ namespace pdaaal {
 
         template<Trace_Type trace_type = Trace_Type::Any>
         [[nodiscard]] typename std::conditional_t<trace_type == Trace_Type::Shortest && is_weighted<W>,
-                std::pair<std::vector<size_t>, W>, std::vector<size_t>>
+                std::pair<std::vector<size_t>, typename W::type>, std::vector<size_t>>
         accept_path(size_t state, const std::vector<uint32_t> &stack) const {
             if constexpr (trace_type == Trace_Type::Shortest && is_weighted<W>) { // TODO: Consider unweighted shortest path.
                 if (stack.empty()) {
                     if (_states[state]->_accepting) {
-                        return std::make_pair(std::vector<size_t>{state}, zero<W>()());
+                        return std::make_pair(std::vector<size_t>{state}, W::zero());
                     } else {
-                        return std::make_pair(std::vector<size_t>(), max<W>()());
+                        return std::make_pair(std::vector<size_t>(), W::max());
                     }
                 }
                 // Dijkstra.
                 struct queue_elem {
-                    W weight;
+                    typename W::type weight;
                     size_t state;
                     size_t stack_index;
                     const queue_elem *back_pointer;
-                    queue_elem(W weight, size_t state, size_t stack_index, const queue_elem *back_pointer = nullptr)
+                    queue_elem(typename W::type weight, size_t state, size_t stack_index, const queue_elem *back_pointer = nullptr)
                     : weight(weight), state(state), stack_index(stack_index), back_pointer(back_pointer) {};
 
                     bool operator<(const queue_elem &other) const {
@@ -314,16 +314,14 @@ namespace pdaaal {
                 };
                 struct queue_elem_comp {
                     bool operator()(const queue_elem &lhs, const queue_elem &rhs){
-                        C less;
-                        return less(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
+                        return W::less(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
                     }
                 };
                 queue_elem_comp less;
-                adder add;
                 std::priority_queue<queue_elem, std::vector<queue_elem>, queue_elem_comp> search_queue;
                 std::vector<queue_elem> visited;
                 std::vector<std::unique_ptr<queue_elem>> pointers;
-                search_queue.emplace(zero<W>()(), state, 0);
+                search_queue.emplace(W::zero(), state, 0);
                 while(!search_queue.empty()) {
                     auto current = search_queue.top();
                     search_queue.pop();
@@ -352,12 +350,12 @@ namespace pdaaal {
                         auto label = labels.get(stack[current.stack_index]);
                         if (label != nullptr) {
                             if (current.stack_index + 1 < stack.size() || _states[to]->_accepting) {
-                                search_queue.emplace(add(current.weight, label->second), to, current.stack_index + 1, pointer);
+                                search_queue.emplace(W::add(current.weight, label->second), to, current.stack_index + 1, pointer);
                             }
                         }
                     }
                 }
-                return std::make_pair(std::vector<size_t>(), max<W>()());
+                return std::make_pair(std::vector<size_t>(), W::max());
             } else {
                 if (stack.empty()) {
                     if (_states[state]->_accepting) {
@@ -503,7 +501,7 @@ namespace pdaaal {
 
         std::vector<std::unique_ptr<trace_t>> _trace_info;
 
-        const PDA<W,C> &_pda;
+        const PDA<W> &_pda;
     };
 
 

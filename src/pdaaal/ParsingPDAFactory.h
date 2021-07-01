@@ -120,19 +120,19 @@ namespace pdaaal {
         }
     };
 
-    template <typename W = void, typename C = std::less<W>, typename A = add<W>>
-    class ParsingPDAFactory : public DFS_PDAFactory<std::string, W, C, A> {
+    template <typename W = weight<void>>
+    class ParsingPDAFactory : public DFS_PDAFactory<std::string, W> {
     public:
-        static ParsingPDAFactory<W,C,A> create(std::istream& input) {
+        static ParsingPDAFactory<W> create(std::istream& input) {
             auto all_labels = PDAParser::parse_all_labels(input);
-            return ParsingPDAFactory<W,C,A>(input, std::move(all_labels));
+            return ParsingPDAFactory<W>(input, std::move(all_labels));
         }
     private:
         ParsingPDAFactory(std::istream& input, std::unordered_set<std::string>&& all_labels)
-        : DFS_PDAFactory<std::string, W, C, A>(std::move(all_labels), "."), _input(input) {
+        : DFS_PDAFactory<std::string, W>(std::move(all_labels), "."), _input(input) {
             initialize();
         };
-        using rule_t = typename DFS_PDAFactory<std::string, W, C, A>::rule_t;
+        using rule_t = typename DFS_PDAFactory<std::string, W>::rule_t;
     protected:
         const std::vector<size_t>& initial() override {
             return _initial;
@@ -169,19 +169,19 @@ namespace pdaaal {
     };
 
 
-    template <typename W, typename C, typename A> class ParsingCegarPdaReconstruction;
+    template <typename W> class ParsingCegarPdaReconstruction;
 
-    template <typename W = void, typename C = std::less<W>, typename A = add<W>>
-    class ParsingCegarPdaFactory : public CegarPdaFactory<std::string, W, C, A> {
-        friend class ParsingCegarPdaReconstruction<W,C,A>;
+    template <typename W = weight<void>>
+    class ParsingCegarPdaFactory : public CegarPdaFactory<std::string, W> {
+        friend class ParsingCegarPdaReconstruction<W>;
     public:
         using label_t = std::string;
     private:
         using abstract_label_t = int;
         using state_t = size_t;
-        using rule_t = typename TypedPDA<std::string, W, C>::rule_t; // For concrete rules we just use this one.
+        using rule_t = typename TypedPDA<std::string, W>::rule_t; // For concrete rules we just use this one.
         using abstract_state_t = state_t;
-        using parent_t = CegarPdaFactory<label_t, W, C, A>;
+        using parent_t = CegarPdaFactory<label_t, W>;
         using abstract_rule_t = typename parent_t::abstract_rule_t;
         using solver_instance_t = typename parent_t::solver_instance_t;
     public:
@@ -219,20 +219,20 @@ namespace pdaaal {
         };
 
     public:
-        void refine(typename ParsingCegarPdaReconstruction<W,C,A>::refinement_t&& refinement) {
+        void refine(typename ParsingCegarPdaReconstruction<W>::refinement_t&& refinement) {
             assert(refinement.index() == 0);
             _state_abstraction.refine(std::get<0>(refinement).first);
         }
-        void refine(typename ParsingCegarPdaReconstruction<W,C,A>::header_refinement_t&& refinement) {
+        void refine(typename ParsingCegarPdaReconstruction<W>::header_refinement_t&& refinement) {
             // No refinement of states.
         }
 
-        static ParsingCegarPdaFactory<W,C,A> create(std::istream& input,
+        static ParsingCegarPdaFactory<W> create(std::istream& input,
             std::function<abstract_label_t(const label_t&)>&& label_abstraction_fn,
             std::function<abstract_state_t(const state_t&)>&& state_abstraction_fn)
         {
             auto all_labels = PDAParser::parse_all_labels(input);
-            return ParsingCegarPdaFactory<W,C,A>(input, std::move(all_labels), std::move(label_abstraction_fn), std::move(state_abstraction_fn));
+            return ParsingCegarPdaFactory<W>(input, std::move(all_labels), std::move(label_abstraction_fn), std::move(state_abstraction_fn));
         }
 
     protected:
@@ -301,34 +301,34 @@ namespace pdaaal {
     };
 
 
-    template <typename W = void, typename C = std::less<W>, typename A = add<W>>
+    template <typename W = weight<void>>
     class ParsingCegarPdaReconstruction : public CegarPdaReconstruction<
             std::string, // label_t
             size_t, // state_t
             const std::vector< // configuration_range_t        In this case configuration_t consists of:
-                    std::pair<typename TypedPDA<std::string, W, C>::rule_t, // Our concrete rule_t
+                    std::pair<typename TypedPDA<std::string, W>::rule_t, // Our concrete rule_t
                               Header<std::string>> // header_t
             >&,
             std::vector<typename TypedPDA<std::string>::tracestate_t>, // concrete_trace_t
-            W, C, A> {
-        friend class ParsingCegarPdaFactory<W,C,A>;
+            W> {
+        friend class ParsingCegarPdaFactory<W>;
     public:
         using label_t = std::string;
         using concrete_trace_t = std::vector<typename TypedPDA<label_t>::tracestate_t>;
     private:
         using state_t = size_t;
         using header_t = Header<label_t>;
-        using rule_t = typename TypedPDA<std::string, W, C>::rule_t; // For concrete rules we just use this one.
+        using rule_t = typename TypedPDA<std::string, W>::rule_t; // For concrete rules we just use this one.
         using configuration_t = std::pair<rule_t, header_t>;
         using configuration_range_t = const std::vector<configuration_t>&;
-        using parent_t = CegarPdaReconstruction<label_t, state_t, configuration_range_t, concrete_trace_t, W, C, A>;
+        using parent_t = CegarPdaReconstruction<label_t, state_t, configuration_range_t, concrete_trace_t, W>;
         using abstract_rule_t = typename parent_t::abstract_rule_t;
         using solver_instance_t = typename parent_t::solver_instance_t;
     public:
         using refinement_t = typename parent_t::refinement_t;
         using header_refinement_t = typename parent_t::header_refinement_t;
 
-        explicit ParsingCegarPdaReconstruction(const ParsingCegarPdaFactory<W,C,A>& factory, const solver_instance_t& instance,
+        explicit ParsingCegarPdaReconstruction(const ParsingCegarPdaFactory<W>& factory, const solver_instance_t& instance,
                                                const NFA<label_t>& initial_headers, const NFA<label_t>& final_headers)
         : parent_t(instance, initial_headers, final_headers),
           _state_abstraction(factory._state_abstraction), _rules(factory._concrete_pda._rules), _initial_states(factory._concrete_pda._initial) {};

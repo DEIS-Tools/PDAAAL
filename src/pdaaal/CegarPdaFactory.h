@@ -38,14 +38,14 @@
 namespace pdaaal {
 
     // NOTE: CEGAR construction with weights is not yet implemented.
-    template <typename label_t, typename W = void, typename C = std::less<W>, typename A = add<W>>
-    class CegarPdaFactory : public PDAFactory<label_t, AbstractionPDA<label_t,W,C,fut::type::hash>, AbstractionPDA<label_t,W,C,fut::type::vector>,
-                                       user_rule_t<W,C>, AbstractionSolverInstance<label_t,W,C,A>> {
+    template <typename label_t, typename W = weight<void>>
+    class CegarPdaFactory : public PDAFactory<label_t, AbstractionPDA<label_t,W,fut::type::hash>, AbstractionPDA<label_t,W,fut::type::vector>,
+                                       user_rule_t<W>, AbstractionSolverInstance<label_t,W>> {
     private:
-        using parent_t = PDAFactory<label_t,AbstractionPDA<label_t,W,C,fut::type::hash>, // We optimize for set insertion while building,
-                                    AbstractionPDA<label_t,W,C,fut::type::vector>,       // and then optimize for iteration when analyzing.
-                                    user_rule_t<W,C>, // FIXME: This does not yet work for weighted rules.
-                                    AbstractionSolverInstance<label_t,W,C,A>>;
+        using parent_t = PDAFactory<label_t,AbstractionPDA<label_t,W,fut::type::hash>, // We optimize for set insertion while building,
+                                    AbstractionPDA<label_t,W,fut::type::vector>,       // and then optimize for iteration when analyzing.
+                                    user_rule_t<W>, // FIXME: This does not yet work for weighted rules.
+                                    AbstractionSolverInstance<label_t,W>>;
         using builder_pda_t = typename parent_t::builder_pda_t;
     protected:
         using solver_instance_t = typename parent_t::solver_instance_t;
@@ -104,17 +104,17 @@ namespace pdaaal {
         }
     };
 
-    template <typename label_t, typename state_t, typename configuration_range_t, typename concrete_trace_t, typename W = void, typename C = std::less<W>, typename A = add<W>>
+    template <typename label_t, typename state_t, typename configuration_range_t, typename concrete_trace_t, typename W = weight<void>>
     class CegarPdaReconstruction {
     private:
         using configuration_t = typename std::remove_cv_t<std::remove_reference_t<configuration_range_t>>::value_type;
 
-        using pda_t = AbstractionPDA<label_t,W,C,fut::type::vector>;
+        using pda_t = AbstractionPDA<label_t,W,fut::type::vector>;
         using nfa_state_t = typename NFA<label_t>::state_t;
-        using automaton_t = AbstractionPAutomaton<label_t,W,C,A>;
+        using automaton_t = AbstractionPAutomaton<label_t,W>;
     public:
-        using abstract_rule_t = user_rule_t<W,C>; // FIXME: This does not yet work for weighted rules.
-        using solver_instance_t = AbstractionSolverInstance<label_t,W,C,A>;
+        using abstract_rule_t = user_rule_t<W>; // FIXME: This does not yet work for weighted rules.
+        using solver_instance_t = AbstractionSolverInstance<label_t,W>;
         using header_t = Header<label_t>;
         using state_refinement_t = Refinement<state_t>;
         using label_refinement_t = Refinement<label_t>;
@@ -136,7 +136,7 @@ namespace pdaaal {
                 assert(false); // Not yet supported.
             } else {
                 size_t init_state;
-                std::vector<user_rule_t<W,C>> trace;
+                std::vector<user_rule_t<W>> trace;
                 std::vector<size_t> initial_path, final_path;
                 std::tie(init_state, trace, _initial_abstract_stack, _final_abstract_stack, initial_path, final_path) = Solver::get_rule_trace_and_paths<Trace_Type::Any, use_dual>(_instance);
                 assert(init_state != std::numeric_limits<size_t>::max()); // Assume that a trace exists (otherwise don't call this function!)

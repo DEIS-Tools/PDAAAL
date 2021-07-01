@@ -32,8 +32,8 @@
 
 namespace pdaaal {
 
-    template <typename label_t, typename W, typename C, fut::type Container = fut::type::vector>
-    class AbstractionPDA : public PDA<W, C, Container> {
+    template <typename label_t, typename W, fut::type Container = fut::type::vector>
+    class AbstractionPDA : public PDA<W, Container> {
     public:
 
         template <typename Fn>
@@ -41,8 +41,8 @@ namespace pdaaal {
         : _label_abstraction(AbstractionMapping(std::forward<Fn>(label_abstraction_fn), all_labels.begin(), all_labels.end())) { }
 
         template<fut::type OtherContainer>
-        explicit AbstractionPDA(AbstractionPDA<label_t,W,C,OtherContainer>&& other_pda)
-        : PDA<W,C,Container>(std::move(other_pda)), _label_abstraction(other_pda.move_label_map()) { }
+        explicit AbstractionPDA(AbstractionPDA<label_t,W,OtherContainer>&& other_pda)
+        : PDA<W,Container>(std::move(other_pda)), _label_abstraction(other_pda.move_label_map()) { }
 
         explicit AbstractionPDA(RefinementMapping<label_t>&& mapping)
         : _label_abstraction(std::move(mapping)) { };
