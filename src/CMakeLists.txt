@@ -46,10 +46,10 @@ install(TARGETS pdaaal pdaaal-bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 # install(FILES ${HEADER_FILES} DESTINATION include/pdaaal)  # Maybe use this simpler line instead of the following.
-install (FILES pdaaal/vector_set.h pdaaal/fut_set.h pdaaal/NFA.h pdaaal/Weight.h pdaaal/PDA.h
+install (FILES pdaaal/utils/vector_set.h pdaaal/utils/fut_set.h pdaaal/NFA.h pdaaal/Weight.h pdaaal/PDA.h
         pdaaal/PDAFactory.h pdaaal/SolverInstance.h
         pdaaal/ParsingPDAFactory.h
         pdaaal/Refinement.h
-        pdaaal/std20.h
-        pdaaal/AbstractionMapping.h pdaaal/AbstractionPDA.h pdaaal/AbstractionPAutomaton.h pdaaal/CegarPdaFactory.h pdaaal/ptrie_interface.h
+        pdaaal/utils/std20.h
+        pdaaal/AbstractionMapping.h pdaaal/AbstractionPDA.h pdaaal/AbstractionPAutomaton.h pdaaal/CegarPdaFactory.h pdaaal/utils/ptrie_interface.h
         pdaaal/SimplePDAFactory.h pdaaal/TypedPDA.h pdaaal/PAutomaton.h pdaaal/Solver.h pdaaal/Reducer.h DESTINATION include/pdaaal)

@@ -27,9 +27,9 @@
 #ifndef PDAAAL_SOLVER_H
 #define PDAAAL_SOLVER_H
 
-#include "PAutomaton.h"
-#include "TypedPDA.h"
-#include "SolverInstance.h"
+#include <pdaaal/PAutomaton.h>
+#include <pdaaal/TypedPDA.h>
+#include <pdaaal/SolverInstance.h>
 
 namespace pdaaal {
 

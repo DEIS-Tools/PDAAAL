@@ -28,7 +28,7 @@
 #include <boost/program_options.hpp>
 #include <iostream>
 
-#include "pdaaal/parsing/Parsing.h"
+#include <pdaaal/parsing/Parsing.h>
 
 #include "git_hash.h" // Generated at build time. Defines PDAAAL_GIT_HASH and PDAAAL_GIT_HASH_STR
 

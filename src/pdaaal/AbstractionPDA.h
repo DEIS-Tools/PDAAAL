@@ -27,8 +27,8 @@
 #ifndef PDAAAL_ABSTRACTIONPDA_H
 #define PDAAAL_ABSTRACTIONPDA_H
 
-#include "AbstractionMapping.h"
-#include "PDA.h"
+#include <pdaaal/AbstractionMapping.h>
+#include <pdaaal/PDA.h>
 
 namespace pdaaal {
 

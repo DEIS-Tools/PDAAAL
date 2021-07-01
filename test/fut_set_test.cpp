@@ -26,7 +26,7 @@
 
 #define BOOST_TEST_MODULE fut_set
 
-#include <pdaaal/fut_set.h>
+#include <pdaaal/utils/fut_set.h>
 #include <boost/test/unit_test.hpp>
 
 using namespace pdaaal;

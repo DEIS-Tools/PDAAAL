@@ -28,7 +28,7 @@
 #define PDAAAL_SIMPLEPDAFACTORY_H
 
 #include <unordered_set>
-#include "TypedPDA.h"
+#include <pdaaal/TypedPDA.h>
 
 namespace pdaaal {
 

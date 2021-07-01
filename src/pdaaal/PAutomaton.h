@@ -27,9 +27,9 @@
 #ifndef PDAAAL_PAUTOMATON_H
 #define PDAAAL_PAUTOMATON_H
 
-#include "TypedPDA.h"
-#include "fut_set.h"
-#include "NFA.h"
+#include <pdaaal/TypedPDA.h>
+#include <pdaaal/utils/fut_set.h>
+#include <pdaaal/NFA.h>
 
 #include <memory>
 #include <functional>

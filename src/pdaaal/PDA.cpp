@@ -25,7 +25,7 @@
  * Created on 19-02-2020.
  */
 
-#include "PDA.h"
+#include <pdaaal/PDA.h>
 #include <cassert>
 
 namespace pdaaal {

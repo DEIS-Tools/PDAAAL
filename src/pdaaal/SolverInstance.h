@@ -27,9 +27,9 @@
 #ifndef PDAAAL_SOLVERINSTANCE_H
 #define PDAAAL_SOLVERINSTANCE_H
 
-#include "PAutomaton.h"
-#include "AbstractionPDA.h"
-#include "AbstractionPAutomaton.h"
+#include <pdaaal/PAutomaton.h>
+#include <pdaaal/AbstractionPDA.h>
+#include <pdaaal/AbstractionPAutomaton.h>
 #include <limits>
 
 namespace pdaaal {

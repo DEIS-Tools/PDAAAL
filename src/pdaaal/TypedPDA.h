@@ -27,8 +27,8 @@
 #ifndef TPDA_H
 #define TPDA_H
 
-#include "PDA.h"
-#include "ptrie_interface.h"
+#include <pdaaal/PDA.h>
+#include <pdaaal/utils/ptrie_interface.h>
 
 #include <vector>
 #include <queue>
@@ -40,7 +40,7 @@
 
 namespace pdaaal {
 
-    template<typename T, typename W = weight<void>, fut::type Container = fut::type::vector>
+    template<typename label_t, typename W = weight<void>, fut::type Container = fut::type::vector>
     class TypedPDA : public PDA<W, Container> {
     protected:
         using impl_rule_t = typename PDA<W, Container>::rule_t; // This rule type is used internally.
@@ -50,18 +50,18 @@ namespace pdaaal {
         template <typename WT>
         struct rule_t_<WT, std::enable_if_t<!is_weighted<WT>>> {
             size_t _from = std::numeric_limits<size_t>::max();
-            T _pre;
+            label_t _pre;
             size_t _to = std::numeric_limits<size_t>::max();
             op_t _op = POP;
-            T _op_label;
+            label_t _op_label;
         };
         template <typename WT>
         struct rule_t_<WT, std::enable_if_t<is_weighted<WT>>> {
             size_t _from = std::numeric_limits<size_t>::max();
-            T _pre;
+            label_t _pre;
             size_t _to = std::numeric_limits<size_t>::max();
             op_t _op = POP;
-            T _op_label;
+            label_t _op_label;
             typename WT::type _weight;
         };
     public:
@@ -70,16 +70,16 @@ namespace pdaaal {
     public:
         struct tracestate_t {
             size_t _pdastate = 0;
-            std::vector<T> _stack;
+            std::vector<label_t> _stack;
         };
 
     public:
         template<fut::type OtherContainer>
-        explicit TypedPDA(TypedPDA<T,W,OtherContainer>&& other_pda)
+        explicit TypedPDA(TypedPDA<label_t,W,OtherContainer>&& other_pda)
         : PDA<W,Container>(std::move(other_pda)), _label_map(other_pda.move_label_map()) {}
 
-        explicit TypedPDA(const std::unordered_set<T>& all_labels) {
-            std::set<T> sorted(all_labels.begin(), all_labels.end());
+        explicit TypedPDA(const std::unordered_set<label_t>& all_labels) {
+            std::set<label_t> sorted(all_labels.begin(), all_labels.end());
             for (auto &l : sorted) {
 #ifndef NDEBUG
                 auto r =
@@ -97,7 +97,7 @@ namespace pdaaal {
             return _label_map.size();
         }
 
-        T get_symbol(size_t i) const {
+        label_t get_symbol(size_t i) const {
             return _label_map.at(i);
         }
 
@@ -127,7 +127,7 @@ namespace pdaaal {
             add_rule_<W>(std::forward<Args>(args)...);
         }
 
-        std::vector<uint32_t> encode_pre(const std::vector<T> &pre) const {
+        std::vector<uint32_t> encode_pre(const std::vector<label_t> &pre) const {
             std::vector<uint32_t> tpre(pre.size());
             for (size_t i = 0; i < pre.size(); ++i) {
                 auto &p = pre[i];
@@ -143,7 +143,7 @@ namespace pdaaal {
         }
 
     protected:
-        uint32_t find_labelid(op_t op, T label) const {
+        uint32_t find_labelid(op_t op, label_t label) const {
             if (op != POP && op != NOOP) {
                 auto res = _label_map.exists(label);
                 if (res.first) {
@@ -155,7 +155,7 @@ namespace pdaaal {
             return std::numeric_limits<uint32_t>::max();
         }
 
-        void add_rules_impl(size_t from, impl_rule_t rule, bool negated, const std::vector<T> &labels, bool negated_pre, const std::vector<T> &pre) {
+        void add_rules_impl(size_t from, impl_rule_t rule, bool negated, const std::vector<label_t> &labels, bool negated_pre, const std::vector<label_t> &pre) {
             auto tpre = encode_pre(pre);
             if (negated) {
                 size_t last = 0;
@@ -183,44 +183,44 @@ namespace pdaaal {
 
     private:
         template<typename WT, typename = std::enable_if_t<!is_weighted<WT>>>
-        void add_rules_(size_t from, size_t to, op_t op, bool negated, const std::vector<T> &labels, bool negated_pre,
-                        const std::vector<T> &pre) {
+        void add_rules_(size_t from, size_t to, op_t op, bool negated, const std::vector<label_t> &labels, bool negated_pre,
+                        const std::vector<label_t> &pre) {
             add_rules_impl(from, {to, op}, negated, labels, negated_pre, pre);
         }
 
         template<typename WT, typename = std::enable_if_t<is_weighted<WT>>>
-        void add_rules_(size_t from, size_t to, op_t op, bool negated, const std::vector<T> &labels, bool negated_pre,
-                        const std::vector<T> &pre, typename WT::type weight = WT::zero()) {
+        void add_rules_(size_t from, size_t to, op_t op, bool negated, const std::vector<label_t> &labels, bool negated_pre,
+                        const std::vector<label_t> &pre, typename WT::type weight = WT::zero()) {
             add_rules_impl(from, {to, op, weight}, negated, labels, negated_pre, pre);
         }
 
         template<typename WT, typename = std::enable_if_t<!is_weighted<WT>>>
-        void add_rule_(size_t from, size_t to, op_t op, T label, bool negated, const std::vector<T> &pre) {
+        void add_rule_(size_t from, size_t to, op_t op, label_t label, bool negated, const std::vector<label_t> &pre) {
             auto lid = find_labelid(op, label);
             auto tpre = encode_pre(pre);
             this->add_untyped_rule(from, to, op, lid, negated, tpre);
         }
 
         template<typename WT, typename = std::enable_if_t<is_weighted<WT>>>
-        void add_rule_(size_t from, size_t to, op_t op, T label, bool negated, const std::vector<T> &pre, typename WT::type weight = WT::zero()) {
+        void add_rule_(size_t from, size_t to, op_t op, label_t label, bool negated, const std::vector<label_t> &pre, typename WT::type weight = WT::zero()) {
             auto lid = find_labelid(op, label);
             auto tpre = encode_pre(pre);
             this->add_untyped_rule(from, to, op, lid, weight, negated, tpre);
         }
 
         template<typename WT, typename = std::enable_if_t<!is_weighted<WT>>>
-        void add_rule_(size_t from, size_t to, op_t op, T label, T pre) {
-            std::vector<T> _pre{pre};
+        void add_rule_(size_t from, size_t to, op_t op, label_t label, label_t pre) {
+            std::vector<label_t> _pre{pre};
             add_rule(from, to, op, label, false, _pre);
         }
 
         template<typename WT, typename = std::enable_if_t<is_weighted<WT>>>
-        void add_rule_(size_t from, size_t to, op_t op, T label, T pre, typename WT::type weight = WT::zero()) {
-            std::vector<T> _pre{pre};
+        void add_rule_(size_t from, size_t to, op_t op, label_t label, label_t pre, typename WT::type weight = WT::zero()) {
+            std::vector<label_t> _pre{pre};
             add_rule(from, to, op, label, false, _pre, weight);
         }
 
-        utils::ptrie_set<T> _label_map;
+        utils::ptrie_set<label_t> _label_map;
 
     };
 }

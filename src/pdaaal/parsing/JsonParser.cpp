@@ -24,7 +24,7 @@
  * Created on 30-06-2021.
  */
 
-#include "JsonParser.h"
+#include <pdaaal/parsing/JsonParser.h>
 
 namespace pdaaal {
     constexpr std::ostream& operator<<(std::ostream& s, PdaaalSAXHandler::keys key) {

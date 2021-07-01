@@ -28,8 +28,8 @@
 #ifndef PDAAAL_PDA_H
 #define PDAAAL_PDA_H
 
-#include "Weight.h"
-#include "fut_set.h"
+#include <pdaaal/Weight.h>
+#include <pdaaal/utils/fut_set.h>
 
 #include <cinttypes>
 #include <vector>

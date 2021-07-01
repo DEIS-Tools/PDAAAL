@@ -25,7 +25,7 @@
  * Created on August 21, 2019, 2:47 PM
  */
 
-#include "Reducer.h"
+#include <pdaaal/Reducer.h>
 #include <cassert>
 
 namespace pdaaal {

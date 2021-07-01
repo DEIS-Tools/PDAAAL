@@ -29,7 +29,7 @@
 
 #include <json.hpp>
 
-#include "pdaaal/TypedPDA.h"
+#include <pdaaal/TypedPDA.h>
 
 #include <iostream>
 #include <fstream>

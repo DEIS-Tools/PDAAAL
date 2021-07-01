@@ -31,8 +31,8 @@
 #include <iostream>
 #include <fstream>
 
-#include "pdaaal/utils/stopwatch.h"
-#include "pdaaal/ParsingPDAFactory.h"
+#include <pdaaal/utils/stopwatch.h>
+#include <pdaaal/ParsingPDAFactory.h>
 
 namespace po = boost::program_options;
 

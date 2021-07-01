@@ -26,9 +26,9 @@
 
 #include <algorithm>
 
-#include "Parsing.h"
+#include <pdaaal/parsing/Parsing.h>
 #include <pdaaal/parsing/JsonParser.h>
-#include "pdaaal/ParsingPDAFactory.h"
+#include <pdaaal/ParsingPDAFactory.h>
 
 namespace pdaaal {
 
