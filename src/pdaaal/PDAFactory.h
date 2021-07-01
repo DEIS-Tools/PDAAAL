@@ -75,22 +75,22 @@ namespace pdaaal {
         builder_pda_t _temp_pda;
     };
 
-    template<typename T, typename W = void, typename C = std::less<W>, typename A = add<W>>
-    class TypedPDAFactory : public PDAFactory<T, TypedPDA<T,W,C,fut::type::hash>, TypedPDA<T,W,C,fut::type::vector>,
-                                       typename TypedPDA<T,W,C,fut::type::hash>::rule_t, SolverInstance<T,W,C,A>> {
+    template<typename T, typename W = weight<void>>
+    class TypedPDAFactory : public PDAFactory<T, TypedPDA<T,W,fut::type::hash>, TypedPDA<T,W,fut::type::vector>,
+                                       typename TypedPDA<T,W,fut::type::hash>::rule_t, SolverInstance<T,W>> {
     private:
-        using parent_t = PDAFactory<T, TypedPDA<T,W,C,fut::type::hash>, TypedPDA<T,W,C,fut::type::vector>,
-                                    typename TypedPDA<T,W,C,fut::type::hash>::rule_t, SolverInstance<T,W,C,A>>;
+        using parent_t = PDAFactory<T, TypedPDA<T,W,fut::type::hash>, TypedPDA<T,W,fut::type::vector>,
+                                    typename TypedPDA<T,W,fut::type::hash>::rule_t, SolverInstance<T,W>>;
     public:
         using rule_t = typename parent_t::rule_t;
         explicit TypedPDAFactory(const std::unordered_set<T>& all_labels) : parent_t(all_labels) { };
     };
 
     // This is the 'old' PDAFactory.
-    template<typename T, typename W = void, typename C = std::less<W>, typename A = add<W>>
-    class DFS_PDAFactory : public TypedPDAFactory<T,W,C,A> {
+    template<typename T, typename W = weight<void>>
+    class DFS_PDAFactory : public TypedPDAFactory<T,W> {
     private:
-        using parent_t = TypedPDAFactory<T,W,C,A>;
+        using parent_t = TypedPDAFactory<T,W>;
     public:
         using rule_t = typename parent_t::rule_t;
         DFS_PDAFactory(const std::unordered_set<T>& all_labels, T wildcard_label)

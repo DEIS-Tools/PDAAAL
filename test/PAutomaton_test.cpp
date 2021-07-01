@@ -37,7 +37,7 @@ using namespace pdaaal;
 BOOST_AUTO_TEST_CASE(Dijkstra_Test_1)
 {
     std::unordered_set<char> labels{'A'};
-    TypedPDA<char, int> pda(labels);
+    TypedPDA<char, weight<int>> pda(labels);
     pda.add_rule(0, 0, POP, '*', 'A', 0);
 
     PAutomaton automaton(pda, std::vector<size_t>());
@@ -145,7 +145,7 @@ BOOST_AUTO_TEST_CASE(WeightedPreStar)
     // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
     // However r_2 requires a swap and a push, which is done through auxiliary state 3.
     std::unordered_set<char> labels{'A', 'B', 'C'};
-    TypedPDA<char, std::vector<int>> pda(labels);
+    TypedPDA<char, weight<std::vector<int>>> pda(labels);
     std::vector<int> w{1};
     pda.add_rule(0, 1, PUSH, 'B', 'A', w);
     pda.add_rule(0, 0, POP , '*', 'B', w);
@@ -170,7 +170,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar)
     // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
     // However r_2 requires a swap and a push, which is done through auxiliary state 3.
     std::unordered_set<char> labels{'A', 'B', 'C'};
-    TypedPDA<char, std::array<double, 3>> pda(labels);
+    TypedPDA<char, weight<std::array<double, 3>>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
     pda.add_rule(0, 1, PUSH, 'B', 'A', w);
     pda.add_rule(0, 0, POP , '*', 'B', w);
@@ -193,7 +193,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar)
 BOOST_AUTO_TEST_CASE(WeightedPostStar2)
 {
     std::unordered_set<char> labels{'A', 'B'};
-    TypedPDA<char, int> pda(labels);
+    TypedPDA<char, weight<int>> pda(labels);
 
     pda.add_rule(1, 2, POP, '*', 'A', 1);
     pda.add_rule(1, 3, PUSH , 'B', 'A', 3);
@@ -215,7 +215,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar2)
 BOOST_AUTO_TEST_CASE(WeightedPostStar3)
 {
     std::unordered_set<char> labels{'A'};
-    TypedPDA<char, int> pda(labels);
+    TypedPDA<char, weight<int>> pda(labels);
     std::vector<char> pre{'A'};
 
     pda.add_rule(1, 2, PUSH, 'A', 'A', 16);
@@ -235,7 +235,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar3)
 BOOST_AUTO_TEST_CASE(WeightedPostStar4)
 {
     std::unordered_set<char> labels{'A'};
-    TypedPDA<char, int> pda(labels);
+    TypedPDA<char, weight<int>> pda(labels);
 
     pda.add_rule(0, 3, PUSH, 'A', 'A', 4);
     pda.add_rule(0, 1, PUSH , 'A', 'A', 1);
@@ -255,7 +255,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar4)
 BOOST_AUTO_TEST_CASE(WeightedPostStarResult)
 {
     std::unordered_set<char> labels{'A'};
-    TypedPDA<char, int> pda(labels);
+    TypedPDA<char, weight<int>> pda(labels);
 
     pda.add_rule(0, 3, PUSH, 'A', 'A', 4);
     pda.add_rule(0, 1, PUSH , 'A', 'A', 1);
@@ -283,7 +283,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStarResult)
 BOOST_AUTO_TEST_CASE(WeightedPostStar4EarlyTermination)
 {
     std::unordered_set<char> labels{'A'};
-    TypedPDA<char, int> pda(labels);
+    TypedPDA<char, weight<int>> pda(labels);
 
     pda.add_rule(0, 3, PUSH, 'A', 'A', 4);
     pda.add_rule(0, 1, PUSH , 'A', 'A', 1);
@@ -302,13 +302,13 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar4EarlyTermination)
     BOOST_CHECK_EQUAL(distance4A, 30);          //Example Derived on whiteboard
 }
 
-TypedPDA<int,int> create_syntactic_network_broad(int network_size = 2) {
+TypedPDA<int,weight<int>> create_syntactic_network_broad(int network_size = 2) {
     std::unordered_set<int> labels{0,1,2};
     int start_state = 0;
     int states = 4;
     int end_state = 4;
 
-    TypedPDA<int, int> pda(labels);
+    TypedPDA<int, weight<int>> pda(labels);
 
     for (int j = 0; j < network_size; j++) {
         pda.add_rule(start_state, 1 + start_state, PUSH, 0, 0, 0);
@@ -337,9 +337,9 @@ TypedPDA<int,int> create_syntactic_network_broad(int network_size = 2) {
     return pda;
 }
 
-TypedPDA<int,int> create_syntactic_network_deep(int network_size = 2){
+TypedPDA<int,weight<int>> create_syntactic_network_deep(int network_size = 2){
     std::unordered_set<int> labels{0,1,2};
-    TypedPDA<int, int> pda(labels);
+    TypedPDA<int, weight<int>> pda(labels);
     int start_state = 0;
     int new_start_state = 4;
     int end_state = 2;
@@ -374,7 +374,7 @@ TypedPDA<int,int> create_syntactic_network_deep(int network_size = 2){
 
 BOOST_AUTO_TEST_CASE(WeightedPostStarSyntacticModel)
 {
-    TypedPDA<int,int> pda = create_syntactic_network_broad(1);
+    TypedPDA<int,weight<int>> pda = create_syntactic_network_broad(1);
     std::vector<int> init_stack;
     init_stack.push_back(0);
     PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
@@ -399,7 +399,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStarVSPostUnorderedPerformance)
         labels.insert(i);
     }
 
-    TypedPDA<int, int> pda(labels);
+    TypedPDA<int, weight<int>> pda(labels);
 
     for(int i = 0; i < alphabet_size; i++){
         pda.add_rule(0, 1, SWAP, i, 0, 1);
@@ -431,7 +431,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStarVSPostUnorderedPerformance)
 
 BOOST_AUTO_TEST_CASE(WeightedShortestPerformance)
 {
-    TypedPDA<int, int> pda = create_syntactic_network_deep(200);
+    TypedPDA<int, weight<int>> pda = create_syntactic_network_deep(200);
 
     std::vector<int> init_stack;
     init_stack.push_back(0);

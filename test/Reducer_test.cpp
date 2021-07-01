@@ -36,7 +36,7 @@ BOOST_AUTO_TEST_CASE(ReducerTest1) {
     // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
     // However r_2 requires a swap and a push, which is done through auxiliary state 3.
     std::unordered_set<char> labels{'A', 'B', 'C'};
-    TypedPDA<char, std::array<double, 3>> pda(labels);
+    TypedPDA<char, weight<std::array<double, 3>>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
     pda.add_rule(0, 1, PUSH, 'B', 'A', w);
     pda.add_rule(0, 0, POP , '*', 'B', w);
