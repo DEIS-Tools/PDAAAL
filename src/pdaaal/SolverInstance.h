@@ -34,9 +34,9 @@
 
 namespace pdaaal {
 
-    template <typename pda_t, typename automaton_t, typename T, typename W, typename C, typename A>
+    template <typename pda_t, typename automaton_t, typename T, typename W>
     class SolverInstance_impl {
-        using product_automaton_t = PAutomaton<W,C,A>; // No explicit abstraction on product automaton - this is covered by _initial and _final.
+        using product_automaton_t = PAutomaton<W>; // No explicit abstraction on product automaton - this is covered by _initial and _final.
         using state_t = typename product_automaton_t::state_t;
     public:
         SolverInstance_impl(pda_t&& pda, const NFA<T>& initial_nfa, const std::vector<size_t>& initial_states,
@@ -171,18 +171,18 @@ namespace pdaaal {
 
         template<Trace_Type trace_type = Trace_Type::Any, bool abstraction = false>
         [[nodiscard]] typename std::conditional_t<trace_type == Trace_Type::Shortest && is_weighted<W>,
-                std::tuple<std::vector<path_state<abstraction>>, std::vector<uint32_t>, W>,
+                std::tuple<std::vector<path_state<abstraction>>, std::vector<uint32_t>, typename W::type>,
                 std::tuple<std::vector<path_state<abstraction>>, std::vector<uint32_t>>>
         find_path() const {
             if constexpr (trace_type == Trace_Type::Shortest && is_weighted<W>) { // TODO: Consider unweighted shortest path.
                 // Dijkstra.
                 struct queue_elem {
-                    W weight;
+                    typename W::type weight;
                     size_t state;
                     uint32_t label;
                     size_t stack_index;
                     const queue_elem *back_pointer;
-                    queue_elem(W weight, size_t state, uint32_t label, size_t stack_index, const queue_elem *back_pointer = nullptr)
+                    queue_elem(typename W::type weight, size_t state, uint32_t label, size_t stack_index, const queue_elem *back_pointer = nullptr)
                             : weight(weight), state(state), label(label), stack_index(stack_index), back_pointer(back_pointer) {};
 
                     bool operator<(const queue_elem &other) const {
@@ -200,17 +200,15 @@ namespace pdaaal {
                 };
                 struct queue_elem_comp {
                     bool operator()(const queue_elem &lhs, const queue_elem &rhs){
-                        C less;
-                        return less(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
+                        return W::less(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
                     }
                 };
                 queue_elem_comp less;
-                A add;
                 std::priority_queue<queue_elem, std::vector<queue_elem>, queue_elem_comp> search_queue;
                 std::vector<queue_elem> visited;
                 std::vector<std::unique_ptr<queue_elem>> pointers;
                 for (size_t i = 0; i < _pda_size; ++i) { // Iterate over _product._initial ([i]->_id)
-                    search_queue.emplace(zero<W>()(), i, std::numeric_limits<uint32_t>::max(), 0); // No label going into initial state.
+                    search_queue.emplace(W::zero(), i, std::numeric_limits<uint32_t>::max(), 0); // No label going into initial state.
                 }
                 while(!search_queue.empty()) {
                     auto current = search_queue.top();
@@ -248,12 +246,12 @@ namespace pdaaal {
                     pointers.push_back(std::move(u_pointer));
                     for (const auto &[to,labels] : _product.states()[current.state]->_edges) {
                         if (!labels.empty()) {
-                            auto label = std::min_element(labels.begin(), labels.end(), [](const auto& a, const auto& b){ return C{}(a.second.second, b.second.second); });
-                            search_queue.emplace(add(current.weight, label->second.second), to, label->first, current.stack_index + 1, pointer);
+                            auto label = std::min_element(labels.begin(), labels.end(), [](const auto& a, const auto& b){ return W::less(a.second.second, b.second.second); });
+                            search_queue.emplace(W::add(current.weight, label->second.second), to, label->first, current.stack_index + 1, pointer);
                         }
                     }
                 }
-                return std::make_tuple(std::vector<path_state<abstraction>>(), std::vector<uint32_t>(), max<W>()());
+                return std::make_tuple(std::vector<path_state<abstraction>>(), std::vector<uint32_t>(), W::max());
             } else {
                 // DFS search.
                 std::vector<path_state<abstraction>> path;
@@ -400,26 +398,26 @@ namespace pdaaal {
         std::vector<std::vector<std::pair<size_t,size_t>>> _id_fast_lookup_back; // maps final_state -> (initial_state, product_state)  Only used in dual_search
     };
 
-    template <typename T, typename W, typename C, typename A>
-    class SolverInstance : public SolverInstance_impl<TypedPDA<T,W,C,fut::type::vector>, PAutomaton<W,C,A>, T, W, C, A> {
+    template <typename T, typename W>
+    class SolverInstance : public SolverInstance_impl<TypedPDA<T,W,fut::type::vector>, PAutomaton<W>, T, W> {
     public:
-        using pda_t = TypedPDA<T,W,C,fut::type::vector>;
-        using pautomaton_t = PAutomaton<W,C,A>;
+        using pda_t = TypedPDA<T,W,fut::type::vector>;
+        using pautomaton_t = PAutomaton<W>;
         SolverInstance(pda_t&& pda,
                        const NFA<T>& initial_nfa, const std::vector<size_t>& initial_states,
                        const NFA<T>& final_nfa,   const std::vector<size_t>& final_states)
-        : SolverInstance_impl<pda_t, pautomaton_t, T, W, C, A>(std::move(pda), initial_nfa, initial_states, final_nfa, final_states) { };
+        : SolverInstance_impl<pda_t, pautomaton_t, T, W>(std::move(pda), initial_nfa, initial_states, final_nfa, final_states) { };
     };
 
-    template <typename T, typename W, typename C, typename A>
-    class AbstractionSolverInstance : public SolverInstance_impl<AbstractionPDA<T,W,C>, AbstractionPAutomaton<T,W,C,A>, T, W, C, A> {
+    template <typename T, typename W>
+    class AbstractionSolverInstance : public SolverInstance_impl<AbstractionPDA<T,W>, AbstractionPAutomaton<T,W>, T, W> {
     public:
-        using pda_t = AbstractionPDA<T,W,C>;
-        using pautomaton_t = AbstractionPAutomaton<T,W,C,A>;
+        using pda_t = AbstractionPDA<T,W>;
+        using pautomaton_t = AbstractionPAutomaton<T,W>;
         AbstractionSolverInstance(pda_t&& pda,
                                   const NFA<T>& initial_nfa, const std::vector<size_t>& initial_states,
                                   const NFA<T>& final_nfa,   const std::vector<size_t>& final_states)
-        : SolverInstance_impl<pda_t, pautomaton_t, T, W, C, A>(std::move(pda), initial_nfa, initial_states, final_nfa, final_states) { };
+        : SolverInstance_impl<pda_t, pautomaton_t, T, W>(std::move(pda), initial_nfa, initial_states, final_nfa, final_states) { };
 
         auto move_pda_refinement_mapping() {
             return this->_pda.move_label_map();

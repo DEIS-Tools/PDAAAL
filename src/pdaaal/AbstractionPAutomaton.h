@@ -32,14 +32,14 @@
 
 namespace pdaaal {
 
-    template <typename T, typename W = void, typename C = std::less<W>, typename A = add<W>>
-    class AbstractionPAutomaton : public PAutomaton<W,C,A> {
+    template <typename T, typename W = void>
+    class AbstractionPAutomaton : public PAutomaton<W> {
     private:
         using nfastate_t = typename NFA<T>::state_t;
     public:
         // TODO: This one is mostly copy-paste from PAutomaton. Clean up later...
-        AbstractionPAutomaton(const AbstractionPDA<T,W,C>& pda, const NFA<T>& nfa, const std::vector<size_t>& states)
-        : PAutomaton<W,C,A>(pda, states, nfa.empty_accept()) {
+        AbstractionPAutomaton(const AbstractionPDA<T,W>& pda, const NFA<T>& nfa, const std::vector<size_t>& states)
+        : PAutomaton<W>(pda, states, nfa.empty_accept()) {
             std::unordered_map<const nfastate_t*, size_t> nfastate_to_id;
             std::vector<std::pair<const nfastate_t*,size_t>> waiting;
             auto get_nfastate_id = [this, &waiting, &nfastate_to_id](const nfastate_t* n) -> size_t {

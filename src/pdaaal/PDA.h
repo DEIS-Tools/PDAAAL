@@ -92,16 +92,16 @@ namespace pdaaal::details {
     // TypedPDA defines a rule_t to be used by users.
 
     // Define rules with and without weights.
-    template<typename W, typename C, typename = void>
+    template<typename W, typename = void>
     struct rule_t;
 
-    template<typename W, typename C>
-    struct rule_t<W, C, std::enable_if_t<!is_weighted<W>>> {
+    template<typename W>
+    struct rule_t<W, std::enable_if_t<!is_weighted<W>>> {
         size_t _to = 0;
         op_t _operation = PUSH;
         uint32_t _op_label = 0;
 
-        bool operator<(const rule_t<W, C> &other) const {
+        bool operator<(const rule_t<W> &other) const {
             if (_to != other._to)
                 return _to < other._to;
             if (_op_label != other._op_label)
@@ -109,16 +109,16 @@ namespace pdaaal::details {
             return _operation < other._operation;
         }
 
-        bool operator==(const rule_t<W, C> &other) const {
+        bool operator==(const rule_t<W> &other) const {
             return _to == other._to && _op_label == other._op_label && _operation == other._operation;
         }
 
-        bool operator!=(const rule_t<W, C> &other) const {
+        bool operator!=(const rule_t<W> &other) const {
             return !(*this == other);
         }
 
         struct hasher {
-            size_t operator()(const pdaaal::details::rule_t<W, C> &rule) const noexcept {
+            size_t operator()(const pdaaal::details::rule_t<W> &rule) const noexcept {
                 size_t seed = 0;
                 boost::hash_combine(seed, rule._to);
                 boost::hash_combine(seed, rule._op_label);
@@ -128,35 +128,34 @@ namespace pdaaal::details {
         };
     };
 
-    template<typename W, typename C>
-    struct rule_t<W, C, std::enable_if_t<is_weighted<W>>> {
+    template<typename W>
+    struct rule_t<W, std::enable_if_t<is_weighted<W>>> {
         size_t _to = 0;
         op_t _operation = PUSH;
-        W _weight = zero<W>()();
+        typename W::type _weight = W::zero();
         uint32_t _op_label = 0;
 
-        bool operator<(const rule_t<W, C> &other) const {
+        bool operator<(const rule_t<W> &other) const {
             if (_to != other._to)
                 return _to < other._to;
             if (_op_label != other._op_label)
                 return _op_label < other._op_label;
             if (_operation != other._operation)
                 return _operation < other._operation;
-            C comp;
-            return comp(_weight, other._weight);
+            return W::less(_weight, other._weight);
         }
 
-        bool operator==(const rule_t<W, C> &other) const {
+        bool operator==(const rule_t<W> &other) const {
             return _to == other._to && _op_label == other._op_label && _operation == other._operation &&
                    _weight == other._weight;
         }
 
-        bool operator!=(const rule_t<W, C> &other) const {
+        bool operator!=(const rule_t<W> &other) const {
             return !(*this == other);
         }
 
         struct hasher {
-            size_t operator()(const pdaaal::details::rule_t<W, C> &rule) const noexcept {
+            size_t operator()(const pdaaal::details::rule_t<W> &rule) const noexcept {
                 size_t seed = 0;
                 boost::hash_combine(seed, rule._to);
                 boost::hash_combine(seed, rule._op_label);
@@ -169,20 +168,20 @@ namespace pdaaal::details {
 }
 
 namespace std {
-    template<typename W, typename C>
-    struct hash<pdaaal::details::rule_t<W, C>> {
-        size_t operator()(const pdaaal::details::rule_t<W,C>& rule) const noexcept {
-            typename pdaaal::details::rule_t<W,C>::hasher hasher;
+    template<typename W>
+    struct hash<pdaaal::details::rule_t<W>> {
+        size_t operator()(const pdaaal::details::rule_t<W>& rule) const noexcept {
+            typename pdaaal::details::rule_t<W>::hasher hasher;
             return hasher(rule);
         }
     };
 }
 
 namespace pdaaal {
-    template<typename W, typename C, typename = void>
+    template<typename W, typename = void>
     struct user_rule_t;
-    template<typename W, typename C>
-    struct user_rule_t<W, C, std::enable_if_t<!is_weighted<W>>> {
+    template<typename W>
+    struct user_rule_t<W, std::enable_if_t<!is_weighted<W>>> {
         size_t _from = std::numeric_limits<size_t>::max();
         size_t _to = std::numeric_limits<size_t>::max();
         uint32_t _pre = std::numeric_limits<uint32_t>::max();
@@ -192,58 +191,58 @@ namespace pdaaal {
         user_rule_t() = default;
         user_rule_t(size_t from, uint32_t pre, size_t to, op_t op, uint32_t op_label)
         : _from(from), _to(to), _pre(pre), _op_label(op_label), _op(op) {};
-        user_rule_t(size_t from, uint32_t pre, const details::rule_t<W,C>& rule)
+        user_rule_t(size_t from, uint32_t pre, const details::rule_t<W>& rule)
         : _from(from), _to(rule._to), _pre(pre),
           _op_label((rule._operation == PUSH || rule._operation == SWAP) ? rule._op_label : std::numeric_limits<uint32_t>::max()),
           _op(rule._operation) {};
 
-        size_t from() const {
+        [[nodiscard]] size_t from() const {
             return _from;
         }
 
-        details::rule_t<W,C> to_impl_rule() const {
-            return details::rule_t<W,C>{_to, _op, _op_label};
+        details::rule_t<W> to_impl_rule() const {
+            return details::rule_t<W>{_to, _op, _op_label};
         }
     } __attribute__((packed)); // packed is used to make this work fast with ptries
-    template<typename W, typename C>
-    struct user_rule_t<W, C, std::enable_if_t<is_weighted<W>>> {
+    template<typename W>
+    struct user_rule_t<W, std::enable_if_t<is_weighted<W>>> {
         size_t _from = std::numeric_limits<size_t>::max();
         size_t _to = std::numeric_limits<size_t>::max();
         uint32_t _pre = std::numeric_limits<uint32_t>::max();
         uint32_t _op_label = std::numeric_limits<uint32_t>::max();
         op_t _op = POP;
-        W _weight = zero<W>()();
+        typename W::type _weight = W::zero();
         // Use max as default value for most values, so we will notice if it has not been set.
         user_rule_t() = default;
-        user_rule_t(size_t from, uint32_t pre, size_t to, op_t op, uint32_t op_label, W weight)
+        user_rule_t(size_t from, uint32_t pre, size_t to, op_t op, uint32_t op_label, typename W::type weight)
                 : _from(from), _to(to), _pre(pre), _op_label(op_label), _op(op), _weight(weight) {};
-        user_rule_t(size_t from, uint32_t pre, const details::rule_t<W,C>& rule)
+        user_rule_t(size_t from, uint32_t pre, const details::rule_t<W>& rule)
                 : _from(from), _to(rule._to), _pre(pre),
                   _op_label((rule._operation == PUSH || rule._operation == SWAP) ? rule._op_label : std::numeric_limits<uint32_t>::max()),
                   _op(rule._operation), _weight(rule._weight) {};
 
-        details::rule_t<W,C> to_impl_rule() const {
-            return details::rule_t<W,C>{_to, _op, _weight, _op_label};
+        details::rule_t<W> to_impl_rule() const {
+            return details::rule_t<W>{_to, _op, _weight, _op_label};
         }
     };
 
 
-    template <typename W, typename C, fut::type Container = fut::type::vector>
+    template <typename W, fut::type Container = fut::type::vector>
     class PDA {
     public:
-        using rule_t = typename details::rule_t<W,C>;
+        using rule_t = typename details::rule_t<W>;
 
         struct state_t {
             fut::set<std::tuple<rule_t,labels_t>,Container> _rules;
             std::vector<size_t> _pre_states;
-            explicit state_t(typename PDA<W,C,fut::type::hash>::state_t&& other_state)
+            explicit state_t(typename PDA<W,fut::type::hash>::state_t&& other_state)
                     : _rules(std::move(other_state._rules)), _pre_states(std::move(other_state._pre_states)) {}
             state_t() = default;
         };
 
     public:
         template<fut::type OtherContainer>
-        explicit PDA(PDA<W,C,OtherContainer>&& other_pda)
+        explicit PDA(PDA<W,OtherContainer>&& other_pda)
                 : _states(std::make_move_iterator(other_pda.states_begin()), std::make_move_iterator(other_pda.states_end())) {}
         PDA() = default;
 
@@ -274,10 +273,10 @@ namespace pdaaal {
             _states[s]._pre_states.clear();
         }
 
-        void add_rule(user_rule_t<W,C> rule) {
+        void add_rule(user_rule_t<W> rule) {
             add_untyped_rule_impl(rule._from, rule.to_impl_rule(), false, std::vector<uint32_t>{rule._pre});
         }
-        void add_wildcard_rule(user_rule_t<W,C> rule) {
+        void add_wildcard_rule(user_rule_t<W> rule) {
             // Ignore rule._pre
             add_untyped_rule_impl(rule._from, rule.to_impl_rule(), true, std::vector<uint32_t>());
         }
@@ -311,7 +310,7 @@ namespace pdaaal {
             add_untyped_rule_impl(from, {to, op, label}, negated, pre);
         }
         template <typename WT, typename = std::enable_if_t<is_weighted<WT>>>
-        void add_untyped_rule_(size_t from, size_t to, op_t op, uint32_t label, WT weight, bool negated, const std::vector<uint32_t>& pre) {
+        void add_untyped_rule_(size_t from, size_t to, op_t op, uint32_t label, typename WT::type weight, bool negated, const std::vector<uint32_t>& pre) {
             add_untyped_rule_impl(from, {to, op, weight, label}, negated, pre);
         }
 

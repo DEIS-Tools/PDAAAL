@@ -42,7 +42,7 @@ BOOST_AUTO_TEST_CASE(VoidWeight)
 BOOST_AUTO_TEST_CASE(IntWeight)
 {
     std::unordered_set<char> labels{'a', 'b'};
-    TypedPDA<char, int> pda(labels); // Check if it compiles
+    TypedPDA<char, weight<int>> pda(labels); // Check if it compiles
     BOOST_CHECK_EQUAL(true, true);
 }
 
@@ -81,10 +81,10 @@ BOOST_AUTO_TEST_CASE(LabelsMerge)
 
 BOOST_AUTO_TEST_CASE(PDA_Container_Type) {
     std::unordered_set<char> labels{'A', 'B'};
-    TypedPDA<char,int,std::less<int>,fut::type::hash> pda(labels);
+    TypedPDA<char,weight<int>,fut::type::hash> pda(labels);
     pda.add_rule(0, 1, PUSH, 'B', 'A');
 
-    TypedPDA<char,int> pda2(std::move(pda));
+    TypedPDA<char,weight<int>> pda2(std::move(pda));
 
     pda2.add_rule(1, 3, SWAP, 'A', 'B');
 

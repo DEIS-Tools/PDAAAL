@@ -109,7 +109,7 @@ A,B
 1 B -> 2 +B | 1
 2 B -> 0 - | 1
 )");
-    auto factory = ParsingPDAFactory<unsigned int>::create(i_stream);
+    auto factory = ParsingPDAFactory<weight<unsigned int>>::create(i_stream);
 
     // initial stack: [A,B]
     NFA<std::string> initial(std::unordered_set<std::string>{"A"});
