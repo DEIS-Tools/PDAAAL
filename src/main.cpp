@@ -33,7 +33,7 @@
 #include "git_hash.h" // Generated at build time. Defines PDAAAL_GIT_HASH and PDAAAL_GIT_HASH_STR
 
 namespace po = boost::program_options;
-//using namespace pdaaal;
+using namespace pdaaal;
 
 int main(int argc, const char** argv) {
     po::options_description opts;
@@ -41,7 +41,7 @@ int main(int argc, const char** argv) {
             ("help,h", "produce help message")
             ("version,v", "print version");
 
-    pdaaal::Parsing parsing("Input Options");
+    Parsing parsing("Input Options");
     po::options_description output("Output Options");
 
     bool no_parser_warnings = false;
@@ -72,8 +72,10 @@ int main(int argc, const char** argv) {
 
     if (silent) { no_parser_warnings = true; }
 
-    auto pda = parsing.parse(no_parser_warnings);
-    std::cout << "States: " << pda.states().size() << ". Labels: " << pda.number_of_labels() << std::endl;
+    auto pda_variant = parsing.parse(no_parser_warnings);
+    std::visit([](auto&& pda){
+        std::cout << "States: " << pda.states().size() << ". Labels: " << pda.number_of_labels() << std::endl;
+    }, pda_variant);
     // TODO: Do stuff
 
     return 0;

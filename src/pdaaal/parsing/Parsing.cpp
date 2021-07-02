@@ -27,24 +27,48 @@
 #include <algorithm>
 
 #include <pdaaal/parsing/Parsing.h>
-#include <pdaaal/parsing/JsonParser.h>
 
 namespace pdaaal {
 
     enum class input_format {PDAAAL, MOPED};
+    enum class weight_type {NONE, UINT};
 
     struct parsing_options_t {
-        explicit parsing_options_t(std::ostream& warnings, input_format format) : warnings(warnings), format(format) { };
+        parsing_options_t(std::ostream& warnings, input_format format, weight_type weight, bool use_state_names)
+        : warnings(warnings), format(format), weight(weight), use_state_names(use_state_names) { };
         std::ostream& warnings;
         input_format format;
+        weight_type weight;
+        bool use_state_names;
     };
 
-    auto parse_stream(std::istream& stream, const parsing_options_t& parse_opts) {
-        // TODO: More parsing options...
-        return PdaaalJSONParser::parse<>(stream, parse_opts.warnings);
+    template <typename W>
+    Parsing::pda_variant_t parse_stream_json_w(std::istream& stream, const parsing_options_t& parse_opts) {
+        if (parse_opts.use_state_names) {
+            return PdaaalJSONParser::parse<W,true>(stream, parse_opts.warnings);
+        } else {
+            return PdaaalJSONParser::parse<W,false>(stream, parse_opts.warnings);
+        }
     }
-
-    auto parse_file(const std::string& input_file, const parsing_options_t& parse_opts) {
+    Parsing::pda_variant_t parse_stream_json(std::istream& stream, const parsing_options_t& parse_opts) {
+        switch (parse_opts.weight) {
+            case weight_type::UINT:
+                return parse_stream_json_w<weight<uint32_t>>(stream, parse_opts);
+            case weight_type::NONE:
+                return parse_stream_json_w<weight<void>>(stream, parse_opts);
+            default:
+                throw std::logic_error("That weight type is not yet supported...");
+        }
+    }
+    Parsing::pda_variant_t parse_stream(std::istream& stream, const parsing_options_t& parse_opts) {
+        if (parse_opts.format == input_format::PDAAAL) {
+            return parse_stream_json(stream, parse_opts);
+        } else {
+            // TODO: More parsing options...
+            throw std::logic_error("That input format is not yet supported...");
+        }
+    }
+    Parsing::pda_variant_t parse_file(const std::string& input_file, const parsing_options_t& parse_opts) {
         std::ifstream input_stream(input_file);
         if (!input_stream.is_open()) {
             std::stringstream es;
@@ -70,18 +94,28 @@ namespace pdaaal {
             throw std::runtime_error(es.str());
         }
     }
+    weight_type get_weight_type(const std::string& weight_type) {
+        if (equals_case_insensitive_1(weight_type, "none")) {
+            return weight_type::NONE;
+        } else if (equals_case_insensitive_1(weight_type, "uint")) {
+            return weight_type::UINT;
+        } else {
+            std::stringstream es;
+            es << "error: Unrecognized weight type: " << weight_type << std::endl;
+            throw std::runtime_error(es.str());
+        }
+    }
 
-    StateTypedPDA<std::string,std::string> Parsing::parse(bool no_warnings) {
-        auto format = get_format(input_format);
+    Parsing::pda_variant_t Parsing::parse(bool no_warnings) {
         std::stringstream dummy;
-        parsing_options_t parse_opts(no_warnings ? dummy : std::cerr, format);
-
+        parsing_options_t parse_opts(no_warnings ? dummy : std::cerr, get_format(input_format),
+                                     get_weight_type(weight_type), use_state_names);
         parsing_stopwatch.start();
-        auto value = (input_file.empty() || input_file == "-") ? parse_stream(std::cin, parse_opts) : parse_file(input_file, parse_opts);
+        auto value = (input_file.empty() || input_file == "-")
+                     ? parse_stream(std::cin, parse_opts)
+                     : parse_file(input_file, parse_opts);
         parsing_stopwatch.stop();
         return value;
     }
-
-
 
 }

@@ -205,11 +205,10 @@ namespace pdaaal {
         template <typename context::context_type type, typename context::key_flag flag, keys current_key, keys... alternatives>
         // 'current_key' is the key to use. 'alternatives' are any other keys using the same flag in the same context (i.e. a one_of(current_key, alternatives...) requirement).
         bool handle_key() {
-            static_assert(flag == context::FLAG_1 || flag == context::FLAG_2
-                    //|| flag == PdaaalSAXHandler::context::FLAG_3 || flag == PdaaalSAXHandler::context::FLAG_4
-                    ,"Template parameter flag must be a single key, not a union or empty.");
+            static_assert(flag == context::FLAG_1 || flag == context::FLAG_2 || flag == PdaaalSAXHandler::context::FLAG_3,
+                    "Template parameter flag must be a single key, not a union or empty.");
             static_assert(((context::get_key(type, flag) == current_key) || ... || (context::get_key(type, flag) == alternatives)),
-                          "The result of get_key(type, flag) must match 'key' or one of the alternatives");
+                    "The result of get_key(type, flag) must match 'key' or one of the alternatives");
             if (!context_stack.top().needs_value(flag)) {
                 errors << "Duplicate definition of key: \"" << current_key;
                 ((errors << "\"/\"" << alternatives), ...);
@@ -323,7 +322,7 @@ namespace pdaaal {
                         current_rule._to = build_pda.insert_state(value);
                         break;
                     } else {
-                        errors << "error: Rule \"to\" state was string: " << value << ", but state names are disabled in this setting." << std::endl;
+                        errors << "error: Rule \"to\" state was string: " << value << ", but state names are disabled in this setting. Try with --state-names" << std::endl;
                         return false;
                     }
                 case keys::pop:
@@ -379,7 +378,7 @@ namespace pdaaal {
                         context_stack.push(states_object);
                         break;
                     } else {
-                        errors << "error: Found object after key: " << last_key << ", but state names are disabled in this setting. Use an array instead." << std::endl;
+                        errors << "error: Found object after key: " << last_key << ", but state names are disabled in this setting. Try with --state-names." << std::endl;
                         return false;
                     }
                 case keys::state_name:
