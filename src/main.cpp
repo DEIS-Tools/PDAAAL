@@ -29,6 +29,7 @@
 #include <iostream>
 
 #include <pdaaal/parsing/Parsing.h>
+#include <pdaaal/Verifier.h>
 
 #include "git_hash.h" // Generated at build time. Defines PDAAAL_GIT_HASH and PDAAAL_GIT_HASH_STR
 
@@ -42,6 +43,7 @@ int main(int argc, const char** argv) {
             ("version,v", "print version");
 
     Parsing parsing("Input Options");
+    Verifier verifier("Verification Options");
     po::options_description output("Output Options");
 
     bool no_parser_warnings = false;
@@ -51,6 +53,7 @@ int main(int argc, const char** argv) {
             ("silent,s", po::bool_switch(&silent), "Disables non-essential output (implies -W).")
             ;
     opts.add(parsing.options());
+    opts.add(verifier.options());
     opts.add(output);
 
     po::variables_map vm;
@@ -73,9 +76,14 @@ int main(int argc, const char** argv) {
     if (silent) { no_parser_warnings = true; }
 
     auto pda_variant = parsing.parse(no_parser_warnings);
+    if (!silent) {
+        std::cout << "Parsing duration: " << parsing.duration() << std::endl;
+    }
     std::visit([](auto&& pda){
         std::cout << "States: " << pda.states().size() << ". Labels: " << pda.number_of_labels() << std::endl;
     }, pda_variant);
+
+    verifier.verify();
     // TODO: Do stuff
 
     return 0;
