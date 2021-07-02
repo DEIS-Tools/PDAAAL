@@ -18,7 +18,7 @@ if(DEFINED ENV{GITHUB_SHA}) # Workaround for Github CI workflow, where the curre
             COMMAND ${CMAKE_COMMAND} -E echo "#define STRINGIFY(x) #x" >> git_hash.h
             COMMAND ${CMAKE_COMMAND} -E echo "#define STRINGIFY_MACRO(x) STRINGIFY(x) " >> git_hash.h
             COMMAND ${CMAKE_COMMAND} -E echo "#define PDAAAL_GIT_HASH_STR STRINGIFY_MACRO(PDAAAL_GIT_HASH) " >> git_hash.h
-            DEPENDS pdaaal main.cpp
+            DEPENDS pdaaal main.cpp pdaaal/parsing/Parsing.cpp
             VERBATIM)
 else()
     find_package(Git)
@@ -28,7 +28,7 @@ else()
             COMMAND ${CMAKE_COMMAND} -E echo "#define STRINGIFY(x) #x" >> git_hash.h
             COMMAND ${CMAKE_COMMAND} -E echo "#define STRINGIFY_MACRO(x) STRINGIFY(x) " >> git_hash.h
             COMMAND ${CMAKE_COMMAND} -E echo "#define PDAAAL_GIT_HASH_STR STRINGIFY_MACRO(PDAAAL_GIT_HASH) " >> git_hash.h
-            DEPENDS pdaaal main.cpp pdaaal/parsing/Parsing.cpp pdaaal/parsing/JsonParser.cpp
+            DEPENDS pdaaal main.cpp pdaaal/parsing/Parsing.cpp
             VERBATIM)
 endif()
 add_custom_target(generate_hash DEPENDS "git_hash.h")
@@ -36,7 +36,7 @@ add_custom_target(generate_hash DEPENDS "git_hash.h")
 find_package(Boost 1.66 COMPONENTS program_options REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})
 
-add_executable(pdaaal-bin main.cpp pdaaal/parsing/Parsing.cpp pdaaal/parsing/JsonParser.cpp)
+add_executable(pdaaal-bin main.cpp pdaaal/parsing/Parsing.cpp)
 target_link_libraries(pdaaal-bin PRIVATE pdaaal ${Boost_LIBRARIES})
 add_dependencies(pdaaal-bin generate_hash)
 set_target_properties(pdaaal-bin PROPERTIES OUTPUT_NAME pdaaal)
