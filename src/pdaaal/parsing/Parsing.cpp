@@ -41,7 +41,7 @@ namespace pdaaal {
 
     auto parse_stream(std::istream& stream, const parsing_options_t& parse_opts) {
         // TODO: More parsing options...
-        return PdaaalJSONParser::parse(stream, parse_opts.warnings);
+        return PdaaalJSONParser::parse<>(stream, parse_opts.warnings);
     }
 
     auto parse_file(const std::string& input_file, const parsing_options_t& parse_opts) {

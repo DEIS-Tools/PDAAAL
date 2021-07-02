@@ -43,9 +43,20 @@ using json = nlohmann::json;
 
 namespace pdaaal {
 
-    class PdaaalJSONParserBase {
-    protected:
-        enum class keys : uint32_t { none, unknown, pda, states, state_name, from_label, to, pop, swap, push };
+    template <typename W = weight<void>, bool use_state_names = true>
+    class PdaaalSAXHandler {
+    public:
+        using pda_t = std::conditional_t<use_state_names,
+                StateTypedPDA<std::string, std::string, W, fut::type::vector>,
+                StateTypedPDA<std::string, size_t, W, fut::type::vector, true>>;
+    private:
+        using build_pda_t = std::conditional_t<use_state_names,
+                StateTypedPDA<std::string, std::string, W, fut::type::hash>,
+                StateTypedPDA<std::string, size_t, W, fut::type::hash, true>>;
+
+        static constexpr bool expect_weight = is_weighted<W>;
+
+        enum class keys : uint32_t { none, unknown, pda, states, state_name, from_label, to, pop, swap, push, weight };
         friend constexpr std::ostream& operator<<(std::ostream& s, keys key) {
             switch (key) {
                 case keys::none:
@@ -78,14 +89,16 @@ namespace pdaaal {
                 case keys::push:
                     s << "push";
                     break;
+                case keys::weight:
+                    s << "weight";
+                    break;
             }
             return s;
         }
-    public:
         struct context {
             enum class context_type : uint32_t { unknown, initial, pda, state_array, states_object, state, rule_array, rule };
-            friend constexpr std::ostream& operator<<(std::ostream& s, context_type type) {
-                switch (type) {
+            friend constexpr std::ostream& operator<<(std::ostream& s, context_type t) {
+                switch (t) {
                     case context_type::unknown:
                         s << "<unknown>";
                         break;
@@ -117,12 +130,14 @@ namespace pdaaal {
                 NO_FLAGS = 0,
                 FLAG_1 = 1,
                 FLAG_2 = 2,
+                FLAG_3 = 4,
                 // Required values for each object type.
                 REQUIRES_0 = NO_FLAGS,
                 REQUIRES_1 = FLAG_1,
                 REQUIRES_2 = FLAG_1 | FLAG_2,
+                REQUIRES_3 = FLAG_1 | FLAG_2 | FLAG_3
             };
-            static constexpr std::array<key_flag,2> all_flags{key_flag::FLAG_1, key_flag::FLAG_2};
+            static constexpr std::array<key_flag,3> all_flags{key_flag::FLAG_1, key_flag::FLAG_2, key_flag::FLAG_3};
 
             context_type type;
             key_flag values_left;
@@ -149,13 +164,26 @@ namespace pdaaal {
                         }
                         break;
                     case context_type::rule:
-                        switch (flag) {
-                            case key_flag::FLAG_1:
-                                return keys::to;
-                            case key_flag::FLAG_2:
-                                return keys::pop; // NOTE: Also keys::swap and keys::push
-                            default:
-                                break;
+                        if constexpr (expect_weight) {
+                            switch (flag) {
+                                case key_flag::FLAG_1:
+                                    return keys::to;
+                                case key_flag::FLAG_2:
+                                    return keys::pop; // NOTE: Also keys::swap and keys::push
+                                case key_flag::FLAG_3:
+                                    return keys::weight;
+                                default:
+                                    break;
+                            }
+                        } else {
+                            switch (flag) {
+                                case key_flag::FLAG_1:
+                                    return keys::to;
+                                case key_flag::FLAG_2:
+                                    return keys::pop; // NOTE: Also keys::swap and keys::push
+                                default:
+                                    break;
+                            }
                         }
                         break;
                     default:
@@ -172,9 +200,9 @@ namespace pdaaal {
         constexpr static context states_object = {context::context_type::states_object, context::NO_FLAGS };
         constexpr static context state_context = {context::context_type::state, context::NO_FLAGS };
         constexpr static context rule_array = {context::context_type::rule_array, context::NO_FLAGS };
-        constexpr static context rule_context = {context::context_type::rule, context::REQUIRES_2 };
+        constexpr static context rule_context = {context::context_type::rule, is_weighted<W> ? context::REQUIRES_3 : context::REQUIRES_2 };
 
-        template <context::context_type type, context::key_flag flag, keys current_key, keys... alternatives>
+        template <typename context::context_type type, typename context::key_flag flag, keys current_key, keys... alternatives>
         // 'current_key' is the key to use. 'alternatives' are any other keys using the same flag in the same context (i.e. a one_of(current_key, alternatives...) requirement).
         bool handle_key() {
             static_assert(flag == context::FLAG_1 || flag == context::FLAG_2
@@ -193,34 +221,21 @@ namespace pdaaal {
             return true;
         }
 
-    protected:
-        explicit PdaaalJSONParserBase(std::ostream& errors) : errors(errors) {};
-
         std::stack<context> context_stack;
         keys last_key = keys::none;
         std::ostream& errors;
-    };
-
-    template <typename W = weight<void>, bool use_state_names = true>
-    class PdaaalSAXHandler : PdaaalJSONParserBase {
-    private:
-        using build_pda_t = std::conditional_t<use_state_names,
-                StateTypedPDA<std::string, std::string, W, fut::type::hash>,
-                StateTypedPDA<std::string, size_t, W, fut::type::hash, true>>;
-        using pda_t = std::conditional_t<use_state_names,
-                StateTypedPDA<std::string, std::string, W, fut::type::vector>,
-                StateTypedPDA<std::string, size_t, W, fut::type::vector, true>>;
 
         build_pda_t build_pda;
 
-        std::unordered_set<std::string> labels;
-        bool numeric_states = false;
         size_t current_from_state = 0;
-        size_t current_to_state = 0;
         std::vector<uint32_t> current_pre;
         bool current_negated = false;
-        op_t current_op = op_t::POP;
-        uint32_t current_op_label = std::numeric_limits<uint32_t>::max();
+        //size_t current_to_state = 0;
+        //op_t current_op = op_t::POP;
+        //typename W::type current_weight
+        //uint32_t current_op_label = std::numeric_limits<uint32_t>::max();
+        typename PDA<W>::rule_t current_rule;
+
     public:
         using number_integer_t = typename json::number_integer_t;
         using number_unsigned_t = typename json::number_unsigned_t;
@@ -228,14 +243,14 @@ namespace pdaaal {
         using string_t = typename json::string_t;
         using binary_t = typename json::binary_t;
 
-        explicit PdaaalSAXHandler(std::ostream& errors = std::cerr) : PdaaalJSONParserBase(errors) {};
+        explicit PdaaalSAXHandler(std::ostream& errors = std::cerr) : errors(errors) {};
 
         pda_t get_pda() {
             return pda_t(std::move(build_pda));
         }
 
         bool null() {
-            switch (last_key) {
+            switch (this->last_key) {
                 case keys::unknown:
                     break;
                 default:
@@ -267,11 +282,17 @@ namespace pdaaal {
         bool number_unsigned(number_unsigned_t value) {
             switch (last_key) {
                 case keys::to:
-                    if (!numeric_states) {
+                    if constexpr(use_state_names) {
                         errors << "error: Rule destination was numeric: " << value << ", but string state names are used." << std::endl;
                         return false;
+                    } else {
+                        current_rule._to = value;
+                        break;
                     }
-                    current_to_state = value;
+                case keys::weight:
+                    if constexpr (expect_weight) { // TODO: Parameterize on weight type...
+                        current_rule._weight = value;
+                    }
                     break;
                 case keys::unknown:
                     break;
@@ -298,24 +319,25 @@ namespace pdaaal {
             }
             switch (last_key) {
                 case keys::to:
-                    if (numeric_states) {
-                        errors << "error: Rule \"to\" state was string: " << value << ", but numeric state indices are used." << std::endl;
+                    if constexpr (use_state_names) {
+                        current_rule._to = build_pda.insert_state(value);
+                        break;
+                    } else {
+                        errors << "error: Rule \"to\" state was string: " << value << ", but state names are disabled in this setting." << std::endl;
                         return false;
                     }
-                    current_to_state = build_pda.insert_state(value);
-                    break;
                 case keys::pop:
                     assert(value.empty()); // TODO: Should this be error?
-                    current_op = op_t::POP;
-                    current_op_label = std::numeric_limits<uint32_t>::max();
+                    current_rule._operation = op_t::POP;
+                    current_rule._op_label = std::numeric_limits<uint32_t>::max();
                     break;
                 case keys::swap:
-                    current_op = op_t::SWAP;
-                    current_op_label = build_pda.insert_label(value);
+                    current_rule._operation = op_t::SWAP;
+                    current_rule._op_label = build_pda.insert_label(value);
                     break;
                 case keys::push:
-                    current_op = op_t::PUSH;
-                    current_op_label = build_pda.insert_label(value);
+                    current_rule._operation = op_t::PUSH;
+                    current_rule._op_label = build_pda.insert_label(value);
                     break;
                 case keys::unknown:
                     break;
@@ -353,9 +375,13 @@ namespace pdaaal {
                     context_stack.push(pda_context);
                     break;
                 case keys::states:
-                    numeric_states = false;
-                    context_stack.push(states_object);
-                    break;
+                    if constexpr(use_state_names) {
+                        context_stack.push(states_object);
+                        break;
+                    } else {
+                        errors << "error: Found object after key: " << last_key << ", but state names are disabled in this setting. Use an array instead." << std::endl;
+                        return false;
+                    }
                 case keys::state_name:
                     context_stack.push(state_context);
                     break;
@@ -392,9 +418,14 @@ namespace pdaaal {
                     }
                     break;
                 case context::context_type::states_object:
-                    last_key = keys::state_name;
-                    current_from_state = build_pda.insert_state(key);
-                    break;
+                    if constexpr(use_state_names) {
+                        last_key = keys::state_name;
+                        current_from_state = build_pda.insert_state(key);
+                        break;
+                    } else {
+                        errors << "error: Encountered state name: \"" << key << "\" in context: " << context_stack.top().type << ", but state names are disabled in this setting." << std::endl;
+                        return false;
+                    }
                 case context::context_type::state:
                     last_key = keys::from_label;
                     if (key == "*") {
@@ -415,9 +446,16 @@ namespace pdaaal {
                     } else if (key == "push") {
                         if (!handle_key<context::context_type::rule,context::FLAG_2,keys::push, keys::pop, keys::swap>()) return false;
                     } else {
+                        if constexpr (expect_weight) {
+                            if (key == "weight") {
+                                if (!handle_key<context::context_type::rule,context::FLAG_3,keys::weight>()) return false;
+                                break;
+                            }
+                        }
                         errors << "Unexpected key in operation object: " << key << std::endl;
                         return false;
                     }
+                    break;
                 case context::context_type::unknown:
                     break;
                 default:
@@ -439,10 +477,10 @@ namespace pdaaal {
                         if (!first) errors << ", ";
                         first = false;
                         auto key = context::get_key(context_stack.top().type, flag);
+                        errors << key;
                         if (key == keys::pop) {
                             errors << "/" << keys::swap << "/" << keys::push;
                         }
-                        errors << key;
                     }
                 }
                 errors << " in object: " << context_stack.top().type << std::endl;
@@ -450,12 +488,12 @@ namespace pdaaal {
             }
             switch (context_stack.top().type) {
                 case context::context_type::state:
-                    if (numeric_states) {
+                    if constexpr (!use_state_names) {
                         ++current_from_state;
                     }
                     break;
                 case context::context_type::rule:
-                    build_pda.add_rule_detail(current_from_state, {current_to_state, current_op, current_op_label}, current_negated, current_pre);
+                    build_pda.add_rule_detail(current_from_state, current_rule, current_negated, current_pre);
                     break;
                 default:
                     break;
@@ -470,9 +508,14 @@ namespace pdaaal {
             }
             switch (last_key) {
                 case keys::states:
-                    numeric_states = true;
-                    context_stack.push(state_array);
-                    break;
+                    if constexpr (use_state_names) {
+                        errors << "Unexpected start of array after key " << last_key << ". Note that state names are used in this setting." << std::endl;
+                        return false;
+                    } else {
+                        context_stack.push(state_array);
+                        current_from_state = 0;
+                        break;
+                    }
                 case keys::from_label:
                     context_stack.push(rule_array);
                     break;
@@ -502,9 +545,10 @@ namespace pdaaal {
 
     class PdaaalJSONParser {
     public:
+        template <typename W = weight<void>, bool use_state_names = true>
         static auto parse(std::istream& stream, std::ostream& warnings, json::input_format_t format = json::input_format_t::json) {
             std::stringstream es; // For errors;
-            PdaaalSAXHandler my_sax(es);
+            PdaaalSAXHandler<W,use_state_names> my_sax(es);
             if (!json::sax_parse(stream, &my_sax, format)) {
                 throw std::runtime_error(es.str());
             }
