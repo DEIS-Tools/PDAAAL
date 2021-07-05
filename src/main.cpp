@@ -83,7 +83,9 @@ int main(int argc, const char** argv) {
         std::cout << "States: " << pda.states().size() << ". Labels: " << pda.number_of_labels() << std::endl;
     }, pda_variant);
 
-    verifier.verify();
+    std::visit([&verifier](auto&& pda){
+        verifier.verify(pda);
+    }, pda_variant);
     // TODO: Do stuff
 
     return 0;

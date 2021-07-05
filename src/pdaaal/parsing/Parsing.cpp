@@ -45,9 +45,9 @@ namespace pdaaal {
     template <typename W>
     Parsing::pda_variant_t parse_stream_json_w(std::istream& stream, const parsing_options_t& parse_opts) {
         if (parse_opts.use_state_names) {
-            return PdaaalJSONParser::parse<W,true>(stream, parse_opts.warnings);
+            return PdaJSONParser::parse<W,true>(stream, parse_opts.warnings);
         } else {
-            return PdaaalJSONParser::parse<W,false>(stream, parse_opts.warnings);
+            return PdaJSONParser::parse<W,false>(stream, parse_opts.warnings);
         }
     }
     Parsing::pda_variant_t parse_stream_json(std::istream& stream, const parsing_options_t& parse_opts) {

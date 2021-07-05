@@ -3,11 +3,12 @@ project(PDAAAL C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-add_library(pdaaal ${HEADER_FILES} pdaaal/PDA.cpp pdaaal/Reducer.cpp)
+add_library(pdaaal ${HEADER_FILES} pdaaal/PDA.cpp pdaaal/Reducer.cpp pdaaal/parsing/NfaParser.cpp)
 
 if (NOT PTRIE_INSTALL_DIR)
     add_dependencies(pdaaal ptrie-ext)
 endif()
+add_dependencies(pdaaal petgl-ext)
 
 target_include_directories (pdaaal PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 

@@ -24,8 +24,8 @@
  * Created on 30-06-2021.
  */
 
-#ifndef PDAAAL_JSONPARSER_H
-#define PDAAAL_JSONPARSER_H
+#ifndef PDAAAL_PDAJSONPARSER_H
+#define PDAAAL_PDAJSONPARSER_H
 
 #include <json.hpp>
 
@@ -242,7 +242,9 @@ namespace pdaaal {
         using string_t = typename json::string_t;
         using binary_t = typename json::binary_t;
 
-        explicit PdaaalSAXHandler(std::ostream& errors = std::cerr) : errors(errors) {};
+        explicit PdaaalSAXHandler(std::ostream& errors = std::cerr) : errors(errors) {
+            build_pda.insert_label(""); // Now id 0 can represent unknown labels.
+        };
 
         pda_t get_pda() {
             return pda_t(std::move(build_pda));
@@ -542,7 +544,7 @@ namespace pdaaal {
         }
     };
 
-    class PdaaalJSONParser {
+    class PdaJSONParser {
     public:
         template <typename W = weight<void>, bool use_state_names = true>
         static auto parse(std::istream& stream, std::ostream& warnings, json::input_format_t format = json::input_format_t::json) {
@@ -556,4 +558,4 @@ namespace pdaaal {
     };
 }
 
-#endif //PDAAAL_JSONPARSER_H
+#endif //PDAAAL_PDAJSONPARSER_H

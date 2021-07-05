@@ -28,6 +28,7 @@
 #define PDAAAL_VERIFIER_H
 
 #include <pdaaal/Solver.h>
+#include <pdaaal/parsing/NfaParser.h>
 
 namespace pdaaal {
     class Verifier {
@@ -35,11 +36,20 @@ namespace pdaaal {
         explicit Verifier(const std::string& caption) : verification_options{caption} {
             verification_options.add_options()
                     ("engine,e", po::value<size_t>(&engine), "Engine. 0=no verification, 1=post*, 2=pre*, 3=dual*")
+                    ("nfa", po::value<std::string>(&nfa_file), "Nfa file input.")
                     ;
         }
         [[nodiscard]] const po::options_description& options() const { return verification_options; }
 
-        void verify() {
+        template <typename pda_t>
+        void verify(const pda_t& pda) {
+
+            auto nfa = NfaParser::parse_file(nfa_file, [&pda](const std::string& label) -> size_t {
+                auto [found, id] = pda.exists_label(label);
+                return found ? id : 0;
+            });
+            // TODO: Use nfa.
+
             switch (engine) {
                 case 1: {
                     // TODO: Implement.
@@ -59,6 +69,7 @@ namespace pdaaal {
     private:
         po::options_description verification_options;
         size_t engine = 0;
+        std::string nfa_file;
         //bool print_trace = false;
     };
 }
