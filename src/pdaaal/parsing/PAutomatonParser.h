@@ -33,32 +33,38 @@
 
 namespace pdaaal {
 
-    // TODO: Implement string literal state names.
-    //struct escaped_c : pegtl::one< '"', '\\' > {};
-    //struct character : pegtl::if_then_else< pegtl::one< '\\' >, escaped_c, pegtl::utf8::range< 0x20, 0x10FFFF > > {};
-    //struct string_literal : pegtl::seq< pegtl::one< '"' >, pegtl::until< pegtl::one< '"' >, character > > {};
+    struct escaped_c : pegtl::one< '"', '\\' > {};
+    struct character : pegtl::if_then_else< pegtl::one< '\\' >, escaped_c, pegtl::utf8::range< 0x20, 0x10FFFF > > {};
+    struct string_state : public std::string {
+        template<typename ParseInput, typename... States >
+        explicit string_state(const ParseInput& in, States&&... st) { }
+        template<typename ParseInput, typename... States >
+        void success(const ParseInput& in, States&&... st) {
+            (st.accept_string(*this), ...);
+        }
+    };
+    struct string_literal : pegtl::state<string_state, pegtl::one< '"' >, pegtl::until< pegtl::one< '"' >, character > > {};
+
 
     template<typename State>
     struct p_automaton_initial : label_set_or_singleton<State, comment> {};
     template<typename State>
     struct p_automaton_expr : pegtl::seq<pegtl::one<'<'>, pegtl::pad<p_automaton_initial<State>, ignored<comment>>, pegtl::one<','>, nfa_expr_default, pegtl::one<'>'>> {};
-
-    struct p_automaton_state : pegtl::sor<pegtl::plus<pegtl::digit>, pegtl::identifier> {};
+    struct p_automaton_state_1 : pegtl::sor<pegtl::plus<pegtl::digit>, pegtl::identifier> {};
+    struct p_automaton_state : pegtl::sor<p_automaton_state_1, string_literal> {};
 
     struct p_automaton_file : pegtl::must<pegtl::pad<p_automaton_expr<p_automaton_state>, ignored<comment>>, pegtl::eof> {};
-
+    
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping>
     class PAutomatonBuilder : public NfaBuilder<uint32_t> {
     public:
         explicit PAutomatonBuilder(TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
                                    const std::function<state_t(const std::string&)>& state_mapping)
-        : NfaBuilder<uint32_t>([&pda](const std::string& label) -> uint32_t { return pda.insert_label(label); }),
-          _pda(pda), _state_mapping(state_mapping) {};
-
+                : NfaBuilder<uint32_t>([&pda](const std::string& label) -> uint32_t { return pda.insert_label(label); }),
+                  _pda(pda), _state_mapping(state_mapping) {};
         PAutomaton<W> get_p_automaton() {
             return PAutomaton<W>(_pda, get_nfa(), _states);
         }
-
         bool add_state(const std::string& state_name) {
             auto [found, id] = _pda.exists_state(_state_mapping(state_name));
             if (found) {
@@ -66,7 +72,9 @@ namespace pdaaal {
             }
             return found;
         }
-
+        void accept_string(const std::string& s) {
+            add_state(s);
+        }
     private:
         std::vector<size_t> _states;
         const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& _pda;
@@ -76,13 +84,10 @@ namespace pdaaal {
     PAutomatonBuilder(TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
                       const std::function<state_t(const std::string&)>& state_mapping) -> PAutomatonBuilder<label_t,W,state_t,skip_state_mapping>;
 
-
     template<typename Rule> struct p_automaton_build_action : nfa_build_action<Rule> { };
-
-    //template<> struct p_automaton_build_action< pegtl::utf8::range< 0x20, 0x10FFFF > > : pegtl::unescape::append_all {};
-    //template<> struct p_automaton_build_action< escaped_c > : pegtl::unescape::unescape_c< escaped_c, '"', '\\' > {};
-
-    template<> struct p_automaton_build_action<p_automaton_state> {
+    template<> struct p_automaton_build_action< pegtl::utf8::range< 0x20, 0x10FFFF > > : pegtl::unescape::append_all {};
+    template<> struct p_automaton_build_action< escaped_c > : pegtl::unescape::unescape_c< escaped_c, '"', '\\' > {};
+    template<> struct p_automaton_build_action<p_automaton_state_1> {
         template<typename ActionInput, typename T, typename W, typename S, bool ssm> static void apply(const ActionInput& in, PAutomatonBuilder<T,W,S,ssm>& v) {
             if (!v.add_state(in.string())) {
                 throw pegtl::parse_error("state is not found in the PDA.", in);
