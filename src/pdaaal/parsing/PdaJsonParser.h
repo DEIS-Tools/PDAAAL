@@ -228,10 +228,6 @@ namespace pdaaal {
         size_t current_from_state = 0;
         std::vector<uint32_t> current_pre;
         bool current_negated = false;
-        //size_t current_to_state = 0;
-        //op_t current_op = op_t::POP;
-        //typename W::type current_weight
-        //uint32_t current_op_label = std::numeric_limits<uint32_t>::max();
         typename PDA<W>::rule_t current_rule;
 
     public:
@@ -241,9 +237,7 @@ namespace pdaaal {
         using string_t = typename json::string_t;
         using binary_t = typename json::binary_t;
 
-        explicit PdaaalSAXHandler(std::ostream& errors = std::cerr) : errors(errors) {
-            build_pda.insert_label(""); // Now id 0 can represent unknown labels.
-        };
+        explicit PdaaalSAXHandler(std::ostream& errors = std::cerr) : errors(errors) {};
 
         pda_t get_pda() {
             return pda_t(std::move(build_pda));

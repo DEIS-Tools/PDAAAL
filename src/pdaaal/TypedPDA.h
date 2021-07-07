@@ -165,7 +165,7 @@ namespace pdaaal {
         }
         [[nodiscard]] std::pair<bool,size_t> exists_state(const state_t& state) const {
             if constexpr (skip_state_mapping) {
-                return std::make_pair(state < this->states(), state);
+                return std::make_pair(state < this->states().size(), state);
             } else {
                 return this->_state_map.exists(state);
             }

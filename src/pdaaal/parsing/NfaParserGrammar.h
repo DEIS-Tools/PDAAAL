@@ -68,6 +68,7 @@ namespace pdaaal {
 
     template<typename L = label_set<label, comment>, typename C = comment>
     struct nfa_file : pegtl::must<pegtl::pad < nfa_expr<L, C>, ignored < C>>, pegtl::eof> {};
+    struct nfa_expr_default : pegtl::pad<nfa_expr<label_set<label, comment>, comment>, ignored<comment>> {};
 
     enum class nfa_op_tag {BRACKET, OR, CONCAT};
 
@@ -94,8 +95,8 @@ namespace pdaaal {
         void set_negation() {
             _negated = true;
         }
-        void add_label(std::string&& label) {
-            _label_set.emplace(_label_function(std::move(label)));
+        void add_label(const std::string& label) {
+            _label_set.emplace(_label_function(label));
         }
         void use_label_set() {
             emplace_nfa(std::move(_label_set), _negated);
@@ -122,7 +123,7 @@ namespace pdaaal {
         void push_op(nfa_op_tag op) {
             _op_type_stack.emplace_back(op);
         }
-        NFA <T> get() {
+        NFA <T> get_nfa() {
             assert(_nfa_stack.size() == 1);
             return std::move(_nfa_stack.back());
         }
@@ -159,7 +160,7 @@ namespace pdaaal {
             v.add_label(in.string());
         }
     };
-    template<typename L, typename C> struct nfa_build_action<label_set<L, C>> {
+    template<typename C> struct nfa_build_action<label_set<label, C>> {
         template<typename T> static void apply0(NfaBuilder<T>& v) {
             v.use_label_set();
         }

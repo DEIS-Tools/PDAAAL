@@ -42,17 +42,17 @@ namespace pdaaal {
               << std::setw(p.column) << '^' << std::endl;
             throw std::runtime_error(s.str());
         }
-        return nfa_builder.get();
+        return nfa_builder.get_nfa();
     }
-    NFA<size_t> NfaParser::parse_file(const std::string& file, const std::function<size_t(const std::string&)>& label_function) {
+    NFA<NfaParser::T> NfaParser::parse_file(const std::string& file, const std::function<NfaParser::T(const std::string&)>& label_function) {
         std::filesystem::path file_path(file);
         pegtl::file_input in(file_path);
-        return parse<size_t>(in, label_function);
+        return parse<NfaParser::T>(in, label_function);
     }
 
-    NFA<size_t> NfaParser::parse_string(const std::string& content, const std::function<size_t(const std::string&)>& label_function) {
+    NFA<NfaParser::T> NfaParser::parse_string(const std::string& content, const std::function<NfaParser::T(const std::string&)>& label_function) {
         pegtl::memory_input in(content, "");
-        return parse<size_t>(in, label_function);
+        return parse<NfaParser::T>(in, label_function);
     }
 
 }

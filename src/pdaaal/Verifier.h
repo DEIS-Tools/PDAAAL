@@ -28,7 +28,7 @@
 #define PDAAAL_VERIFIER_H
 
 #include <pdaaal/Solver.h>
-#include <pdaaal/parsing/NfaParser.h>
+#include <pdaaal/parsing/PAutomatonParser.h>
 
 namespace pdaaal {
     class Verifier {
@@ -42,12 +42,9 @@ namespace pdaaal {
         [[nodiscard]] const po::options_description& options() const { return verification_options; }
 
         template <typename pda_t>
-        void verify(const pda_t& pda) {
+        void verify(pda_t& pda) {
 
-            auto nfa = NfaParser::parse_file(nfa_file, [&pda](const std::string& label) -> size_t {
-                auto [found, id] = pda.exists_label(label);
-                return found ? id : 0;
-            });
+            auto p_automaton = PAutomatonParser::parse_file(nfa_file, pda);
             // TODO: Use nfa.
 
             switch (engine) {
