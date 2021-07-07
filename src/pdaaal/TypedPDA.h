@@ -40,11 +40,24 @@
 
 namespace pdaaal {
 
-    template<typename label_t, typename W = weight<void>, fut::type Container = fut::type::vector>
-    class TypedPDA : public PDA<W, Container> {
+    // Allow conditionally enabling state mapping. (E.g. string -> size_t map vs. just directly use size_t states.)
+    template<typename state_t>
+    struct state_mapping {
+        state_t get_state(size_t id) {
+            assert(id < _state_map.size());
+            return _state_map.at(id);
+        }
+    protected:
+        utils::ptrie_set<state_t> _state_map;
+    };
+    struct no_state_mapping {};
+
+    template<typename label_t, typename W = weight<void>, fut::type Container = fut::type::vector, typename state_t = size_t, bool skip_state_mapping = std::is_same_v<state_t,size_t>>
+    class TypedPDA : public PDA<W, Container>, public std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
     protected:
         using impl_rule_t = typename PDA<W, Container>::rule_t; // This rule type is used internally.
-
+        static_assert(!skip_state_mapping || std::is_same_v<state_t,size_t>, "When skip_state_mapping==true, you must use state_t=size_t");
+        using StateMapOrEmpty = std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>>;
     private:
         template <typename WT, typename = void> struct rule_t_;
         template <typename WT>
@@ -75,8 +88,10 @@ namespace pdaaal {
 
     public:
         template<fut::type OtherContainer>
-        explicit TypedPDA(TypedPDA<label_t,W,OtherContainer>&& other_pda)
-        : PDA<W,Container>(std::move(other_pda)), _label_map(other_pda.move_label_map()) {}
+        explicit TypedPDA(TypedPDA<label_t,W,OtherContainer,state_t,skip_state_mapping>&& other_pda)
+        : PDA<W,Container>(std::move(static_cast<PDA<W,OtherContainer>&>(other_pda))),
+          StateMapOrEmpty(std::move(static_cast<StateMapOrEmpty&>(other_pda))),
+          _label_map(other_pda.move_label_map()) {}
 
         explicit TypedPDA(const std::unordered_set<label_t>& all_labels) {
             std::set<label_t> sorted(all_labels.begin(), all_labels.end());
@@ -90,6 +105,7 @@ namespace pdaaal {
 #endif
             }
         }
+        TypedPDA() = default;
 
         auto move_label_map() { return std::move(_label_map); }
 
@@ -97,8 +113,9 @@ namespace pdaaal {
             return _label_map.size();
         }
 
-        label_t get_symbol(size_t i) const {
-            return _label_map.at(i);
+        label_t get_symbol(size_t id) {
+            assert(id < _label_map.size());
+            return _label_map.at(id);
         }
 
         template<typename... Args>
@@ -140,6 +157,31 @@ namespace pdaaal {
                 tpre[i] = res.second;
             }
             return tpre;
+        }
+
+        // Enable incremental construction of label (and state) set.
+        std::pair<bool,size_t> exists_label(const label_t& label) const {
+            return _label_map.exists(label);
+        }
+        [[nodiscard]] std::pair<bool,size_t> exists_state(const state_t& state) const {
+            if constexpr (skip_state_mapping) {
+                return std::make_pair(state < this->states(), state);
+            } else {
+                return this->_state_map.exists(state);
+            }
+        }
+        uint32_t insert_label(const label_t& label) {
+            return _label_map.insert(label).second;
+        }
+        size_t insert_state(const state_t& state) {
+            if constexpr (skip_state_mapping) {
+                return state;
+            } else {
+                return this->_state_map.insert(state).second;
+            }
+        }
+        void add_rule_detail(size_t from, typename PDA<W>::rule_t r, bool negated, const std::vector<uint32_t>& pre) {
+            this->add_untyped_rule_impl(from, r, negated, pre);
         }
 
     protected:

@@ -30,7 +30,6 @@
 #include <json.hpp>
 
 #include <pdaaal/TypedPDA.h>
-#include <pdaaal/StateTypedPDA.h>
 
 #include <iostream>
 #include <fstream>
@@ -47,12 +46,12 @@ namespace pdaaal {
     class PdaaalSAXHandler {
     public:
         using pda_t = std::conditional_t<use_state_names,
-                StateTypedPDA<std::string, std::string, W, fut::type::vector>,
-                StateTypedPDA<std::string, size_t, W, fut::type::vector, true>>;
+                TypedPDA<std::string, W, fut::type::vector, std::string>,
+                TypedPDA<std::string, W, fut::type::vector, size_t>>;
     private:
         using build_pda_t = std::conditional_t<use_state_names,
-                StateTypedPDA<std::string, std::string, W, fut::type::hash>,
-                StateTypedPDA<std::string, size_t, W, fut::type::hash, true>>;
+                TypedPDA<std::string, W, fut::type::hash, std::string>,
+                TypedPDA<std::string, W, fut::type::hash, size_t>>;
 
         static constexpr bool expect_weight = is_weighted<W>;
 
