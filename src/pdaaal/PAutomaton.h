@@ -137,7 +137,7 @@ namespace pdaaal {
         template<typename T>
         PAutomaton(const TypedPDA<T,W>& pda, const NFA<T>& nfa, const std::vector<size_t>& states)
         : PAutomaton(pda, states, nfa.empty_accept()) {
-            construct(nfa, states, [&pda](const auto& v){ return pda.encode_pre(v); });
+            construct<T>(nfa, states, [&pda](const auto& v){ return pda.encode_pre(v); });
         }
         // Same, but where the NFA contains the symbols mapped to ids already.
         PAutomaton(const PDA<W>& pda, const NFA<uint32_t>& nfa, const std::vector<size_t>& states)
@@ -160,9 +160,8 @@ namespace pdaaal {
         }
 
 
-        PAutomaton(PAutomaton &&) noexcept = default;
-
-        PAutomaton(const PAutomaton &other) : _pda(other._pda) {
+        PAutomaton(PAutomaton<W> &&) noexcept = default;
+        PAutomaton(const PAutomaton<W>& other) : _pda(other._pda) {
             std::unordered_map<state_t *, state_t *> indir;
             for (auto &s : other._states) {
                 _states.emplace_back(std::make_unique<state_t>(*s));
@@ -179,6 +178,34 @@ namespace pdaaal {
         [[nodiscard]] const std::vector<std::unique_ptr<state_t>> &states() const { return _states; }
         
         [[nodiscard]] const PDA<W> &pda() const { return _pda; }
+
+        void or_extend(PAutomaton<W>&& other) {
+            assert(_pda.states().size() == other._pda.states().size()); // We compare number of PDA states, since operator== is not implemented for PDA.
+            const size_t pda_size = _pda.states().size();
+            const size_t automaton_size = _states.size();
+            assert(automaton_size >= pda_size);
+            assert(_initial.size() == pda_size);
+            assert(other._states.size() >= pda_size);
+            assert(other._initial.size() == pda_size);
+            size_t offset = automaton_size - pda_size;
+            for (size_t i = 0; i < other._states.size(); ++i) {
+                assert(i >= pda_size || _initial[i]->_id == i);
+                assert(i >= pda_size || other._initial[i]->_id == i);
+                size_t from = i;
+                if (i >= pda_size) {
+                    from = add_state(false, other._states[i]->_accepting);
+                } else if (!_states[i]->_accepting && other._states[i]->_accepting) {
+                    _states[i]->_accepting = true;
+                    _accepting.push_back(_states[i].get());
+                }
+                for (auto&& [to,labels] : other._states[i]->_edges) {
+                    auto new_to = (to < pda_size) ? to : to + offset;
+                    for (const auto& [label, trace] : labels) { // TODO: This can be done faster. Assign labels directly in some cases.
+                        _states[from]->_edges.emplace(new_to, label, trace);
+                    }
+                }
+            }
+        }
 
         void to_dot(std::ostream &out, const std::function<void(std::ostream &, const uint32_t&)> &printer = [](auto &s, auto &l) {
                         s << l;

@@ -113,7 +113,7 @@ namespace pdaaal {
             return _label_map.size();
         }
 
-        label_t get_symbol(size_t id) {
+        label_t get_symbol(size_t id) const {
             assert(id < _label_map.size());
             return _label_map.at(id);
         }

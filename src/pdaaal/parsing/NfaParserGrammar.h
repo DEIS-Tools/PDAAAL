@@ -75,6 +75,16 @@ namespace pdaaal {
     template<typename T>
     class NfaBuilder { // This one is a bit ugly, but it works...
     public:
+        // Make NfaBuilder work with the pegtl::state rule
+        // Get label function from first 'upper' state object.
+        template<typename ParseInput, typename State, typename... States>
+        explicit NfaBuilder(const ParseInput& in, State&& st1, States&&... st)
+        : _label_function(st1.get_label_map()) { }
+        template<typename ParseInput, typename State, typename... States>
+        void success(const ParseInput& in, State&& st1, States&&... st) {
+            st1.accept_nfa(get_nfa()); // Move NFA to the first 'upper' state object.
+        }
+
         explicit NfaBuilder(const std::function<T(const std::string&)>& label_function) : _label_function(label_function) {};
 
         void open() {
@@ -107,7 +117,7 @@ namespace pdaaal {
         void emplace_nfa(Args&& ... args) {
             _nfa_stack.emplace_back(std::forward<Args>(args)...);
         }
-        NFA <T>& current_nfa() {
+        NFA<T>& current_nfa() {
             return _nfa_stack.back();
         }
         template<nfa_op_tag op>
@@ -123,7 +133,7 @@ namespace pdaaal {
         void push_op(nfa_op_tag op) {
             _op_type_stack.emplace_back(op);
         }
-        NFA <T> get_nfa() {
+        NFA<T> get_nfa() {
             assert(_nfa_stack.size() == 1);
             return std::move(_nfa_stack.back());
         }
