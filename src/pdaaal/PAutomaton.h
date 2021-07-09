@@ -158,7 +158,9 @@ namespace pdaaal {
                 }
             }
         }
-
+        PAutomaton(PAutomaton<W>&& other, const PDA<W>& pda) noexcept // Move constructor, but update reference to PDA.
+        : _states(std::move(other._states)), _initial(std::move(other._initial)),
+          _accepting(std::move(other._accepting)), _trace_info(std::move(other._trace_info)), _pda(pda) {};
 
         PAutomaton(PAutomaton<W> &&) noexcept = default;
         PAutomaton(const PAutomaton<W>& other) : _pda(other._pda) {
@@ -546,7 +548,7 @@ namespace pdaaal {
 
         std::vector<std::unique_ptr<trace_t>> _trace_info;
 
-        const PDA<W> &_pda;
+        const PDA<W>& _pda;
     };
 
 

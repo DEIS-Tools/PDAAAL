@@ -793,8 +793,8 @@ namespace pdaaal {
             return instance.initialize_product();
         }
 
-        template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W>
-        static auto get_trace(const SolverInstance<T,W>& instance) {
+        template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename S, bool ssm>
+        static auto get_trace(const SolverInstance<T,W,S,ssm>& instance) {
             static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
             if constexpr (trace_type == Trace_Type::Shortest) {
                 auto [path, stack, weight] = instance.template find_path<trace_type>();
@@ -804,8 +804,8 @@ namespace pdaaal {
                 return _get_trace(instance.pda(), instance.automaton(), path, stack);
             }
         }
-        template <typename T, typename W>
-        static auto get_trace_dual_search(const SolverInstance<T,W>& instance) {
+        template <typename T, typename W, typename S, bool ssm>
+        static auto get_trace_dual_search(const SolverInstance<T,W,S,ssm>& instance) {
             auto [paths, stack] = instance.template find_path<Trace_Type::Any, true>();
             std::vector<size_t> i_path, f_path;
             for (const auto& [i_state, f_state] : paths) {
@@ -884,9 +884,11 @@ namespace pdaaal {
             return saturation.found();
         }
 
-        template <typename T, typename W>
-        static std::vector<typename TypedPDA<T>::tracestate_t> _get_trace(const TypedPDA<T,W> &pda, const PAutomaton<W> &automaton, const std::vector<size_t>& path, const std::vector<uint32_t>& stack) {
-            using tracestate_t = typename TypedPDA<T>::tracestate_t;
+        template <typename T, typename W, typename S, bool ssm>
+        static std::vector<typename TypedPDA<T,W,fut::type::vector,S,ssm>::tracestate_t>
+        _get_trace(const TypedPDA<T,W,fut::type::vector,S,ssm> &pda, const PAutomaton<W> &automaton,
+                   const std::vector<size_t>& path, const std::vector<uint32_t>& stack) {
+            using tracestate_t = typename TypedPDA<T,W,fut::type::vector,S,ssm>::tracestate_t;
 
             if (path.empty()) {
                 return std::vector<tracestate_t>();

@@ -36,37 +36,67 @@ namespace pdaaal {
         explicit Verifier(const std::string& caption) : verification_options{caption} {
             verification_options.add_options()
                     ("engine,e", po::value<size_t>(&engine), "Engine. 0=no verification, 1=post*, 2=pre*, 3=dual*")
-                    ("nfa", po::value<std::string>(&nfa_file), "Nfa file input.")
+                    ("initial-automaton,i", po::value<std::string>(&initial_pa_file), "Initial PAutomaton file input.")
+                    ("final-automaton,f", po::value<std::string>(&final_pa_file), "Final PAutomaton file input.")
                     ;
         }
         [[nodiscard]] const po::options_description& options() const { return verification_options; }
 
         template <typename pda_t>
-        void verify(pda_t& pda) {
+        void verify(pda_t&& pda) {
+            auto initial_p_automaton = PAutomatonParser::parse_file(initial_pa_file, pda);
+            auto final_p_automaton = PAutomatonParser::parse_file(final_pa_file, pda);
+            SolverInstance instance(std::move(pda), std::move(initial_p_automaton), std::move(final_p_automaton));
 
-            auto p_automaton = PAutomatonParser::parse_file(nfa_file, pda);
-            // TODO: Use nfa.
-
+            bool result;
+            std::vector<typename pda_t::tracestate_t> trace;
             switch (engine) {
-                case 1: {
-                    // TODO: Implement.
+                case 1: { // TODO: Add shortest trace option
+                    std::cout << "Using post*" << std::endl;
+                    result = Solver::post_star_accepts(instance);
+                    if (result) {
+                         trace = Solver::get_trace(instance);
+                    }
                     break;
                 }
                 case 2: {
-
+                    std::cout << "Using pre*" << std::endl;
+                    result = Solver::pre_star_accepts(instance);
+                    if (result) {
+                        trace = Solver::get_trace(instance);
+                    }
                     break;
                 }
                 case 3: {
-
+                    std::cout << "Using dual*" << std::endl;
+                    result = Solver::dual_search_accepts(instance);
+                    if (result) {
+                        trace = Solver::get_trace_dual_search(instance);
+                    }
                     break;
                 }
             }
+            std::cout << ((result) ? "Reachable" : "Not reachable") << std::endl;
+            for (const auto& trace_state : trace) {
+                std::cout << "< " << trace_state._pdastate << ", [";
+                bool first = true;
+                for (const auto& label : trace_state._stack) {
+                    if (first) {
+                        first = false;
+                    } else {
+                        std::cout << ", ";
+                    }
+                    std::cout << label;
+                }
+                std::cout << "] >" << std::endl;
+            }
+
         }
 
     private:
         po::options_description verification_options;
         size_t engine = 0;
-        std::string nfa_file;
+        std::string initial_pa_file, final_pa_file;
         //bool print_trace = false;
     };
 }

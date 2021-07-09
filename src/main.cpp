@@ -84,9 +84,8 @@ int main(int argc, const char** argv) {
     }, pda_variant);
 
     std::visit([&verifier](auto&& pda){
-        verifier.verify(pda);
-    }, pda_variant);
-    // TODO: Do stuff
+        verifier.verify(std::move(pda));
+    }, std::move(pda_variant));
 
     return 0;
 }
