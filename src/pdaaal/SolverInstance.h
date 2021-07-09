@@ -414,7 +414,7 @@ namespace pdaaal {
         std::vector<std::vector<std::pair<size_t,size_t>>> _id_fast_lookup_back; // maps final_state -> (initial_state, product_state)  Only used in dual_search
     };
 
-    template <typename T, typename W, typename state_t, bool skip_state_mapping>
+    template <typename T, typename W, typename state_t = size_t, bool skip_state_mapping = std::is_same_v<state_t,size_t>>
     class SolverInstance : public SolverInstance_impl<TypedPDA<T,W,fut::type::vector,state_t,skip_state_mapping>, PAutomaton<W>, T, W> {
     public:
         using pda_t = TypedPDA<T,W,fut::type::vector,state_t,skip_state_mapping>;
