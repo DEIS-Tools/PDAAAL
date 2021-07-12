@@ -83,8 +83,8 @@ int main(int argc, const char** argv) {
         std::cout << "States: " << pda.states().size() << ". Labels: " << pda.number_of_labels() << std::endl;
     }, pda_variant);
 
-    std::visit([&verifier](auto&& pda){
-        verifier.verify(std::move(pda));
+    std::visit([&verifier](auto&& pda) {
+        verifier.verify(std::forward<decltype(pda)>(pda));
     }, std::move(pda_variant));
 
     return 0;

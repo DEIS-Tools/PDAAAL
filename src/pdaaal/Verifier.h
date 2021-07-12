@@ -73,11 +73,12 @@ namespace pdaaal {
         }
         [[nodiscard]] const po::options_description& options() const { return verification_options; }
 
-        template <typename pda_t>
-        void verify(pda_t&& pda) {
+        template <typename PDA_T>
+        void verify(PDA_T&& pda) {
+            using pda_t = std::remove_reference_t<PDA_T>;
             auto initial_p_automaton = PAutomatonParser::parse_file(initial_pa_file, pda);
             auto final_p_automaton = PAutomatonParser::parse_file(final_pa_file, pda);
-            SolverInstance instance(std::move(pda), std::move(initial_p_automaton), std::move(final_p_automaton));
+            SolverInstance instance(std::forward<decltype(pda)>(pda), std::move(initial_p_automaton), std::move(final_p_automaton));
 
             bool result;
             std::vector<typename pda_t::tracestate_t> trace;

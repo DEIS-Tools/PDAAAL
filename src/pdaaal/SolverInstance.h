@@ -50,6 +50,11 @@ namespace pdaaal {
           _initial(std::move(initial), _pda), _final(std::move(final), _pda),
           _product(_pda, get_initial_accepting(_initial, _final), true) {};
 
+        SolverInstance_impl(const pda_t& pda, automaton_t&& initial, automaton_t&& final)
+        : _pda(pda), _pda_size(_pda.states().size()), // FIXME: This performs copy of pda. It would be better to use a non-owning const& throughout here, and add a wrapper for the owning move version.
+          _initial(std::move(initial), _pda), _final(std::move(final), _pda),
+          _product(_pda, get_initial_accepting(_initial, _final), true) {};
+
         // Returns whether an accepting state in the product automaton was reached.
         template<bool needs_back_lookup = false>
         bool initialize_product() {
@@ -426,6 +431,9 @@ namespace pdaaal {
 
         SolverInstance(pda_t&& pda, pautomaton_t&& initial, pautomaton_t&& final)
         : SolverInstance_impl<pda_t, pautomaton_t, T, W>(std::move(pda), std::move(initial), std::move(final)) { };
+
+        SolverInstance(const pda_t& pda, pautomaton_t&& initial, pautomaton_t&& final)
+        : SolverInstance_impl<pda_t, pautomaton_t, T, W>(pda, std::move(initial), std::move(final)) { };
     };
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping>
     SolverInstance(TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&& pda,
