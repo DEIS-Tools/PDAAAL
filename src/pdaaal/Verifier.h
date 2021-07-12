@@ -31,11 +31,42 @@
 #include <pdaaal/parsing/PAutomatonParser.h>
 
 namespace pdaaal {
+
+    std::istream& operator>>(std::istream& in, Trace_Type& trace_type) {
+        std::string token;
+        in >> token;
+        if (token == "0") {
+            trace_type = Trace_Type::None;
+        } else if (token == "1") {
+            trace_type = Trace_Type::Any;
+        } else if (token == "2") {
+            trace_type = Trace_Type::Shortest;
+        } else {
+            in.setstate(std::ios_base::failbit);
+        }
+        return in;
+    }
+    constexpr std::ostream& operator<<(std::ostream& s, const Trace_Type& trace_type) {
+        switch (trace_type) {
+            case Trace_Type::None:
+                s << "0";
+                break;
+            case Trace_Type::Any:
+                s << "1";
+                break;
+            case Trace_Type::Shortest:
+                s << "2";
+                break;
+        }
+        return s;
+    }
+
     class Verifier {
     public:
         explicit Verifier(const std::string& caption) : verification_options{caption} {
             verification_options.add_options()
                     ("engine,e", po::value<size_t>(&engine), "Engine. 0=no verification, 1=post*, 2=pre*, 3=dual*")
+                    ("trace,t", po::value<Trace_Type>(&trace_type)->default_value(Trace_Type::None), "Trace type. 0=no trace, 1=any trace, 2=shortest trace")
                     ("initial-automaton,i", po::value<std::string>(&initial_pa_file), "Initial PAutomaton file input.")
                     ("final-automaton,f", po::value<std::string>(&final_pa_file), "Final PAutomaton file input.")
                     ;
@@ -53,25 +84,67 @@ namespace pdaaal {
             switch (engine) {
                 case 1: { // TODO: Add shortest trace option
                     std::cout << "Using post*" << std::endl;
-                    result = Solver::post_star_accepts(instance);
-                    if (result) {
-                         trace = Solver::get_trace(instance);
+                    switch (trace_type) {
+                        case Trace_Type::None:
+                            result = Solver::post_star_accepts<Trace_Type::None>(instance);
+                            break;
+                        case Trace_Type::Any:
+                            result = Solver::post_star_accepts<Trace_Type::Any>(instance);
+                            if (result) {
+                                trace = Solver::get_trace<Trace_Type::Any>(instance);
+                            }
+                            break;
+                        case Trace_Type::Shortest:
+                            if constexpr(pda_t::has_weight) {
+                                result = Solver::post_star_accepts<Trace_Type::Shortest>(instance);
+                                if (result) {
+                                    typename pda_t::weight_type weight;
+                                    std::tie(trace, weight) = Solver::get_trace<Trace_Type::Shortest>(instance);
+                                    std::cout << "Weight: " << weight << std::endl;
+                                }
+                            } else {
+                                assert(false);
+                                throw std::runtime_error("Cannot use shortest trace option for unweighted PDA.");
+                            }
+                            break;
                     }
                     break;
                 }
                 case 2: {
                     std::cout << "Using pre*" << std::endl;
-                    result = Solver::pre_star_accepts(instance);
-                    if (result) {
-                        trace = Solver::get_trace(instance);
+                    switch (trace_type) {
+                        case Trace_Type::None:
+                            result = Solver::pre_star_accepts(instance);
+                            break;
+                        case Trace_Type::Any:
+                            result = Solver::pre_star_accepts(instance);
+                            if (result) {
+                                trace = Solver::get_trace(instance);
+                            }
+                            break;
+                        case Trace_Type::Shortest:
+                            assert(false);
+                            throw std::runtime_error("Cannot use shortest trace not implemented for pre* engine.");
+                            break;
                     }
                     break;
                 }
                 case 3: {
                     std::cout << "Using dual*" << std::endl;
-                    result = Solver::dual_search_accepts(instance);
-                    if (result) {
-                        trace = Solver::get_trace_dual_search(instance);
+                    switch (trace_type) {
+                        case Trace_Type::None:
+                            result = Solver::dual_search_accepts(instance);
+                            break;
+                        case Trace_Type::Any:
+                            result = Solver::dual_search_accepts(instance);
+                            if (result) {
+                                trace = Solver::get_trace_dual_search(instance);
+                            }
+                            break;
+                        case Trace_Type::Shortest:
+                            assert(false);
+                            throw std::runtime_error("Cannot use shortest trace not implemented for dual* engine.");
+                            break;
                     }
                     break;
                 }
@@ -96,6 +169,7 @@ namespace pdaaal {
     private:
         po::options_description verification_options;
         size_t engine = 0;
+        Trace_Type trace_type = Trace_Type::None;
         std::string initial_pa_file, final_pa_file;
         //bool print_trace = false;
     };
