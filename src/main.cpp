@@ -28,10 +28,13 @@
 #include <boost/program_options.hpp>
 #include <iostream>
 
+#include <pdaaal/parsing/Parsing.h>
+#include <pdaaal/Verifier.h>
+
 #include "git_hash.h" // Generated at build time. Defines PDAAAL_GIT_HASH and PDAAAL_GIT_HASH_STR
 
 namespace po = boost::program_options;
-//using namespace pdaaal;
+using namespace pdaaal;
 
 int main(int argc, const char** argv) {
     po::options_description opts;
@@ -39,13 +42,19 @@ int main(int argc, const char** argv) {
             ("help,h", "produce help message")
             ("version,v", "print version");
 
-    po::options_description main_options("Options");
-    bool my_option = false;
-    main_options.add_options()
-            ("option", po::bool_switch(&my_option), "my_option")
-            ;
+    Parsing parsing("Input Options");
+    Verifier verifier("Verification Options");
+    po::options_description output("Output Options");
 
-    opts.add(main_options);
+    bool no_parser_warnings = false;
+    bool silent = false;
+    output.add_options()
+            ("disable-parser-warnings,W", po::bool_switch(&no_parser_warnings), "Disable warnings from parser.")
+            ("silent,s", po::bool_switch(&silent), "Disables non-essential output (implies -W).")
+            ;
+    opts.add(parsing.options());
+    opts.add(verifier.options());
+    opts.add(output);
 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, opts), vm);
@@ -64,7 +73,19 @@ int main(int argc, const char** argv) {
         return 1;
     }
 
-    // TODO: Do stuff
+    if (silent) { no_parser_warnings = true; }
+
+    auto pda_variant = parsing.parse(no_parser_warnings);
+    if (!silent) {
+        std::cout << "Parsing duration: " << parsing.duration() << std::endl;
+    }
+    std::visit([](auto&& pda){
+        std::cout << "States: " << pda.states().size() << ". Labels: " << pda.number_of_labels() << std::endl;
+    }, pda_variant);
+
+    std::visit([&verifier](auto&& pda) {
+        verifier.verify(std::forward<decltype(pda)>(pda));
+    }, std::move(pda_variant));
 
     return 0;
 }

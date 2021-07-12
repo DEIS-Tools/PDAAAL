@@ -27,12 +27,12 @@
 #ifndef PDAAAL_CEGARPDAFACTORY_H
 #define PDAAAL_CEGARPDAFACTORY_H
 
-#include "PDAFactory.h"
-#include "AbstractionMapping.h"
-#include "PDA.h"
-#include "AbstractionPDA.h"
-#include "AbstractionPAutomaton.h"
-#include "Solver.h"
+#include <pdaaal/PDAFactory.h>
+#include <pdaaal/AbstractionMapping.h>
+#include <pdaaal/PDA.h>
+#include <pdaaal/AbstractionPDA.h>
+#include <pdaaal/AbstractionPAutomaton.h>
+#include <pdaaal/Solver.h>
 #include <utility>
 
 namespace pdaaal {

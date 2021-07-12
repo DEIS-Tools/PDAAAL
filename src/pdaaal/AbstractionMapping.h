@@ -27,8 +27,8 @@
 #ifndef PDAAAL_ABSTRACTIONMAPPING_H
 #define PDAAAL_ABSTRACTIONMAPPING_H
 
-#include "ptrie_interface.h"
-#include "Refinement.h"
+#include <pdaaal/utils/ptrie_interface.h>
+#include <pdaaal/Refinement.h>
 #include <iterator>
 #include <memory>
 #include <vector>

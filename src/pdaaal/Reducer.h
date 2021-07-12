@@ -29,7 +29,7 @@
 #define PDAAAL_REDUCER_H
 
 #include <queue>
-#include "PDA.h"
+#include <pdaaal/PDA.h>
 
 namespace pdaaal {
 

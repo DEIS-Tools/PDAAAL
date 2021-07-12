@@ -44,6 +44,19 @@ if (PDAAAL_GetDependencies)
                 )
         file(MAKE_DIRECTORY ${EXTERNAL_INSTALL_LOCATION}/include)
     endif()
+
+    file(DOWNLOAD
+            https://github.com/nlohmann/json/releases/download/v3.9.1/json.hpp
+            ${EXTERNAL_INSTALL_LOCATION}/include/json.hpp
+            EXPECTED_HASH SHA256=7804b38146921d03374549c9e2a5e3acda097814c43caf2b96a0278e58df26e0
+    )
+
+    ExternalProject_add(petgl-ext
+            URL https://github.com/taocpp/PEGTL/archive/refs/tags/3.2.0.zip
+            URL_HASH SHA512=b24d5b77de864fc79fd60c9d17e040dfc5d6a400c7282eac62cb87c1a53c6f6f932c62b88a296f487c6155e98d04f1b5e69059589db99e95c313766ffbbc3913
+            CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EXTERNAL_INSTALL_LOCATION} -DPEGTL_BUILD_TESTS=OFF -DPEGTL_BUILD_EXAMPLES=OFF -DCMAKE_BUILD_TYPE=Release
+    )
+
     # we can now include external libraries
     include_directories(${EXTERNAL_INSTALL_LOCATION}/include)
     link_directories(${EXTERNAL_INSTALL_LOCATION}/lib)
@@ -72,4 +85,5 @@ if(BUILD_TESTING AND PDAAAL_BuildTests)
     add_test(NAME fut_set           COMMAND fut_set)
     add_test(NAME NFA               COMMAND NFA)
     add_test(NAME ParsingPDAFactory COMMAND ParsingPDAFactory)
+    add_test(NAME NfaParser         COMMAND NfaParser)
 endif()

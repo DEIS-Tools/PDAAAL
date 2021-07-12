@@ -33,10 +33,10 @@
 #include <ostream>
 #include <unordered_set>
 
-#include "NFA.h"
-#include "TypedPDA.h"
-#include "PAutomaton.h"
-#include "SolverInstance.h"
+#include <pdaaal/NFA.h>
+#include <pdaaal/TypedPDA.h>
+#include <pdaaal/PAutomaton.h>
+#include <pdaaal/SolverInstance.h>
 
 namespace pdaaal {
 

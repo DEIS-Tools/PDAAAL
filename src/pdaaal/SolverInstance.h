@@ -27,9 +27,9 @@
 #ifndef PDAAAL_SOLVERINSTANCE_H
 #define PDAAAL_SOLVERINSTANCE_H
 
-#include "PAutomaton.h"
-#include "AbstractionPDA.h"
-#include "AbstractionPAutomaton.h"
+#include <pdaaal/PAutomaton.h>
+#include <pdaaal/AbstractionPDA.h>
+#include <pdaaal/AbstractionPAutomaton.h>
 #include <limits>
 
 namespace pdaaal {
@@ -44,6 +44,16 @@ namespace pdaaal {
         : _pda(std::move(pda)), _pda_size(_pda.states().size()),
           _initial(_pda, initial_nfa, initial_states), _final(_pda, final_nfa, final_states),
           _product(_pda, intersect_vector(initial_states, final_states), initial_nfa.empty_accept() && final_nfa.empty_accept()) { };
+
+        SolverInstance_impl(pda_t&& pda, automaton_t&& initial, automaton_t&& final)
+        : _pda(std::move(pda)), _pda_size(_pda.states().size()),
+          _initial(std::move(initial), _pda), _final(std::move(final), _pda),
+          _product(_pda, get_initial_accepting(_initial, _final), true) {};
+
+        SolverInstance_impl(const pda_t& pda, automaton_t&& initial, automaton_t&& final)
+        : _pda(pda), _pda_size(_pda.states().size()), // FIXME: This performs copy of pda. It would be better to use a non-owning const& throughout here, and add a wrapper for the owning move version.
+          _initial(std::move(initial), _pda), _final(std::move(final), _pda),
+          _product(_pda, get_initial_accepting(_initial, _final), true) {};
 
         // Returns whether an accepting state in the product automaton was reached.
         template<bool needs_back_lookup = false>
@@ -344,6 +354,17 @@ namespace pdaaal {
             std::set_intersection(v1.begin(), v1.end(), v2.begin(), v2.end(), std::back_inserter(result));
             return result;
         }
+        static std::vector<size_t> get_initial_accepting(const automaton_t& a1, const automaton_t& a2) {
+            assert(a1.pda().states().size() == a2.pda().states().size());
+            auto size = a1.pda().states().size();
+            std::vector<size_t> result;
+            for (size_t i = 0; i < size; ++i) {
+                if (a1.states()[i]->_accepting && a2.states()[i]->_accepting) {
+                    result.push_back(i);
+                }
+            }
+            return result;
+        }
 
         struct pair_size_t { // ptrie does not work with std::pair, so we make struct here.
             size_t first;    // We need std::has_unique_object_representations_v<pair_size_t> to be true.
@@ -398,16 +419,29 @@ namespace pdaaal {
         std::vector<std::vector<std::pair<size_t,size_t>>> _id_fast_lookup_back; // maps final_state -> (initial_state, product_state)  Only used in dual_search
     };
 
-    template <typename T, typename W>
-    class SolverInstance : public SolverInstance_impl<TypedPDA<T,W,fut::type::vector>, PAutomaton<W>, T, W> {
+    template <typename T, typename W, typename state_t = size_t, bool skip_state_mapping = std::is_same_v<state_t,size_t>>
+    class SolverInstance : public SolverInstance_impl<TypedPDA<T,W,fut::type::vector,state_t,skip_state_mapping>, PAutomaton<W>, T, W> {
     public:
-        using pda_t = TypedPDA<T,W,fut::type::vector>;
+        using pda_t = TypedPDA<T,W,fut::type::vector,state_t,skip_state_mapping>;
         using pautomaton_t = PAutomaton<W>;
         SolverInstance(pda_t&& pda,
                        const NFA<T>& initial_nfa, const std::vector<size_t>& initial_states,
                        const NFA<T>& final_nfa,   const std::vector<size_t>& final_states)
         : SolverInstance_impl<pda_t, pautomaton_t, T, W>(std::move(pda), initial_nfa, initial_states, final_nfa, final_states) { };
+
+        SolverInstance(pda_t&& pda, pautomaton_t&& initial, pautomaton_t&& final)
+        : SolverInstance_impl<pda_t, pautomaton_t, T, W>(std::move(pda), std::move(initial), std::move(final)) { };
+
+        SolverInstance(const pda_t& pda, pautomaton_t&& initial, pautomaton_t&& final)
+        : SolverInstance_impl<pda_t, pautomaton_t, T, W>(pda, std::move(initial), std::move(final)) { };
     };
+    template<typename label_t, typename W, typename state_t, bool skip_state_mapping>
+    SolverInstance(TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&& pda,
+                   const NFA<label_t>& initial_nfa, const std::vector<size_t>& initial_states,
+                   const NFA<label_t>& final_nfa,   const std::vector<size_t>& final_states) -> SolverInstance<label_t,W,state_t,skip_state_mapping>;
+    template<typename label_t, typename W, typename state_t, bool skip_state_mapping>
+    SolverInstance(TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&& pda,
+                   PAutomaton<W> initial, PAutomaton<W> final) -> SolverInstance<label_t,W,state_t,skip_state_mapping>;
 
     template <typename T, typename W>
     class AbstractionSolverInstance : public SolverInstance_impl<AbstractionPDA<T,W>, AbstractionPAutomaton<T,W>, T, W> {

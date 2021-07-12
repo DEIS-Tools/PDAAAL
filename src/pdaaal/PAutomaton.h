@@ -27,9 +27,9 @@
 #ifndef PDAAAL_PAUTOMATON_H
 #define PDAAAL_PAUTOMATON_H
 
-#include "TypedPDA.h"
-#include "fut_set.h"
-#include "NFA.h"
+#include <pdaaal/TypedPDA.h>
+#include <pdaaal/utils/fut_set.h>
+#include <pdaaal/NFA.h>
 
 #include <memory>
 #include <functional>
@@ -137,41 +137,12 @@ namespace pdaaal {
         template<typename T>
         PAutomaton(const TypedPDA<T,W>& pda, const NFA<T>& nfa, const std::vector<size_t>& states)
         : PAutomaton(pda, states, nfa.empty_accept()) {
-            using nfastate_t = typename NFA<T>::state_t;
-            std::unordered_map<const nfastate_t*, size_t> nfastate_to_id;
-            std::vector<std::pair<const nfastate_t*,size_t>> waiting;
-            auto get_nfastate_id = [this, &waiting, &nfastate_to_id](const nfastate_t* n) -> size_t {
-                // Adds nfastate if not yet seen.
-                size_t n_id;
-                auto it = nfastate_to_id.find(n);
-                if (it != nfastate_to_id.end()) {
-                    n_id = it->second;
-                } else {
-                    n_id = add_state(false, n->_accepting);
-                    nfastate_to_id.emplace(n, n_id);
-                    waiting.emplace_back(n, n_id);
-                }
-                return n_id;
-            };
-
-            for (const auto& i : nfa.initial()) {
-                for (const auto& e : i->_edges) {
-                    for (const nfastate_t* n : e.follow_epsilon()) {
-                        size_t n_id = get_nfastate_id(n);
-                        add_edges(states, n_id, e._negated, pda.encode_pre(e._symbols));
-                    }
-                }
-            }
-            while (!waiting.empty()) {
-                auto [top, top_id] = waiting.back();
-                waiting.pop_back();
-                for (const auto& e : top->_edges) {
-                    for (const nfastate_t* n : e.follow_epsilon()) {
-                        size_t n_id = get_nfastate_id(n);
-                        add_edges(top_id, n_id, e._negated, pda.encode_pre(e._symbols));
-                    }
-                }
-            }
+            construct<T>(nfa, states, [&pda](const auto& v){ return pda.encode_pre(v); });
+        }
+        // Same, but where the NFA contains the symbols mapped to ids already.
+        PAutomaton(const PDA<W>& pda, const NFA<uint32_t>& nfa, const std::vector<size_t>& states)
+        : PAutomaton(pda, states, nfa.empty_accept()) {
+            construct<uint32_t,false>(nfa, states, [](const auto& v){ return v; });
         }
 
         PAutomaton(const PDA<W>& pda, const std::vector<size_t>& special_initial_states, bool special_accepting = true) : _pda(pda) {
@@ -187,11 +158,12 @@ namespace pdaaal {
                 }
             }
         }
+        PAutomaton(PAutomaton<W>&& other, const PDA<W>& pda) noexcept // Move constructor, but update reference to PDA.
+        : _states(std::move(other._states)), _initial(std::move(other._initial)),
+          _accepting(std::move(other._accepting)), _trace_info(std::move(other._trace_info)), _pda(pda) {};
 
-
-        PAutomaton(PAutomaton &&) noexcept = default;
-
-        PAutomaton(const PAutomaton &other) : _pda(other._pda) {
+        PAutomaton(PAutomaton<W> &&) noexcept = default;
+        PAutomaton(const PAutomaton<W>& other) : _pda(other._pda) {
             std::unordered_map<state_t *, state_t *> indir;
             for (auto &s : other._states) {
                 _states.emplace_back(std::make_unique<state_t>(*s));
@@ -208,6 +180,34 @@ namespace pdaaal {
         [[nodiscard]] const std::vector<std::unique_ptr<state_t>> &states() const { return _states; }
         
         [[nodiscard]] const PDA<W> &pda() const { return _pda; }
+
+        void or_extend(PAutomaton<W>&& other) {
+            assert(_pda.states().size() == other._pda.states().size()); // We compare number of PDA states, since operator== is not implemented for PDA.
+            const size_t pda_size = _pda.states().size();
+            const size_t automaton_size = _states.size();
+            assert(automaton_size >= pda_size);
+            assert(_initial.size() == pda_size);
+            assert(other._states.size() >= pda_size);
+            assert(other._initial.size() == pda_size);
+            size_t offset = automaton_size - pda_size;
+            for (size_t i = 0; i < other._states.size(); ++i) {
+                assert(i >= pda_size || _initial[i]->_id == i);
+                assert(i >= pda_size || other._initial[i]->_id == i);
+                size_t from = i;
+                if (i >= pda_size) {
+                    from = add_state(false, other._states[i]->_accepting);
+                } else if (!_states[i]->_accepting && other._states[i]->_accepting) {
+                    _states[i]->_accepting = true;
+                    _accepting.push_back(_states[i].get());
+                }
+                for (auto&& [to,labels] : other._states[i]->_edges) {
+                    auto new_to = (to < pda_size) ? to : to + offset;
+                    for (const auto& [label, trace] : labels) { // TODO: This can be done faster. Assign labels directly in some cases.
+                        _states[from]->_edges.emplace(new_to, label, trace);
+                    }
+                }
+            }
+        }
 
         void to_dot(std::ostream &out, const std::function<void(std::ostream &, const uint32_t&)> &printer = [](auto &s, auto &l) {
                         s << l;
@@ -429,7 +429,7 @@ namespace pdaaal {
             _states[from]->_edges.emplace(to, label, trace);
         }
 
-        void add_edges(size_t from, size_t to, bool negated, std::vector<uint32_t>&& labels) {
+        void add_edges(size_t from, size_t to, bool negated, const std::vector<uint32_t>& labels) {
             if (negated) {
                 assert(std::is_sorted(labels.begin(), labels.end()));
                 //std::sort(labels.begin(), labels.end());
@@ -450,7 +450,7 @@ namespace pdaaal {
                 }
             }
         }
-        void add_edges(const std::vector<size_t>& from, size_t to, bool negated, std::vector<uint32_t>&& labels) {
+        void add_edges(const std::vector<size_t>& from, size_t to, bool negated, const std::vector<uint32_t>& labels) {
             if (negated) {
                 assert(std::is_sorted(labels.begin(), labels.end()));
                 //std::sort(labels.begin(), labels.end());
@@ -495,13 +495,60 @@ namespace pdaaal {
             return _trace_info.back().get();
         }
     private:
+        template<typename T, bool use_mapping = true>
+        void construct(const NFA<T>& nfa, const std::vector<size_t>& states, const std::function<std::vector<uint32_t>(const std::vector<T>&)>& map_symbols) {
+            using nfastate_t = typename NFA<T>::state_t;
+            std::unordered_map<const nfastate_t*, size_t> nfastate_to_id;
+            std::vector<std::pair<const nfastate_t*,size_t>> waiting;
+            auto get_nfastate_id = [this, &waiting, &nfastate_to_id](const nfastate_t* n) -> size_t {
+                // Adds nfastate if not yet seen.
+                size_t n_id;
+                auto it = nfastate_to_id.find(n);
+                if (it != nfastate_to_id.end()) {
+                    n_id = it->second;
+                } else {
+                    n_id = add_state(false, n->_accepting);
+                    nfastate_to_id.emplace(n, n_id);
+                    waiting.emplace_back(n, n_id);
+                }
+                return n_id;
+            };
+
+            for (const auto& i : nfa.initial()) {
+                for (const auto& e : i->_edges) {
+                    for (const nfastate_t* n : e.follow_epsilon()) {
+                        size_t n_id = get_nfastate_id(n);
+                        if constexpr(use_mapping) {
+                            add_edges(states, n_id, e._negated, map_symbols(e._symbols));
+                        } else {
+                            add_edges(states, n_id, e._negated, e._symbols);
+                        }
+                    }
+                }
+            }
+            while (!waiting.empty()) {
+                auto [top, top_id] = waiting.back();
+                waiting.pop_back();
+                for (const auto& e : top->_edges) {
+                    for (const nfastate_t* n : e.follow_epsilon()) {
+                        size_t n_id = get_nfastate_id(n);
+                        if constexpr(use_mapping) {
+                            add_edges(top_id, n_id, e._negated, map_symbols(e._symbols));
+                        } else {
+                            add_edges(top_id, n_id, e._negated, e._symbols);
+                        }
+                    }
+                }
+            }
+        }
+
         std::vector<std::unique_ptr<state_t>> _states;
         std::vector<state_t *> _initial;
         std::vector<state_t *> _accepting;
 
         std::vector<std::unique_ptr<trace_t>> _trace_info;
 
-        const PDA<W> &_pda;
+        const PDA<W>& _pda;
     };
 
 

@@ -34,8 +34,8 @@
 
 using namespace pdaaal;
 
-template <typename T>
-void print_trace(std::vector<typename TypedPDA<T>::tracestate_t> trace, std::ostream& s = std::cout) {
+template <typename tracestate_t>
+void print_trace(const std::vector<tracestate_t>& trace, std::ostream& s = std::cout) {
     for (const auto& conf : trace) {
         s << conf._pdastate << ";[";
         for (size_t i = 0; i < conf._stack.size(); ++i) {
@@ -90,7 +90,7 @@ A,B
     BOOST_CHECK_GE(trace.size(), 4);
     BOOST_CHECK_LE(trace.size(), 5);
 
-    print_trace<std::string>(trace);
+    print_trace<decltype(trace)::value_type>(trace);
 }
 
 BOOST_AUTO_TEST_CASE(NewPDAFactory_Weighted_Test)
@@ -127,7 +127,7 @@ A,B
     BOOST_CHECK_EQUAL(weight, 4);
     BOOST_CHECK_EQUAL(trace.size(), 5);
 
-    print_trace<std::string>(trace);
+    print_trace<decltype(trace)::value_type>(trace);
 }
 
 
@@ -181,7 +181,7 @@ A,B,C
     BOOST_CHECK_LE(trace.size(), 5);
     BOOST_CHECK(std::all_of(trace.begin(), trace.end(), [](const auto& trace_state){ return trace_state._stack.back() == "C"; }));
 
-    print_trace<std::string>(trace);
+    print_trace<decltype(trace)::value_type>(trace);
 }
 
 
@@ -227,7 +227,7 @@ A,B,C
     auto res = reconstruction.reconstruct_trace();
     BOOST_CHECK(res.index() == 0);
     auto trace = std::get<0>(res);
-    print_trace<std::string>(trace);
+    print_trace<decltype(trace)::value_type>(trace);
 }
 
 
@@ -375,7 +375,7 @@ A,B,C
     BOOST_CHECK_GE(trace.size(), 4);
     BOOST_CHECK_LE(trace.size(), 5);
     BOOST_CHECK(std::all_of(trace.begin(), trace.end(), [](const auto& trace_state){ return trace_state._stack.back() == "C"; }));
-    print_trace<std::string>(trace);
+    print_trace<decltype(trace)::value_type>(trace);
 }
 
 BOOST_AUTO_TEST_CASE(Complete_CEGAR_prestar_Full_Abstraction_Test)
@@ -422,7 +422,7 @@ A,B,C
     BOOST_CHECK_GE(trace.size(), 4);
     BOOST_CHECK_LE(trace.size(), 5);
     BOOST_CHECK(std::all_of(trace.begin(), trace.end(), [](const auto& trace_state){ return trace_state._stack.back() == "C"; }));
-    print_trace<std::string>(trace);
+    print_trace<decltype(trace)::value_type>(trace);
 }
 
 
@@ -467,7 +467,7 @@ A,B
     BOOST_CHECK_GE(trace.size(), 4);
     BOOST_CHECK_LE(trace.size(), 5);
 
-    print_trace<std::string>(trace);
+    print_trace<decltype(trace)::value_type>(trace);
 }
 
 BOOST_AUTO_TEST_CASE(Complete_CEGAR_dualsearch_Full_Abstraction_Test)
@@ -514,5 +514,5 @@ A,B,C
     BOOST_CHECK_GE(trace.size(), 4);
     BOOST_CHECK_LE(trace.size(), 5);
     BOOST_CHECK(std::all_of(trace.begin(), trace.end(), [](const auto& trace_state){ return trace_state._stack.back() == "C"; }));
-    print_trace<std::string>(trace);
+    print_trace<decltype(trace)::value_type>(trace);
 }

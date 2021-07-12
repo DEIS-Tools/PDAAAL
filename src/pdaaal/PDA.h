@@ -28,8 +28,8 @@
 #ifndef PDAAAL_PDA_H
 #define PDAAAL_PDA_H
 
-#include "Weight.h"
-#include "fut_set.h"
+#include <pdaaal/Weight.h>
+#include <pdaaal/utils/fut_set.h>
 
 #include <cinttypes>
 #include <vector>
@@ -230,6 +230,9 @@ namespace pdaaal {
     template <typename W, fut::type Container = fut::type::vector>
     class PDA {
     public:
+        static constexpr bool has_weight = is_weighted<W>;
+        using weight_type = std::conditional_t<has_weight, typename W::type, void>;
+
         using rule_t = typename details::rule_t<W>;
 
         struct state_t {
