@@ -83,7 +83,7 @@ namespace pdaaal {
             bool result;
             std::vector<typename pda_t::tracestate_t> trace;
             switch (engine) {
-                case 1: { // TODO: Add shortest trace option
+                case 1: {
                     std::cout << "Using post*" << std::endl;
                     switch (trace_type) {
                         case Trace_Type::None:
