@@ -448,7 +448,7 @@ namespace pdaaal {
                             } else {
                                 insert_rel(from->_id, label, to);
                                 if constexpr (ET) {
-                                    _found = _found || _early_termination(from->_id, label, to, trace);
+                                    _found |= _early_termination(from->_id, label, to, trace);
                                 }
                             }
                         }
@@ -508,7 +508,7 @@ namespace pdaaal {
                     _automaton.add_edge(t._from, t._to, t._label, std::make_pair(elem.trace, t_weight));
                 }
                 if constexpr (ET) {
-                    _found = _found || _early_termination(t._from, t._label, t._to, std::make_pair(elem.trace, t_weight));
+                    _found |= _early_termination(t._from, t._label, t._to, std::make_pair(elem.trace, t_weight));
                 }
 
                 // if y != epsilon
@@ -591,8 +591,8 @@ namespace pdaaal {
                     for (auto &e : _rel3[i - _n_Q]) {
                         assert(e._label != epsilon);
                         _automaton.add_edge(i, e._to, e._label, std::make_pair(e._trace, e._weight));
-                        if constexpr (ET) {
-                            _found = _found || _early_termination(i, e._label, e._to, std::make_pair(e._trace, e._weight));
+                        if constexpr (ET) { // TODO: We might need to do this in main loop (and update weights) to enable early termination in some cases..??
+                            _found |= _early_termination(i, e._label, e._to, std::make_pair(e._trace, e._weight));
                         }
                     }
                 }
