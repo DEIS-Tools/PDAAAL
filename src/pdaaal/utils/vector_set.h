@@ -96,8 +96,8 @@ namespace pdaaal::fut {
             return std::make_pair(lb, false);
         }
         // Provide interface similar to std::unordered_map
-        template <typename... Args> auto try_emplace(const Key& key, Args&&... args) { return emplace(key, args...); }
-        template <typename... Args> auto try_emplace(Key&& key, Args&&... args) { return emplace(key, args...); }
+        template <typename... Args> auto try_emplace(const Key& key, Args&&... args) { return emplace(key, std::forward<Args>(args)...); }
+        template <typename... Args> auto try_emplace(Key&& key, Args&&... args) { return emplace(std::move(key), std::forward<Args>(args)...); }
 
         bool contains(const Key& key) const {
             elem_t elem(key);
