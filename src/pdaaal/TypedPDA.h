@@ -43,7 +43,7 @@ namespace pdaaal {
     // Allow conditionally enabling state mapping. (E.g. string -> size_t map vs. just directly use size_t states.)
     template<typename state_t>
     struct state_mapping {
-        state_t get_state(size_t id) {
+        state_t get_state(size_t id) const {
             assert(id < _state_map.size());
             return _state_map.at(id);
         }
