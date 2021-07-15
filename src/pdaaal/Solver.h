@@ -605,6 +605,191 @@ namespace pdaaal {
             }
         };
 
+
+        template<typename W, bool indirect_trace_info>
+        class PreStarFixedPointSaturation {
+            static_assert(is_weighted<W>);
+            using weight_t = typename W::type;
+
+            template<bool change_is_bottom = false>
+            void update_edge(size_t from, uint32_t label, size_t to, const weight_t& edge_weight, trace_<indirect_trace_info> trace) {
+                auto [it, fresh] = _edges.emplace(temp_edge_t{from, label, to}, edge_weight);
+                bool is_changed = false;
+                if (fresh) {
+                    if constexpr(change_is_bottom) {
+                        assert(false); // We should add all fresh edges during the first pass of rounds.
+                    }
+                    _rel[from].emplace_back(to, label); // Allow fast iteration over _edges matching specific from.
+                    if (!trace_is_null<indirect_trace_info>(trace)) {
+                        _automaton.add_edge(from, to, label, std::make_pair(trace, edge_weight));
+                    }
+                    is_changed = true;
+                } else {
+                    if (W::less(edge_weight, it->second)) {
+                        if constexpr(change_is_bottom) {
+                            it->second = W::bottom();
+                            _automaton.update_edge(from, to, label, std::make_pair(trace, W::bottom()));
+                        } else {
+                            it->second = edge_weight;
+                            _automaton.update_edge(from, to, label, std::make_pair(trace, edge_weight));
+                        }
+                        is_changed = true;
+                    }
+                }
+                if (is_changed) {
+                    _workset.emplace_back(from, label, to);
+                }
+            }
+            template<bool change_is_bottom = false>
+            void update_edge_bulk(size_t from, const labels_t &precondition, size_t to, const weight_t& weight, trace_<indirect_trace_info> trace) {
+                if (precondition.wildcard()) {
+                    for (uint32_t i = 0; i < _n_pda_labels; i++) {
+                        update_edge<change_is_bottom>(from, i, to, weight, trace);
+                    }
+                } else {
+                    for (auto &label : precondition.labels()) {
+                        update_edge<change_is_bottom>(from, label, to, weight, trace);
+                    }
+                }
+            }
+        public:
+            explicit PreStarFixedPointSaturation(PAutomaton<W,indirect_trace_info>& automaton)
+                    : _automaton(automaton), _pda_states(_automaton.pda().states()), _n_automaton_states(_automaton.states().size()),
+                      _n_pda_states(_pda_states.size()), _n_pda_labels(_automaton.number_of_labels()),
+                      _round_limit(_n_automaton_states * _n_pda_labels * _n_automaton_states),
+                      _rel(_n_automaton_states), _delta_prime(_n_automaton_states) {
+                initialize();
+            };
+            PreStarFixedPointSaturation(PAutomaton<W,indirect_trace_info>& automaton, size_t round_limit)
+                    : _automaton(automaton), _pda_states(_automaton.pda().states()), _n_automaton_states(_automaton.states().size()),
+                      _n_pda_states(_pda_states.size()), _n_pda_labels(_automaton.number_of_labels()), _round_limit(round_limit),
+                      _rel(_n_automaton_states), _delta_prime(_n_automaton_states) {
+                initialize();
+            };
+
+        private:
+            PAutomaton<W,indirect_trace_info>& _automaton;
+            const std::vector<typename PDA<W>::state_t>& _pda_states;
+            const size_t _n_automaton_states;
+            const size_t _n_pda_states;
+            const size_t _n_pda_labels;
+            const size_t _round_limit;
+
+            size_t _rounds = 0;
+            std::unordered_map<temp_edge_t, weight_t, temp_edge_hasher> _edges;
+            std::deque<temp_edge_t> _workset;
+            std::vector<std::vector<std::pair<size_t,uint32_t>>> _rel; // Fast access to _edges based on _from.
+            std::vector<std::vector<std::tuple<size_t, size_t, weight_t>>> _delta_prime;
+
+            static constexpr temp_edge_t next_round_elem = temp_edge_t();
+
+            void initialize() {
+                for (const auto &from : _automaton.states()) {
+                    for (const auto &[to,labels] : from->_edges) {
+                        for (const auto &[label,tw] : labels) {
+                            assert(tw == std::make_pair(default_trace_<indirect_trace_info>(), W::zero()));
+                            update_edge(from->_id, label, to, W::zero(), default_trace_<indirect_trace_info>());
+                        }
+                    }
+                }
+                // for all <p, y> --> <p', epsilon> : workset U= (p, y, p') (line 2)
+                for (size_t state = 0; state < _n_pda_states; ++state) {
+                    size_t rule_id = 0;
+                    for (const auto&[rule,labels] : _pda_states[state]._rules) {
+                        if (rule._operation == POP) {
+                            update_edge_bulk(state, labels, rule._to, rule._weight, _automaton.new_pre_trace(rule_id));
+                        }
+                        ++rule_id;
+                    }
+                }
+                _workset.emplace_back(next_round_elem);
+            }
+
+        public:
+            template<bool change_is_bottom = false>
+            bool step() {
+                // pop t = (q, y, q') from workset (line 4)
+                auto t = _workset.front();
+                _workset.pop_front();
+
+                if (t == next_round_elem) {
+                    ++_rounds;
+                    _workset.emplace_back(next_round_elem);
+                    return false;
+                }
+
+                assert(_edges.find(t) != _edges.end());
+                auto w = _edges.find(t)->second;
+
+                // (line 7-8 for \Delta')
+                for (const auto& [state, rule_id, weight] : _delta_prime[t._from]) { // Loop over delta_prime (that match with t->from)
+                    const auto& [rule, labels] = _pda_states[state]._rules[rule_id];
+                    if (labels.contains(t._label)) {
+                        assert(_edges.find(temp_edge_t{rule._to, rule._op_label, t._from}) != _edges.end());
+                        assert(weight == W::add(rule._weight, _edges.find(temp_edge_t{rule._to, rule._op_label, t._from})->second));
+                        update_edge<change_is_bottom>(state, t._label, t._to, W::add(weight, w), _automaton.new_pre_trace(rule_id, t._from));
+                    }
+                }
+
+                if (t._from >= _n_pda_states) { return true; }
+                for (auto pre_state : _pda_states[t._from]._pre_states) {
+                    const auto &rules = _pda_states[pre_state]._rules;
+                    auto lb = rules.lower_bound(details::rule_t<W>{t._from});
+                    while (lb != rules.end() && lb->first._to == t._from) {
+                        const auto &[rule, labels] = *lb;
+                        size_t rule_id = lb - rules.begin();
+                        ++lb;
+                        switch (rule._operation) {
+                            case POP:
+                                break;
+                            case SWAP: // (line 7-8 for \Delta)
+                                if (rule._op_label == t._label) {
+                                    update_edge_bulk<change_is_bottom>(pre_state, labels, t._to, W::add(rule._weight, w), _automaton.new_pre_trace(rule_id));
+                                }
+                                break;
+                            case NOOP: // (line 7-8 for \Delta)
+                                if (labels.contains(t._label)) {
+                                    update_edge<change_is_bottom>(pre_state, t._label, t._to, W::add(rule._weight, w), _automaton.new_pre_trace(rule_id));
+                                }
+                                break;
+                            case PUSH: // (line 9)
+                                if (rule._op_label == t._label) {
+                                    auto w_temp = W::add(rule._weight, w);
+                                    // (line 10)
+                                    _delta_prime[t._to].emplace_back(pre_state, rule_id, w_temp);
+                                    auto trace = default_trace_<indirect_trace_info>();
+                                    for (const auto& [rel_to, rel_label] : _rel[t._to]) { // (line 11-12)
+                                        if (labels.contains(rel_label)) {
+                                            trace = trace_is_null<indirect_trace_info>(trace) ? _automaton.new_pre_trace(rule_id, t._to) : trace;
+                                            auto it = _edges.find(temp_edge_t{t._to, rel_label, rel_to});
+                                            assert(it != _edges.end());
+                                            update_edge<change_is_bottom>(pre_state, rel_label, rel_to, W::add(w_temp, it->second), trace);
+                                        }
+                                    }
+                                }
+                                break;
+                            default:
+                                assert(false);
+                        }
+                    }
+                }
+                return true;
+            }
+            void finalize() {
+                _rounds = 0; // Reset _round count and run again, this time changes gives -inf weight.
+                while (!done()) {
+                    step<true>();
+                }
+                // TODO: How to handle traces??
+            }
+            [[nodiscard]] bool done() const {
+                return _workset.size() <= 1 // Only next_round_elem is in workset.
+                       || _rounds == _round_limit;
+            }
+        };
+        template<typename W, bool indirect_trace_info>
+        PreStarFixedPointSaturation(PAutomaton<W,indirect_trace_info>& automaton, size_t round_limit) -> PreStarFixedPointSaturation<W,indirect_trace_info>;
+
         template <typename W>
         class TraceBack {
             using rule_t = user_rule_t<W>;
