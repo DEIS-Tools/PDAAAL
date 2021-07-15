@@ -231,45 +231,88 @@ namespace pdaaal {
             }
         }
 
-        void to_dot(std::ostream &out, const std::function<void(std::ostream &, const uint32_t&)> &printer = [](auto &s, auto &l) {
-                        s << l;
-                    }) const {
+        void to_dot(std::ostream &out,
+                    const std::function<void(std::ostream &, const uint32_t&)>& label_printer = [](auto &s, auto &l){ s << l; },
+                    const std::function<void(std::ostream &, const size_t&)>& state_printer = [](auto &s, auto &id){ s << id; }) const {
             out << "digraph NFA {\n";
             for (auto &s : _states) {
-                out << "\"" << s->_id << "\" [shape=";
+                out << "\"";
+                state_printer(out, s->_id);
+                out << "\" [shape=";
                 if (s->_accepting)
                     out << "double";
                 out << "circle];\n";
                 for (const auto &[to, labels] : s->_edges) {
-                    out << "\"" << s->_id << "\" -> \"" << to << "\" [ label=\"";
+                    out << "\"";
+                    state_printer(out, s->_id);
+                    out << "\" -> \"";
+                    state_printer(out, to);
+                    out << "\" [ label=\"";
                     auto has_epsilon = labels.contains(epsilon);
                     auto size = labels.size() - (has_epsilon ? 1 : 0);
-                    if (size == number_of_labels()) {
-                        out << "*";
-                    } else if (size > 0) {
-                        out << "\\[";
-                        bool first = true;
-                        for (const auto& [l,_] : labels) {
-                            if (l == epsilon) { continue; }
-                            if (!first)
-                                out << ", ";
-                            first = false;
-                            printer(out, l);
+                    if constexpr(is_weighted<W>) {
+                        if (size > 0) {
+                            out << "\\[";
+                            bool first = true;
+                            for (const auto& [l,tw] : labels) {
+                                if (l == epsilon) { continue; }
+                                if (!first)
+                                    out << ", ";
+                                first = false;
+                                label_printer(out, l);
+                                bool special_weight = false;
+                                if (tw.second == W::max()) {
+                                    out << "(∞)";
+                                    special_weight = true;
+                                } else {
+                                    if constexpr(W::is_signed) {
+                                        if (tw.second == W::bottom()) {
+                                            out << "(-∞)";
+                                            special_weight = true;
+                                        }
+                                    }
+                                }
+                                if (!special_weight) {
+                                    out << "(" << tw.second << ")";
+                                }
+                            }
+                            out << "\\]";
                         }
-                        out << "\\]";
+                    } else {
+                        if (size == number_of_labels()) {
+                            out << "*";
+                        } else if (size > 0) {
+                            out << "\\[";
+                            bool first = true;
+                            for (const auto& [l,tw] : labels) {
+                                if (l == epsilon) { continue; }
+                                if (!first)
+                                    out << ", ";
+                                first = false;
+                                label_printer(out, l);
+                            }
+                            out << "\\]";
+                        }
                     }
-                    if (labels.contains(epsilon)) {
+                    if (has_epsilon) {
                         if (labels.size() > 1) out << " ";
                         out << "𝜀";
+                        if constexpr(is_weighted<W>) {
+                            out << "(" << labels.find(epsilon)->second.second << ")";
+                        }
                     }
                     out << "\"];\n";
                 }
             }
             for (auto &i : _initial) {
-                out << "\"I" << i->_id << "\" -> \"" << i->_id << "\";\n";
-                out << "\"I" << i->_id << "\" [style=invisible];\n";
+                out << "\"I";
+                state_printer(out, i->_id);
+                out << "\" -> \"";
+                state_printer(out, i->_id);
+                out << "\";\n" << "\"I";
+                state_printer(out, i->_id);
+                out << "\" [style=invisible];\n";
             }
-
             out << "}\n";
         }
 
