@@ -83,10 +83,10 @@ A,B
 
     auto instance = factory.compile(initial, final);
 
-    bool result = Solver::post_star_accepts(instance);
+    bool result = Solver::post_star_accepts(*instance);
     BOOST_CHECK(result);
 
-    auto trace = Solver::get_trace(instance);
+    auto trace = Solver::get_trace(*instance);
     BOOST_CHECK_GE(trace.size(), 4);
     BOOST_CHECK_LE(trace.size(), 5);
 
@@ -120,10 +120,10 @@ A,B
 
     auto instance = factory.compile(initial, final);
 
-    bool result = Solver::post_star_accepts<Trace_Type::Shortest>(instance);
+    bool result = Solver::post_star_accepts<Trace_Type::Shortest>(*instance);
     BOOST_CHECK(result);
 
-    auto [trace, weight] = Solver::get_trace<Trace_Type::Shortest>(instance);
+    auto [trace, weight] = Solver::get_trace<Trace_Type::Shortest>(*instance);
     BOOST_CHECK_EQUAL(weight, 4);
     BOOST_CHECK_EQUAL(trace.size(), 5);
 
@@ -169,10 +169,10 @@ A,B,C
 
     auto instance = factory.compile(initial, final);
 
-    bool result = Solver::post_star_accepts(instance);
+    bool result = Solver::post_star_accepts(*instance);
     BOOST_CHECK(result);
 
-    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), instance, initial, final);
+    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), *instance, initial, final);
     auto res = reconstruction.reconstruct_trace();
     BOOST_CHECK(res.index() == 0);
 
@@ -221,9 +221,9 @@ A,B,C
 
     auto instance = factory.compile(initial, final);
 
-    bool result = Solver::post_star_accepts(instance);
+    bool result = Solver::post_star_accepts(*instance);
     BOOST_CHECK(result);
-    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), instance, initial, final);
+    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), *instance, initial, final);
     auto res = reconstruction.reconstruct_trace();
     BOOST_CHECK(res.index() == 0);
     auto trace = std::get<0>(res);
@@ -269,10 +269,10 @@ A,B,C
 
     auto instance = factory.compile(initial, final);
 
-    bool result = Solver::post_star_accepts(instance); // NOTE: This test depends on the trace returned by post*, but with the current implementation we don't get a 'lucky' trace.
+    bool result = Solver::post_star_accepts(*instance); // NOTE: This test depends on the trace returned by post*, but with the current implementation we don't get a 'lucky' trace.
     BOOST_CHECK(result);
 
-    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), instance, initial, final);
+    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), *instance, initial, final);
     auto res = reconstruction.reconstruct_trace();
     BOOST_CHECK(res.index() == 2);
 
@@ -319,10 +319,10 @@ A,B,C
 
     auto instance = factory.compile(initial, final);
 
-    bool result = Solver::post_star_accepts(instance); // NOTE: This test depends on the trace returned by post*, but with the current implementation we don't get a 'lucky' trace.
+    bool result = Solver::post_star_accepts(*instance); // NOTE: This test depends on the trace returned by post*, but with the current implementation we don't get a 'lucky' trace.
     BOOST_CHECK(result);
 
-    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), instance, initial, final);
+    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), *instance, initial, final);
     auto res = reconstruction.reconstruct_trace();
     BOOST_CHECK(res.index() == 1);
 
@@ -460,10 +460,10 @@ A,B
 
     auto instance = factory.compile(initial, final);
 
-    bool result = Solver::dual_search_accepts(instance);
+    bool result = Solver::dual_search_accepts(*instance);
     BOOST_CHECK(result);
 
-    auto trace = Solver::get_trace_dual_search(instance);
+    auto trace = Solver::get_trace_dual_search(*instance);
     BOOST_CHECK_GE(trace.size(), 4);
     BOOST_CHECK_LE(trace.size(), 5);
 

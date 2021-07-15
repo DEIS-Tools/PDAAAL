@@ -88,7 +88,7 @@ BOOST_AUTO_TEST_CASE(Verification_Test_1)
     auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
     auto initial_p_automaton = PAutomatonParser::parse_string("< [Zero, One] , ([A]?[B])* >", pda);
     auto final_p_automaton = PAutomatonParser::parse_string("< [Two] , [B] [B] [B] >", pda);
-    SolverInstance instance(std::move(pda), std::move(initial_p_automaton), std::move(final_p_automaton));
+    PAutomatonProduct instance(pda, std::move(initial_p_automaton), std::move(final_p_automaton));
 
     bool result = Solver::post_star_accepts<Trace_Type::Shortest>(instance);
 
@@ -100,7 +100,7 @@ BOOST_AUTO_TEST_CASE(Verification_Test_1)
     BOOST_TEST(trace.size() == 2);
 
     std::cout << "Weight: " << weight << std::endl;
-    print_trace(trace, instance.pda());
+    print_trace(trace, pda);
 }
 
 BOOST_AUTO_TEST_CASE(Verification_negative_weight_test)

@@ -114,7 +114,7 @@ namespace pdaaal {
         using automaton_t = AbstractionPAutomaton<label_t,W>;
     public:
         using abstract_rule_t = user_rule_t<W>; // FIXME: This does not yet work for weighted rules.
-        using solver_instance_t = AbstractionSolverInstance<label_t,W>;
+        using product_t = typename AbstractionSolverInstance<label_t,W>::product_t;
         using header_t = Header<label_t>;
         using state_refinement_t = Refinement<state_t>;
         using label_refinement_t = Refinement<label_t>;
@@ -123,7 +123,7 @@ namespace pdaaal {
 
     public:
 
-        CegarPdaReconstruction(const solver_instance_t& instance, const NFA<label_t>& initial_headers, const NFA<label_t>& final_headers)
+        CegarPdaReconstruction(const product_t& instance, const NFA<label_t>& initial_headers, const NFA<label_t>& final_headers)
         : _instance(instance), _initial_nfa(initial_headers), _final_nfa(final_headers) {};
 
         template<bool use_dual = false>
@@ -429,7 +429,7 @@ namespace pdaaal {
         }
 
     private:
-        const solver_instance_t& _instance;
+        const product_t& _instance;
         const NFA<label_t>& _initial_nfa;
         const NFA<label_t>& _final_nfa;
 
@@ -456,17 +456,17 @@ namespace pdaaal {
 
                 bool result;
                 if constexpr (use_pre_star) {
-                    result = Solver::pre_star_accepts(instance);
+                    result = Solver::pre_star_accepts(*instance);
                 } else if constexpr (use_dual_star) {
-                    result = Solver::dual_search_accepts(instance);
+                    result = Solver::dual_search_accepts(*instance);
                 } else {
-                    result = Solver::post_star_accepts(instance);
+                    result = Solver::post_star_accepts(*instance);
                 }
                 if (!result) {
                     return std::nullopt; // No trace.
                 }
 
-                Reconstruction reconstruction(factory, instance, initial_headers, final_headers);
+                Reconstruction reconstruction(factory, *instance, initial_headers, final_headers);
 
                 auto res = reconstruction.template reconstruct_trace<use_dual_star>();
 

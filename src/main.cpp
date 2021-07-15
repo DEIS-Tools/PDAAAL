@@ -85,7 +85,7 @@ int main(int argc, const char** argv) {
 
     std::visit([&verifier](auto&& pda) {
         verifier.verify(std::forward<decltype(pda)>(pda));
-    }, std::move(pda_variant));
+    }, pda_variant);
 
     return 0;
 }

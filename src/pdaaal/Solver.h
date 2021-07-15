@@ -873,8 +873,8 @@ namespace pdaaal {
 
     class Solver {
     public:
-        template <typename pda_t, typename automaton_t, typename T, typename W>
-        static bool dual_search_accepts(SolverInstance_impl<pda_t,automaton_t,T,W>& instance) {
+        template <typename pda_t, typename automaton_t, typename W>
+        static bool dual_search_accepts(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             if (instance.template initialize_product<true>()) {
                 return true;
             }
@@ -921,8 +921,8 @@ namespace pdaaal {
             }
         }
 
-        template <typename pda_t, typename automaton_t, typename T, typename W>
-        static bool pre_star_accepts(SolverInstance_impl<pda_t,automaton_t,T,W>& instance) {
+        template <typename pda_t, typename automaton_t, typename W>
+        static bool pre_star_accepts(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             instance.enable_pre_star();
             return instance.initialize_product() ||
                    pre_star<W,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
@@ -955,8 +955,8 @@ namespace pdaaal {
             }
         }
 
-        template <Trace_Type trace_type = Trace_Type::Any, typename pda_t, typename automaton_t, typename T, typename W>
-        static bool post_star_accepts(SolverInstance_impl<pda_t,automaton_t,T,W>& instance) {
+        template <Trace_Type trace_type = Trace_Type::Any, typename pda_t, typename automaton_t, typename W>
+        static bool post_star_accepts(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             return instance.initialize_product() ||
                    post_star<trace_type,W,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
                        return instance.add_edge_product(from, label, to, trace);
@@ -976,20 +976,20 @@ namespace pdaaal {
             }
         }
 
-        template <typename pda_t, typename automaton_t, typename T, typename W>
-        static bool pre_star_accepts_no_ET(SolverInstance_impl<pda_t,automaton_t,T,W>& instance) {
+        template <typename pda_t, typename automaton_t, typename W>
+        static bool pre_star_accepts_no_ET(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             instance.enable_pre_star();
             pre_star<W,false>(instance.automaton());
             return instance.initialize_product();
         }
-        template <Trace_Type trace_type = Trace_Type::Any, typename pda_t, typename automaton_t, typename T, typename W>
-        static bool post_star_accepts_no_ET(SolverInstance_impl<pda_t,automaton_t,T,W>& instance) {
+        template <Trace_Type trace_type = Trace_Type::Any, typename pda_t, typename automaton_t, typename W>
+        static bool post_star_accepts_no_ET(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             post_star<trace_type,W,false>(instance.automaton());
             return instance.initialize_product();
         }
 
-        template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename S, bool ssm>
-        static auto get_trace(const SolverInstance<T,W,S,ssm>& instance) {
+        template <Trace_Type trace_type = Trace_Type::Any, typename pda_t, typename automaton_t, typename W>
+        static auto get_trace(const PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
             if constexpr (trace_type == Trace_Type::Shortest) {
                 auto [path, stack, weight] = instance.template find_path<trace_type>();
@@ -999,8 +999,8 @@ namespace pdaaal {
                 return _get_trace(instance.pda(), instance.automaton(), path, stack);
             }
         }
-        template <typename T, typename W, typename S, bool ssm>
-        static auto get_trace_dual_search(const SolverInstance<T,W,S,ssm>& instance) {
+        template <typename pda_t, typename automaton_t, typename W>
+        static auto get_trace_dual_search(const PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             auto [paths, stack] = instance.template find_path<Trace_Type::Any, true>();
             std::vector<size_t> i_path, f_path;
             for (const auto& [i_state, f_state] : paths) {
@@ -1014,8 +1014,8 @@ namespace pdaaal {
             trace1.insert(trace1.end(), trace2.begin() + 1, trace2.end());
             return trace1;
         }
-        template <Trace_Type trace_type = Trace_Type::Any, bool use_dual=false, typename T, typename W>
-        static auto get_rule_trace_and_paths(const AbstractionSolverInstance<T,W>& instance) {
+        template <Trace_Type trace_type = Trace_Type::Any, bool use_dual=false, typename pda_t, typename automaton_t, typename W>
+        static auto get_rule_trace_and_paths(const PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
             if constexpr (trace_type == Trace_Type::Shortest) {
                 auto[paths, stack, weight] = instance.template find_path<trace_type, true>();
