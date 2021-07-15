@@ -790,14 +790,14 @@ namespace pdaaal {
         template<typename W, bool indirect_trace_info>
         PreStarFixedPointSaturation(PAutomaton<W,indirect_trace_info>& automaton, size_t round_limit) -> PreStarFixedPointSaturation<W,indirect_trace_info>;
 
-        template <typename W>
+        template <typename W, bool indirect_trace_info>
         class TraceBack {
             using rule_t = user_rule_t<W>;
         public:
-            TraceBack(const PAutomaton<W>& automaton, std::deque<std::tuple<size_t, uint32_t, size_t>>&& edges)
+            TraceBack(const PAutomaton<W,indirect_trace_info>& automaton, std::deque<std::tuple<size_t, uint32_t, size_t>>&& edges)
             : _automaton(automaton), _edges(std::move(edges)) { };
         private:
-            const PAutomaton<W>& _automaton;
+            const PAutomaton<W,indirect_trace_info>& _automaton;
             std::deque<std::tuple<size_t, uint32_t, size_t>> _edges;
             bool _post = false;
         public:
@@ -806,13 +806,19 @@ namespace pdaaal {
             std::optional<rule_t> next() {
                 while(true) { // In case of post_epsilon_trace, keep going until a rule is found or we are done.
                     auto[from, label, to] = _edges.back();
-                    const trace_t* trace_label = _automaton.get_trace_label(from, label, to);
-                    if (trace_label == nullptr) return std::nullopt; // Done
+                    auto trace_label_temp = _automaton.get_trace_label(from, label, to);
+                    if (trace_is_null<indirect_trace_info>(trace_label_temp)) return std::nullopt; // Done
                     _edges.pop_back();
+                    trace_t trace_label;
+                    if constexpr(indirect_trace_info) {
+                        trace_label = *trace_label_temp;
+                    } else {
+                        trace_label = trace_label_temp;
+                    }
 
-                    if (trace_label->is_pre_trace()) {
+                    if (trace_label.is_pre_trace()) {
                         // pre* trace
-                        const auto &[rule, labels] = _automaton.pda().states()[from]._rules[trace_label->_rule_id];
+                        const auto &[rule, labels] = _automaton.pda().states()[from]._rules[trace_label._rule_id];
                         switch (rule._operation) {
                             case POP:
                                 break;
@@ -823,37 +829,41 @@ namespace pdaaal {
                                 _edges.emplace_back(rule._to, label, to);
                                 break;
                             case PUSH:
-                                _edges.emplace_back(trace_label->_state, label, to);
-                                _edges.emplace_back(rule._to, rule._op_label, trace_label->_state);
+                                _edges.emplace_back(trace_label._state, label, to);
+                                _edges.emplace_back(rule._to, rule._op_label, trace_label._state);
                                 break;
                         }
                         return rule_t(from, label, rule);
-                    } else if (trace_label->is_post_epsilon_trace()) {
+                    } else if (trace_label.is_post_epsilon_trace()) {
                         // Intermediate post* trace
                         // Current edge is the result of merging with an epsilon edge.
                         // Reconstruct epsilon edge and the other edge.
-                        _edges.emplace_back(trace_label->_state, label, to);
-                        _edges.emplace_back(from, std::numeric_limits<uint32_t>::max(), trace_label->_state);
+                        _edges.emplace_back(trace_label._state, label, to);
+                        _edges.emplace_back(from, std::numeric_limits<uint32_t>::max(), trace_label._state);
 
                     } else { // post* trace
                         _post = true;
-                        const auto &[rule, labels] = _automaton.pda().states()[trace_label->_state]._rules[trace_label->_rule_id];
+                        const auto &[rule, labels] = _automaton.pda().states()[trace_label._state]._rules[trace_label._rule_id];
                         switch (rule._operation) {
                             case POP:
                             case SWAP:
                             case NOOP:
-                                _edges.emplace_back(trace_label->_state, trace_label->_label, to);
+                                _edges.emplace_back(trace_label._state, trace_label._label, to);
                                 break;
                             case PUSH:
                                 auto[from2, label2, to2] = _edges.back();
                                 _edges.pop_back();
-                                trace_label = _automaton.get_trace_label(from2, label2, to2);
-                                assert(trace_label != nullptr);
-                                _edges.emplace_back(trace_label->_state, trace_label->_label, to2);
+                                assert(!trace_is_null<indirect_trace_info>(_automaton.get_trace_label(from2, label2, to2)));
+                                if constexpr(indirect_trace_info) {
+                                    trace_label = *_automaton.get_trace_label(from2, label2, to2);
+                                } else {
+                                    trace_label = _automaton.get_trace_label(from2, label2, to2);
+                                }
+                                _edges.emplace_back(trace_label._state, trace_label._label, to2);
                                 break;
                         }
                         assert(from == rule._to);
-                        return rule_t(trace_label->_state, trace_label->_label, rule);
+                        return rule_t(trace_label._state, trace_label._label, rule);
                     }
                 }
             }
@@ -1069,9 +1079,9 @@ namespace pdaaal {
             return saturation.found();
         }
 
-        template <typename T, typename W, typename S, bool ssm>
+        template <typename T, typename W, typename S, bool ssm, bool indirect>
         static std::vector<typename TypedPDA<T,W,fut::type::vector,S,ssm>::tracestate_t>
-        _get_trace(const TypedPDA<T,W,fut::type::vector,S,ssm> &pda, const PAutomaton<W> &automaton,
+        _get_trace(const TypedPDA<T,W,fut::type::vector,S,ssm> &pda, const PAutomaton<W,indirect>& automaton,
                    const std::vector<size_t>& path, const std::vector<uint32_t>& stack) {
             using tracestate_t = typename TypedPDA<T,W,fut::type::vector,S,ssm>::tracestate_t;
 
@@ -1108,7 +1118,7 @@ namespace pdaaal {
         }
 
 
-        template <typename W>
+        template <typename W, bool indirect>
         static std::tuple<
                 size_t, // Initial state. (State is size_t::max if no trace exists.)
                 std::vector<user_rule_t<W>>, // Sequence of rules applied to the initial configuration to reach the final configuration.
@@ -1116,7 +1126,7 @@ namespace pdaaal {
                 std::vector<uint32_t>, // Final stack
                 std::vector<size_t>, // Path in initial PAutomaton (accepting initial stack)
                 std::vector<size_t>  // Path in final PAutomaton (accepting final stack) (independent of whether pre* or post* was used)
-                > _get_rule_trace_and_paths(const PAutomaton<W> &automaton, // The PAutomaton that has been build up (either A_pre* or A_post*)
+                > _get_rule_trace_and_paths(const PAutomaton<W,indirect>& automaton, // The PAutomaton that has been build up (either A_pre* or A_post*)
                                            const std::vector<std::pair<size_t,size_t>>& paths, // The paths as retrieved from the product automaton. First number is the state in @automaton (A_pre* or A_post*), second number is state in goal automaton.
                                            const std::vector<uint32_t>& stack) {
             using rule_t = user_rule_t<W>;
@@ -1162,7 +1172,7 @@ namespace pdaaal {
             }
         }
 
-        template <typename W>
+        template <typename W, bool indirect1, bool indirect2>
         static std::tuple<
                 size_t, // Initial state. (State is size_t::max if no trace exists.)
                 std::vector<user_rule_t<W>>, // Sequence of rules applied to the initial configuration to reach the final configuration.
@@ -1170,7 +1180,7 @@ namespace pdaaal {
         std::vector<uint32_t>, // Final stack
         std::vector<size_t>, // Path in initial PAutomaton (accepting initial stack)
         std::vector<size_t>  // Path in final PAutomaton (accepting final stack) (independent of whether pre* or post* was used)
-        > _get_rule_trace_and_paths(const PAutomaton<W>& initial_automaton, const PAutomaton<W>& final_automaton,
+        > _get_rule_trace_and_paths(const PAutomaton<W,indirect1>& initial_automaton, const PAutomaton<W,indirect2>& final_automaton,
                                     const std::vector<std::pair<size_t,size_t>>& paths, // The paths as retrieved from the product automaton. First number is the state in initial_automaton, second number is state in final_automaton.
                                     const std::vector<uint32_t>& stack) {
             using rule_t = user_rule_t<W>;
@@ -1196,9 +1206,9 @@ namespace pdaaal {
             return std::make_tuple(trace[0].from(), trace, initial_stack, final_stack, initial_path, final_path);
         }
 
-        template <typename W>
+        template <typename W, bool indirect>
         static std::tuple<std::vector<user_rule_t<W>>, std::vector<uint32_t>, std::vector<size_t>>
-        _get_trace_stack_path(const PAutomaton<W>& automaton, std::deque<std::tuple<size_t, uint32_t, size_t>>&& edges) {
+        _get_trace_stack_path(const PAutomaton<W,indirect>& automaton, std::deque<std::tuple<size_t, uint32_t, size_t>>&& edges) {
             std::vector<user_rule_t<W>> trace;
             details::TraceBack tb(automaton, std::move(edges));
             while(auto rule = tb.next()) {
