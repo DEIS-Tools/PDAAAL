@@ -35,10 +35,10 @@
 
 using namespace pdaaal;
 
-template<typename Trace, typename Instance>
-void print_trace(const Trace& trace, const Instance& instance, std::ostream& s = std::cout) {
+template<typename pda_t>
+void print_trace(const std::vector<typename pda_t::tracestate_t>& trace, const pda_t& pda, std::ostream& s = std::cout) {
     for (const auto& trace_state : trace) {
-        s << "< " << instance.pda().get_state(trace_state._pdastate) << ", [";
+        s << "< " << pda.get_state(trace_state._pdastate) << ", [";
         bool first = true;
         for (const auto& label : trace_state._stack) {
             if (first) {
@@ -81,8 +81,7 @@ BOOST_AUTO_TEST_CASE(Verification_Test_1)
       "pda": {
         "states": {
           "Zero": { "A": {"to": "Two", "swap": "B", "weight": 2} },
-          "One": { "B": {"to": "Two", "push": "B", "weight": 1} },
-          "Two": { }
+          "One": { "B": {"to": "Two", "push": "B", "weight": 1} }
         }
       }
     })");
@@ -101,7 +100,7 @@ BOOST_AUTO_TEST_CASE(Verification_Test_1)
     BOOST_TEST(trace.size() == 2);
 
     std::cout << "Weight: " << weight << std::endl;
-    print_trace(trace, instance);
+    print_trace(trace, instance.pda());
 }
 
 BOOST_AUTO_TEST_CASE(Verification_negative_weight_test)
