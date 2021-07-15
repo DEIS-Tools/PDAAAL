@@ -42,15 +42,42 @@ target_link_libraries(pdaaal-bin PRIVATE pdaaal ${Boost_LIBRARIES})
 add_dependencies(pdaaal-bin generate_hash)
 set_target_properties(pdaaal-bin PROPERTIES OUTPUT_NAME pdaaal)
 
-install(TARGETS pdaaal pdaaal-bin
+install(TARGETS pdaaal
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
-# install(FILES ${HEADER_FILES} DESTINATION include/pdaaal)  # Maybe use this simpler line instead of the following.
-install (FILES pdaaal/utils/vector_set.h pdaaal/utils/fut_set.h pdaaal/NFA.h pdaaal/Weight.h pdaaal/PDA.h
-        pdaaal/PDAFactory.h pdaaal/SolverInstance.h
-        pdaaal/ParsingPDAFactory.h
+
+install (FILES
+        pdaaal/AbstractionMapping.h
+        pdaaal/AbstractionPAutomaton.h
+        pdaaal/AbstractionPDA.h
+        pdaaal/CegarPdaFactory.h
+        pdaaal/NFA.h
+#        pdaaal/ParsingPDAFactory.h
+        pdaaal/PAutomaton.h
+        pdaaal/PAutomatonProduct.h
+        pdaaal/PDA.h
+        pdaaal/PDAFactory.h
+        pdaaal/Reducer.h
         pdaaal/Refinement.h
+        pdaaal/SimplePDAFactory.h
+        pdaaal/Solver.h
+        pdaaal/SolverInstance.h
+        pdaaal/TypedPDA.h
+#        pdaaal/Verifier.h
+        pdaaal/Weight.h
+        DESTINATION include/pdaaal)
+install (FILES
+        pdaaal/utils/fut_set.h
+        pdaaal/utils/ptrie_interface.h
         pdaaal/utils/std20.h
-        pdaaal/AbstractionMapping.h pdaaal/AbstractionPDA.h pdaaal/AbstractionPAutomaton.h pdaaal/CegarPdaFactory.h pdaaal/utils/ptrie_interface.h
-        pdaaal/SimplePDAFactory.h pdaaal/TypedPDA.h pdaaal/PAutomaton.h pdaaal/Solver.h pdaaal/Reducer.h DESTINATION include/pdaaal)
+#        pdaaal/utils/stopwatch.h
+        pdaaal/utils/vector_set.h
+        DESTINATION include/pdaaal/utils)
+install (FILES
+        pdaaal/parsing/NfaParser.h
+        pdaaal/parsing/NfaParserGrammar.h
+#        pdaaal/parsing/Parsing.h
+#        pdaaal/parsing/PAutomatonParser.h
+#        pdaaal/parsing/PdaJsonParser.h
+        DESTINATION include/pdaaal/parsing)
