@@ -167,7 +167,9 @@ namespace pdaaal {
 
         explicit NFA(bool initially_accepting = true) {
             _states.emplace_back(std::make_unique<state_t>(initially_accepting));
-            _accepting.push_back(_states.back().get());
+            if (initially_accepting) {
+                _accepting.push_back(_states.back().get());
+            }
             _initial.push_back(_states.back().get());
         }
 

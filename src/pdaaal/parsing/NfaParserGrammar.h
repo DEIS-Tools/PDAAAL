@@ -56,6 +56,8 @@ namespace pdaaal {
     struct seq_expr : pegtl::seq<unary_expr<L, C>, pegtl::star<pegtl::seq<pegtl::star<ignored<C>>,unary_expr<L, C>>>> {};
     template<typename L, typename C>
     struct nfa_expr : pegtl::list<seq_expr<L, C>, or_symbol, ignored < C>> {};
+    template<typename L, typename C>
+    struct nfa_expr_or_empty : pegtl::opt<nfa_expr<L,C>> {};
 
 
     template<typename Label, typename C>
@@ -67,8 +69,8 @@ namespace pdaaal {
     struct comment : pegtl::seq<pegtl::one < '#'>, pegtl::until<pegtl::eolf>>{};
 
     template<typename L = label_set<label, comment>, typename C = comment>
-    struct nfa_file : pegtl::must<pegtl::pad < nfa_expr<L, C>, ignored < C>>, pegtl::eof> {};
-    struct nfa_expr_default : pegtl::pad<nfa_expr<label_set<label, comment>, comment>, ignored<comment>> {};
+    struct nfa_file : pegtl::must<pegtl::pad < nfa_expr_or_empty<L, C>, ignored < C>>, pegtl::eof> {};
+    struct nfa_expr_default : pegtl::pad<nfa_expr_or_empty<label_set<label, comment>, comment>, ignored<comment>> {};
 
     enum class nfa_op_tag {BRACKET, OR, CONCAT};
 
@@ -134,6 +136,9 @@ namespace pdaaal {
             _op_type_stack.emplace_back(op);
         }
         NFA<T> get_nfa() {
+            if (_nfa_stack.empty()) {
+                emplace_nfa(); // This covers the empty regex case, making an initially accepting NFA.
+            }
             assert(_nfa_stack.size() == 1);
             return std::move(_nfa_stack.back());
         }
