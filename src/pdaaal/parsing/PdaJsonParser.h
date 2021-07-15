@@ -267,6 +267,19 @@ namespace pdaaal {
             switch (last_key) {
                 case keys::unknown:
                     break;
+                case keys::weight:
+                    if constexpr (expect_weight && std::numeric_limits<typename W::type>::is_signed) {
+                        if (value >= std::numeric_limits<typename W::type>::max()) {
+                            errors << "error: Integer value " << value << " is too large. Maximum value is: " << std::numeric_limits<typename W::type>::max()-1 << std::endl;
+                            return false;
+                        }
+                        if (value <= std::numeric_limits<typename W::type>::min()) {
+                            errors << "error: Integer value " << value << " is too low. Minimum value is: " << std::numeric_limits<typename W::type>::min()+1 << std::endl;
+                            return false;
+                        }
+                        current_rule._weight = value;
+                        break;
+                    }
                 default:
                     errors << "error: Integer value: " << value << " found after key:" << last_key << std::endl;
                     return false;
@@ -285,6 +298,10 @@ namespace pdaaal {
                     }
                 case keys::weight:
                     if constexpr (expect_weight) { // TODO: Parameterize on weight type...
+                        if (value >= std::numeric_limits<typename W::type>::max()) {
+                            errors << "error: Unsigned value " << value << " is too large. Maximum value is: " << std::numeric_limits<typename W::type>::max()-1 << std::endl;
+                            return false;
+                        }
                         current_rule._weight = value;
                     }
                     break;

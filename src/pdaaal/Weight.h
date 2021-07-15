@@ -42,10 +42,11 @@ namespace pdaaal {
     template<typename W, typename = void> struct weight;
     template <> struct weight<void> { using type = void; };
     template<typename W>
-    struct weight<W, std::enable_if_t<std::is_arithmetic_v<W> && std::numeric_limits<W>::is_specialized>> {
+    struct weight<W, std::enable_if_t<std::is_arithmetic_v<W> && std::numeric_limits<W>::is_specialized && !std::numeric_limits<W>::is_signed>> {
         using type = W;
+        static constexpr bool is_signed = false;
         static constexpr type max_val = std::numeric_limits<type>::max();
-        static constexpr auto zero = []() -> type { return (type)0; };
+        static constexpr auto zero = []() -> type { return static_cast<type>(0); };
         static constexpr auto max = []() -> type { return std::numeric_limits<type>::max(); };
         static constexpr bool less(type lhs, type rhs) {
             return lhs < rhs;
@@ -56,6 +57,29 @@ namespace pdaaal {
         };
         static constexpr type multiply(type lhs, type rhs) {
             if (lhs == max_val || rhs == max_val) return max_val;
+            return lhs * rhs;
+        };
+    };
+    template<typename W>
+    struct weight<W, std::enable_if_t<std::is_arithmetic_v<W> && std::numeric_limits<W>::is_specialized && std::numeric_limits<W>::is_signed>> {
+        using type = W;
+        static constexpr bool is_signed = true;
+        static constexpr type bottom_val = std::numeric_limits<type>::min();
+        static constexpr type max_val = std::numeric_limits<type>::max();
+        static constexpr auto zero = []() -> type { return static_cast<type>(0); };
+        static constexpr auto bottom = []() -> type { return std::numeric_limits<type>::min(); };
+        static constexpr auto max = []() -> type { return std::numeric_limits<type>::max(); };
+        static constexpr bool less(type lhs, type rhs) {
+            return lhs < rhs;
+        }
+        static constexpr type add(type lhs, type rhs) {
+            if (lhs == max_val || rhs == max_val) return max_val;
+            if (lhs == bottom_val || rhs == bottom_val) return bottom_val;
+            return lhs + rhs;
+        };
+        static constexpr type multiply(type lhs, type rhs) {
+            if (lhs == max_val || rhs == max_val) return max_val;
+            if (lhs == bottom_val || rhs == bottom_val) return bottom_val; // We don't expect to multiply with bottom...
             return lhs * rhs;
         };
     };
