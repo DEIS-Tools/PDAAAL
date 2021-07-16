@@ -631,7 +631,6 @@ namespace pdaaal {
             }
         };
 
-
         template<typename W, bool indirect_trace_info>
         class PreStarFixedPointSaturation {
             static_assert(is_weighted<W>);
@@ -900,6 +899,21 @@ namespace pdaaal {
     class Solver {
     public:
         template <typename pda_t, typename automaton_t, typename W>
+        static bool pre_star_fixed_point_accepts(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
+            instance.enable_pre_star();
+            pre_star_fixed_point(instance.automaton());
+            return instance.template initialize_product<false,false>();
+        }
+        template <typename W, bool indirect>
+        static void pre_star_fixed_point(PAutomaton<W,indirect> &automaton) {
+            details::PreStarFixedPointSaturation saturation(automaton);
+            while(!saturation.done()) {
+                saturation.step();
+            }
+            saturation.finalize();
+        }
+
+        template <typename pda_t, typename automaton_t, typename W>
         static bool dual_search_accepts(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             if (instance.template initialize_product<true>()) {
                 return true;
@@ -1006,12 +1020,12 @@ namespace pdaaal {
         static bool pre_star_accepts_no_ET(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             instance.enable_pre_star();
             pre_star<W,false>(instance.automaton());
-            return instance.initialize_product();
+            return instance.template initialize_product<false,false>();
         }
         template <Trace_Type trace_type = Trace_Type::Any, typename pda_t, typename automaton_t, typename W>
         static bool post_star_accepts_no_ET(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             post_star<trace_type,W,false>(instance.automaton());
-            return instance.initialize_product();
+            return instance.template initialize_product<false,false>();
         }
 
         template <Trace_Type trace_type = Trace_Type::Any, typename pda_t, typename automaton_t, typename W>

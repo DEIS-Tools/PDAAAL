@@ -47,13 +47,13 @@ namespace pdaaal {
           _product(_pda, get_initial_accepting(_initial, _final), true) {};
 
         // Returns whether an accepting state in the product automaton was reached.
-        template<bool needs_back_lookup = false>
+        template<bool needs_back_lookup = false, bool ET = true>
         bool initialize_product() {
             std::vector<size_t> ids(_product.states().size());
             std::iota (ids.begin(), ids.end(), 0); // Fill with 0,1,...,size-1;
-            return construct_reachable<needs_back_lookup>(ids,
-                                                          _swap_initial_final ? _final : _initial,
-                                                          _swap_initial_final ? _initial : _final);
+            return construct_reachable<needs_back_lookup,ET>(ids,
+                                                             _swap_initial_final ? _final : _initial,
+                                                             _swap_initial_final ? _initial : _final);
         }
 
         // Returns whether an accepting state in the product automaton was reached.
@@ -309,7 +309,7 @@ namespace pdaaal {
     private:
 
         // Returns whether an accepting state in the product automaton was reached.
-        template<bool needs_back_lookup = false>
+        template<bool needs_back_lookup = false, bool ET = true>
         bool construct_reachable(std::vector<size_t>& waiting, const automaton_t& initial, const automaton_t& final) {
             while (!waiting.empty()) {
                 size_t top = waiting.back();
@@ -324,8 +324,10 @@ namespace pdaaal {
                             for (const auto & [label, trace] : labels) {
                                 _product.add_edge(top, to_id, label, trace);
                             }
-                            if (_product.has_accepting_state()) {
-                                return true; // Early termination
+                            if constexpr (ET) {
+                                if (_product.has_accepting_state()) {
+                                    return true; // Early termination
+                                }
                             }
                             if (fresh) {
                                 waiting.push_back(to_id);

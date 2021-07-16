@@ -119,11 +119,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_test)
     auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
     auto p_automaton = PAutomatonParser::parse_string("< [q] , >", pda);
 
-    details::PreStarFixedPointSaturation saturation(p_automaton);
-    while(!saturation.done()) {
-        saturation.step();
-    }
-    saturation.finalize();
+    Solver::pre_star_fixed_point(p_automaton);
 
     std::stringstream s;
     print_automaton(p_automaton, pda, s);
