@@ -39,33 +39,20 @@
 
 namespace pdaaal {
 
-    template<typename W, typename = void> struct weight;
-    template <> struct weight<void> { using type = void; };
-    template<typename W>
-    struct weight<W, std::enable_if_t<std::is_arithmetic_v<W> && std::numeric_limits<W>::is_specialized && !std::numeric_limits<W>::is_signed>> {
-        using type = W;
+    struct weight_base {
+        static constexpr bool is_weight = false;
         static constexpr bool is_signed = false;
-        static constexpr type max_val = std::numeric_limits<type>::max();
-        static constexpr auto zero = []() -> type { return static_cast<type>(0); };
-        static constexpr auto max = []() -> type { return std::numeric_limits<type>::max(); };
-        static constexpr bool less(type lhs, type rhs) {
-            return lhs < rhs;
-        }
-        static constexpr type add(type lhs, type rhs) {
-            if (lhs == max_val || rhs == max_val) return max_val;
-            return lhs + rhs;
-        };
-        static constexpr type multiply(type lhs, type rhs) {
-            if (lhs == max_val || rhs == max_val) return max_val;
-            return lhs * rhs;
-        };
+        static constexpr bool has_mult = false;
+    };
+    template<typename W, typename = void> struct weight : public weight_base {
+        using type = W;
     };
     template<typename W>
-    struct weight<W, std::enable_if_t<std::is_arithmetic_v<W> && std::numeric_limits<W>::is_specialized && std::numeric_limits<W>::is_signed>> {
+    struct weight<W, std::enable_if_t<std::is_arithmetic_v<W> && std::numeric_limits<W>::is_specialized>> {
         using type = W;
-        static constexpr bool is_signed = true;
-        static constexpr type bottom_val = std::numeric_limits<type>::min();
-        static constexpr type max_val = std::numeric_limits<type>::max();
+        static constexpr bool is_weight = true;
+        static constexpr bool is_signed = std::numeric_limits<W>::is_signed;
+        static constexpr bool has_mult = true;
         static constexpr auto zero = []() -> type { return static_cast<type>(0); };
         static constexpr auto bottom = []() -> type { return std::numeric_limits<type>::min(); };
         static constexpr auto max = []() -> type { return std::numeric_limits<type>::max(); };
@@ -74,19 +61,30 @@ namespace pdaaal {
         }
         static constexpr type add(type lhs, type rhs) {
             if (lhs == max_val || rhs == max_val) return max_val;
-            if (lhs == bottom_val || rhs == bottom_val) return bottom_val;
+            if constexpr (is_signed) {
+                if (lhs == bottom_val || rhs == bottom_val) return bottom_val;
+            }
             return lhs + rhs;
         };
         static constexpr type multiply(type lhs, type rhs) {
             if (lhs == max_val || rhs == max_val) return max_val;
-            if (lhs == bottom_val || rhs == bottom_val) return bottom_val; // We don't expect to multiply with bottom...
+            if constexpr (is_signed) {
+                if (lhs == bottom_val || rhs == bottom_val) return bottom_val; // We don't expect to multiply with bottom...
+            }
             return lhs * rhs;
         };
+    private:
+        static constexpr type bottom_val = std::numeric_limits<type>::min();
+        static constexpr type max_val = std::numeric_limits<type>::max();
     };
     template<typename Inner, std::size_t N>
     struct weight<std::array<Inner, N>, std::enable_if_t<std::is_arithmetic_v<Inner> && std::numeric_limits<Inner>::is_specialized>> {
         using type = std::array<Inner, N>;
+        static constexpr bool is_weight = true;
+        static constexpr bool is_signed = weight<Inner>::is_signed;
+        static constexpr bool has_mult = false;
         static constexpr auto zero = []() -> type {std::array<Inner, N> arr{}; arr.fill(weight<Inner>::zero()); return arr;};
+        static constexpr auto bottom = []() -> type {std::array<Inner, N> arr{}; arr.fill(weight<Inner>::bottom()); return arr;};
         static constexpr auto max = []() -> type {std::array<Inner, N> arr{}; arr.fill(weight<Inner>::max()); return arr;};
         static constexpr bool less(const type& lhs, const type& rhs) {
             return lhs < rhs;
@@ -102,9 +100,17 @@ namespace pdaaal {
     template<typename Inner>
     struct weight<std::vector<Inner>, std::enable_if_t<std::is_arithmetic_v<Inner> && std::numeric_limits<Inner>::is_specialized>> {
         using type = std::vector<Inner>;
+        static constexpr bool is_weight = true;
+        static constexpr bool is_signed = weight<Inner>::is_signed;
+        static constexpr bool has_mult = false;
         static constexpr auto zero = []() -> type { return type{}; };
+        static constexpr auto bottom = []() -> type { return type{weight<Inner>::bottom()}; };
         static constexpr auto max = []() -> type { return type{weight<Inner>::max()}; }; // TODO: When C++20 arrives, use a constexpr vector instead
         static constexpr bool less(const type& lhs, const type& rhs) {
+            if constexpr (is_signed) {
+                if (rhs.size() == 1 && rhs[0] == weight<Inner>::bottom()) return false;
+                if (lhs.size() == 1 && lhs[0] == weight<Inner>::bottom()) return true;
+            }
             return lhs < rhs;
         }
         static constexpr type add(const type& lhs, const type& rhs) {
@@ -116,37 +122,37 @@ namespace pdaaal {
         };
     };
 
-    template <typename T, typename = void> struct has_type : std::false_type {};
-    template <typename T> struct has_type<T, std::void_t<decltype(std::declval<typename T::type>())>> : std::true_type {};
-    template <typename T> inline constexpr auto has_type_v = has_type<T>::value;
-
-    template <typename T, typename = void> struct has_zero : std::false_type {};
-    template <typename T> struct has_zero<T, std::void_t<decltype(T::zero())>> : std::true_type {};
-    template <typename T> inline constexpr auto has_zero_v = has_zero<T>::value;
-
-    template <typename T, typename = void> struct has_max : std::false_type {};
-    template <typename T> struct has_max<T, std::void_t<decltype(T::max())>> : std::true_type {};
-    template <typename T> inline constexpr auto has_max_v = has_max<T>::value;
-
-    template <typename T, typename = void> struct has_less : std::false_type {};
-    template <typename T> struct has_less<T, std::void_t<decltype(T::less(std::declval<typename T::type>(), std::declval<typename T::type>()))>> : std::true_type {};
-    template <typename T> inline constexpr auto has_less_v = has_less<T>::value;
-
-    template <typename T, typename = void> struct has_add : std::false_type {};
-    template <typename T> struct has_add<T, std::void_t<decltype(T::add(std::declval<typename T::type>(), std::declval<typename T::type>()))>> : std::true_type {};
-    template <typename T> inline constexpr auto has_add_v = has_add<T>::value;
+//    template <typename T, typename = void> struct has_type : std::false_type {};
+//    template <typename T> struct has_type<T, std::void_t<decltype(std::declval<typename T::type>())>> : std::true_type {};
+//    template <typename T> inline constexpr auto has_type_v = has_type<T>::value;
+//
+//    template <typename T, typename = void> struct has_zero : std::false_type {};
+//    template <typename T> struct has_zero<T, std::void_t<decltype(T::zero())>> : std::true_type {};
+//    template <typename T> inline constexpr auto has_zero_v = has_zero<T>::value;
+//
+//    template <typename T, typename = void> struct has_max : std::false_type {};
+//    template <typename T> struct has_max<T, std::void_t<decltype(T::max())>> : std::true_type {};
+//    template <typename T> inline constexpr auto has_max_v = has_max<T>::value;
+//
+//    template <typename T, typename = void> struct has_less : std::false_type {};
+//    template <typename T> struct has_less<T, std::void_t<decltype(T::less(std::declval<typename T::type>(), std::declval<typename T::type>()))>> : std::true_type {};
+//    template <typename T> inline constexpr auto has_less_v = has_less<T>::value;
+//
+//    template <typename T, typename = void> struct has_add : std::false_type {};
+//    template <typename T> struct has_add<T, std::void_t<decltype(T::add(std::declval<typename T::type>(), std::declval<typename T::type>()))>> : std::true_type {};
+//    template <typename T> inline constexpr auto has_add_v = has_add<T>::value;
 
     template <typename T, typename = void> struct has_boost_hash : std::false_type {};
     template <typename T> struct has_boost_hash<T, std::void_t<decltype(std::declval<boost::hash<typename T::type>>())>> : std::true_type {};
     template <typename T> inline constexpr auto has_boost_hash_v = has_boost_hash<T>::value;
 
-    template<typename W> inline constexpr auto is_weighted =
-            !std::is_void_v<W> && has_type_v<W> && !std::is_void_v<typename W::type> &&
-            has_zero_v<W> && has_max_v<W> && has_less_v<W> && has_add_v<W> && has_boost_hash_v<W>;
+    template<typename W> inline constexpr auto is_weighted = W::is_weight && has_boost_hash_v<W>;
+//            !std::is_void_v<W> && has_type_v<W> && !std::is_void_v<typename W::type> &&
+//            has_zero_v<W> && has_max_v<W> && has_less_v<W> && has_add_v<W> && has_boost_hash_v<W>;
 
-    template <typename T, typename = void> struct has_mult : std::false_type {};
-    template <typename T> struct has_mult<T, std::void_t<decltype(T::multiply(std::declval<typename T::type>(), std::declval<typename T::type>()))>> : std::true_type {};
-    template <typename T> constexpr auto has_mult_v = has_mult<T>::value;
+//    template <typename T, typename = void> struct has_mult : std::false_type {};
+//    template <typename T> struct has_mult<T, std::void_t<decltype(T::multiply(std::declval<typename T::type>(), std::declval<typename T::type>()))>> : std::true_type {};
+//    template <typename T> constexpr auto has_mult_v = has_mult<T>::value;
 
     template <typename W, typename... Args>
     class linear_weight_function {
@@ -162,7 +168,7 @@ namespace pdaaal {
 
         // Linear combination of functions
         explicit linear_weight_function(std::vector<std::pair<W, linear_weight_function<W, Args...>>> functions) : _functions(functions) {
-            static_assert(has_mult_v<weight<W>>, "For a linear combination, the weight type W needs to implement W::multiply.");
+            static_assert(weight<W>::has_mult, "For a linear combination, the weight type W needs to implement W::multiply.");
         }
 
         constexpr result_type operator()(Args... args) const {

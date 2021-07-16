@@ -354,7 +354,7 @@ namespace pdaaal {
 
         template<typename W, bool Enable, bool ET, typename = std::enable_if_t<Enable>>
         class PostStarShortestSaturation {
-            static_assert(is_weighted<W>);
+            static_assert(W::is_weight);
 
             struct weight_edge_trace {
                 typename W::type weight;
@@ -390,6 +390,10 @@ namespace pdaaal {
             PostStarShortestSaturation(PAutomaton<W> &automaton, const early_termination_fn<W>& early_termination)
             : _automaton(automaton), _early_termination(early_termination), _pda_states(_automaton.pda().states()),
               _n_pda_states(_pda_states.size()), _n_Q(_automaton.states().size()) {
+                assert(!has_negative_weight());
+                if (has_negative_weight()) {
+                    throw std::runtime_error("Priority-queue based shortest trace post* algorithm does not work with negative weights.");
+                }
                 initialize();
             };
 
@@ -411,6 +415,28 @@ namespace pdaaal {
             std::vector<std::vector<rel3_elem>> _rel3;
 
             bool _found = false;
+
+            bool has_negative_weight() const {
+                if constexpr (W::is_signed) {
+                    for (const auto& state : _pda_states) {
+                        for (const auto& [rule,labels] : state._rules) {
+                            if (W::less(rule._weight, W::zero())) {
+                                return true;
+                            }
+                        }
+                    }
+                    for (const auto& from : _automaton.states()) {
+                        for (const auto& [to,labels] : from->_edges) {
+                            for (auto &[label,trace] : labels) {
+                                if (W::less(trace.second, W::zero())) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+                return false;
+            }
 
             void initialize() {
                 // for <p, y> -> <p', y1 y2> do
