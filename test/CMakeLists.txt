@@ -1,32 +1,43 @@
-find_package (Boost COMPONENTS unit_test_framework REQUIRED)
-include_directories (${TEST_SOURCE_DIR}/src
-        ${Boost_INCLUDE_DIRS}
-        ${PDAAAL_SOURCE_DIR}
-        )
 add_definitions (-DBOOST_TEST_DYN_LINK)
+set(PDAAAL_test_sources
+    Weight_test.cpp
+    PDA_test.cpp
+    PAutomaton_test.cpp
+    Solver_test.cpp
+    Reducer_test.cpp
+    PDAFactory_test.cpp
+    fut_set_test.cpp
+    NFA_test.cpp
+    ParsingPDAFactory_test.cpp
+    NfaParser_test.cpp
+)
 
-add_executable (TestPDAFactory TestPDAFactory.h TestPDAFactory.cpp testmain.cpp)
-add_executable (Weight Weight_test.cpp)
-add_executable (WPDA PDA_test.cpp)
-add_executable (PAutomaton PAutomaton_test.cpp)
-add_executable (Solver Solver_test.cpp)
-add_executable (Reducer Reducer_test.cpp)
-add_executable (PDAFactory PDAFactory_test.cpp)
-add_executable (fut_set fut_set_test.cpp)
-add_executable (NFA NFA_test.cpp)
-add_executable (ParsingPDAFactory ParsingPDAFactory_test.cpp)
-add_executable (NfaParser NfaParser_test.cpp)
-add_executable (Verification Verification_test.cpp)
+# file(GLOB ...) is used to validate the above list of test_sources
+file(GLOB PDAAAL_glob_test_sources RELATIVE ${CMAKE_CURRENT_LIST_DIR} *.cpp)
 
-target_link_libraries(TestPDAFactory ${Boost_LIBRARIES} pdaaal)
-target_link_libraries(Weight ${Boost_LIBRARIES} pdaaal)
-target_link_libraries(WPDA ${Boost_LIBRARIES} pdaaal)
-target_link_libraries(PAutomaton ${Boost_LIBRARIES} pdaaal)
-target_link_libraries(Solver ${Boost_LIBRARIES} pdaaal)
-target_link_libraries(Reducer ${Boost_LIBRARIES} pdaaal)
-target_link_libraries(PDAFactory ${Boost_LIBRARIES} pdaaal)
-target_link_libraries(fut_set ${Boost_LIBRARIES} pdaaal)
-target_link_libraries(NFA ${Boost_LIBRARIES} pdaaal)
-target_link_libraries(ParsingPDAFactory ${Boost_LIBRARIES} pdaaal)
-target_link_libraries(NfaParser ${Boost_LIBRARIES} pdaaal)
-target_link_libraries(Verification ${Boost_LIBRARIES} pdaaal)
+enable_testing()
+foreach(test_source_file ${PDAAAL_test_sources})
+    if(${test_source_file} IN_LIST PDAAAL_glob_test_sources)
+        list(REMOVE_ITEM PDAAAL_glob_test_sources ${test_source_file})
+    else()
+        message(SEND_ERROR "File ${test_source_file} is missing from test")
+    endif()
+
+    get_filename_component(exename ${test_source_file} NAME_WE)
+    add_executable(${exename} ${test_source_file})
+    target_link_libraries(${exename} PRIVATE Boost::unit_test_framework pdaaal)
+    if(MSVC)
+        target_compile_options(${exename} PRIVATE /W4 /WX /utf-8)
+    else()
+        target_compile_options(${exename} PRIVATE -Wall -Wextra)
+    endif()
+    add_test(NAME ${exename} WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} COMMAND ${exename})
+endforeach()
+
+if(PDAAAL_glob_test_sources)
+    foreach(ignored_source_file ${PDAAAL_glob_test_sources})
+        message(SEND_ERROR "File ${ignored_source_file} in test is ignored")
+    endforeach()
+endif()
+
+add_subdirectory(pdaaal-bin-test)

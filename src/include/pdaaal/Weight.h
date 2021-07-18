@@ -114,7 +114,7 @@ namespace pdaaal {
             return lhs < rhs;
         }
         static constexpr type add(const type& lhs, const type& rhs) {
-            const auto& [small, large] = std::minmax(lhs, rhs, [](const type& lhs, const type& rhs){ return lhs.size() < rhs.size(); });
+            const auto& [small, large] = std::minmax(lhs, rhs, [](const type& l, const type& r){ return l.size() < r.size(); });
             std::vector<Inner> result = large;
             std::transform(small.begin(), small.end(), large.begin(),
                            result.begin(), weight<Inner>::add);

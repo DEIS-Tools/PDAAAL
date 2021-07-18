@@ -51,40 +51,31 @@ namespace pdaaal {
             std::vector<T> _symbols;
             state_t* _destination;
             edge_t(bool negated, std::unordered_set<T>& symbols, state_t* dest, state_t* source, size_t id)
-                    : _negated(negated), _symbols(symbols.begin(), symbols.end()), _destination(dest) 
-            {
+            : _negated(negated), _symbols(symbols.begin(), symbols.end()), _destination(dest) {
                 _destination->_backedges.emplace_back(source, id);
                 std::sort(_symbols.begin(), _symbols.end());
             };
             edge_t(state_t* dest, state_t* source, size_t id, bool epsilon = false)
-                    : _epsilon(epsilon), _negated(!epsilon), _destination(dest) 
-            {
+            : _epsilon(epsilon), _negated(!epsilon), _destination(dest) {
                 _destination->_backedges.emplace_back(source, id);
             };
             edge_t(const edge_t& other) = default;
             [[nodiscard]] bool empty(size_t n) const {
-                if(!_negated)
-                    return _symbols.empty();
-                return _symbols.size() == n;
+                return _negated ? _symbols.size() == n : _symbols.empty();
             }
             [[nodiscard]] bool wildcard(size_t n) const {
-                if(_negated)
-                    return _symbols.empty();
-                else //if(!_negated)
-                    return _symbols.size() == n;
+                return _negated ? _symbols.empty() : _symbols.size() == n;
             }
             bool contains(const T& symbol) const {
                 auto lb = std::lower_bound(_symbols.begin(), _symbols.end(), symbol);
                 bool found = lb != std::end(_symbols) && *lb == symbol;
-                return _negated ? !found : found;
+                return _negated == !found;
             }
-
             std::vector<state_t*> follow_epsilon() const {
                 std::vector<state_t*> next{_destination};
                 NFA<T>::follow_epsilon(next);
                 return next;
             }
-
         };
         
         struct state_t {
@@ -107,51 +98,38 @@ namespace pdaaal {
                 _edges.emplace_back(to, this, id, true);
             }
 
-            std::vector<T> prelabels(const std::unordered_set<T>& all_labels) const
-            {
+            std::vector<T> prelabels(const std::unordered_set<T>& all_labels) const {
                 std::unordered_set<const state_t*> seen{this};
                 std::vector<const state_t*> waiting{this};
                 std::vector<T> labels;
-                while(!waiting.empty())
-                {
+                while(!waiting.empty()) {
                     auto s = waiting.back();
                     waiting.pop_back();
                     
-                    for(auto& e : s->_backedges)
-                    {
-                        if(seen.count(e.first) == 0)
-                        {
+                    for(auto& e : s->_backedges) {
+                        if(seen.count(e.first) == 0) {
                             seen.insert(e.first);
                             waiting.push_back(e.first);
                         }
                         auto& edge = e.first->_edges[e.second];
-                        if(edge._negated)
-                        {
-                            if(edge._symbols.empty())
-                            {
+                        if(edge._negated) {
+                            if(edge._symbols.empty()) {
                                 labels.clear();
                                 labels.insert(labels.end(), all_labels.begin(), all_labels.end());
                                 std::sort(labels.begin(), labels.end());
                                 return labels;
-                            }
-                            else
-                            {
-                                for(auto& l : all_labels)
-                                {
+                            } else {
+                                for(auto& l : all_labels) {
                                     auto lb = std::lower_bound(edge._symbols.begin(), edge._symbols.end(), l);
-                                    if(lb == std::end(edge._symbols) || *lb != l)
-                                    {
+                                    if(lb == std::end(edge._symbols) || *lb != l) {
                                         auto lb2 = std::lower_bound(labels.begin(), labels.end(), l);
                                         if(lb2 == std::end(labels) || *lb2 != l)
                                             labels.insert(lb2, l);
                                     }
                                 }
                             }
-                        }
-                        else
-                        {
-                            for(auto l : edge._symbols)
-                            { // sorted, so we can optimize here of we want to 
+                        } else {
+                            for(auto l : edge._symbols) { // sorted, so we can optimize here of we want to
                                 auto lb2 = std::lower_bound(labels.begin(), labels.end(), l);
                                 if(lb2 == std::end(labels) || *lb2 != l)
                                     labels.insert(lb2, l);
@@ -174,7 +152,7 @@ namespace pdaaal {
         }
 
         explicit NFA(std::unordered_set<T>&& initial_accepting, bool negated = false) {
-            if (initial_accepting.size() > 0 || negated) {
+            if (!initial_accepting.empty() || negated) {
                 _states.emplace_back(std::make_unique<state_t>(false));
                 _initial.push_back(_states[0].get());
                 _states.emplace_back(std::make_unique<state_t>(true));
@@ -183,8 +161,7 @@ namespace pdaaal {
             }
         }
         
-        void compile()
-        {
+        void compile() {
             std::sort(_accepting.begin(), _accepting.end());
             std::sort(_initial.begin(), _initial.end());
             follow_epsilon(_initial);
@@ -205,20 +182,15 @@ namespace pdaaal {
 
         template<typename C>
         static std::enable_if_t<std::is_same_v<state_t*, C> || std::is_same_v<const state_t*, C>, void>
-        follow_epsilon(std::vector<C>& states)
-        {
+        follow_epsilon(std::vector<C>& states) {
             std::vector<C> waiting = states;
-            while(!waiting.empty())
-            {
+            while(!waiting.empty()) {
                 auto s = waiting.back();
                 waiting.pop_back();
-                for(auto& e : s->_edges)
-                {
-                    if(e._epsilon)
-                    {
+                for(auto& e : s->_edges) {
+                    if(e._epsilon) {
                         auto lb = std::lower_bound(states.begin(), states.end(), e._destination);
-                        if(lb == std::end(states) || *lb != e._destination)
-                        {   // FIXME: Vector.insert is usually slow for large vectors.
+                        if(lb == std::end(states) || *lb != e._destination) { // FIXME: Vector.insert is usually slow for large vectors.
                             states.insert(lb, e._destination);
                             waiting.push_back(e._destination);
                         }
@@ -407,39 +379,34 @@ namespace pdaaal {
             _accepting.insert(_accepting.end(), other._accepting.begin(), other._accepting.end());
         }       
         
-        void to_dot(std::ostream& out, std::function<void(std::ostream&, const T&)> printer = [](auto& s, auto& e){ s << e ;}) const
-        {
+        void to_dot(std::ostream& out, std::function<void(std::ostream&, const T&)> printer = [](auto& s, auto& e){ s << e ;}) const {
             out << "digraph NFA {\n";
-            for(const auto& s : _states)
-            {
+            for(const auto& s : _states) {
                 out << "\"" << s.get() << "\" [shape=";
                 if(s->_accepting)
                     out << "double";
                 out << "circle];\n";
-                for(const edge_t& e : s->_edges)
-                {
+                for(const edge_t& e : s->_edges) {
                     out << "\"" << s.get() << "\" -> \"" << e._destination << "\" [ label=\"";
-                    if(e._negated && !e._symbols.empty())
-                    {
+                    if(e._negated && !e._symbols.empty()) {
                         out << "^";
                     }
-                    if(!e._symbols.empty())
-                    {
+                    if(!e._symbols.empty()) {
                         out << "\\[";
                         bool first = true;
-                        for(auto& s : e._symbols)
-                        {
-                            if(!first)
+                        for(const auto& symbol : e._symbols) {
+                            if(!first) {
                                 out << ", ";
+                            }
                             first = false;
-                            printer(out, s);
+                            printer(out, symbol);
                         }
                         out << "\\]";
                     }
-                    if(e._symbols.empty() && e._negated)
+                    if(e._symbols.empty() && e._negated) {
                         out << "*";
-                    if(e._epsilon)
-                    {
+                    }
+                    if(e._epsilon) {
                         if(!e._symbols.empty() || e._negated) out << " ";
                         out << "𝜀";
                     }
@@ -447,12 +414,10 @@ namespace pdaaal {
                     out << "\"];\n";
                 }
             }
-            for(const auto& i : _initial)
-            {
+            for(const auto& i : _initial) {
                 out << "\"I" << i << "\" -> \"" << i << "\";\n";
                 out << "\"I" << i << "\" [style=invisible];\n";
             }
-            
             out << "}\n";
         }
 

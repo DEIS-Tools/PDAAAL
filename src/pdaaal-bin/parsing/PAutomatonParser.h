@@ -39,9 +39,9 @@ namespace pdaaal {
     struct character : pegtl::if_then_else< pegtl::one< '\\' >, escaped_c, pegtl::utf8::range< 0x20, 0x10FFFF > > {};
     struct string_state : public std::string {
         template<typename ParseInput, typename... States >
-        explicit string_state(const ParseInput& in, States&&... st) { }
+        explicit string_state(const ParseInput&, States&&...) { }
         template<typename ParseInput, typename... States >
-        void success(const ParseInput& in, States&&... st) {
+        void success(const ParseInput&, States&&... st) {
             (st.accept_string(*this), ...);
         }
     };

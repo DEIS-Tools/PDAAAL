@@ -222,7 +222,7 @@ namespace pdaaal {
             assert(refinement.index() == 0);
             _state_abstraction.refine(std::get<0>(refinement).first);
         }
-        void refine(typename ParsingCegarPdaReconstruction<W>::header_refinement_t&& refinement) {
+        void refine(typename ParsingCegarPdaReconstruction<W>::header_refinement_t&&) {
             // No refinement of states.
         }
 

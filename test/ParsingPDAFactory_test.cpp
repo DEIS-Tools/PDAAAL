@@ -252,8 +252,8 @@ A,B,C
 # SWAP rules use LABEL
 )");
     auto factory = ParsingCegarPdaFactory<>::create(i_stream,
-                                                    [](const auto& label){ return 0; }, // All labels map to 0.
-                                                    [](const auto& s){ return 0; }); // All states map to 0.
+                                                    [](const auto&){ return 0; }, // All labels map to 0.
+                                                    [](const auto&){ return 0; }); // All states map to 0.
 
     // initial stack: [A,B,C]
     NFA<std::string> initial(std::unordered_set<std::string>{"A"});
@@ -303,7 +303,7 @@ A,B,C
 )");
     auto factory = ParsingCegarPdaFactory<>::create(i_stream,
                                                     [](const auto& label){ return (int)label[0]; }, // No label abstraction.
-                                                    [](const auto& s){ return 0; }); // All states map to 0.
+                                                    [](const auto&){ return 0; }); // All states map to 0.
 
     // initial stack: [A,B,C]
     NFA<std::string> initial(std::unordered_set<std::string>{"A"});
@@ -352,8 +352,8 @@ A,B,C
 # SWAP rules use LABEL
 )");
     auto factory = ParsingCegarPdaFactory<>::create(i_stream,
-                                                    [](const auto& label){ return 0; }, // All labels map to 0.
-                                                    [](const auto& s){ return 0; }); // All states map to 0.
+                                                    [](const auto&){ return 0; }, // All labels map to 0.
+                                                    [](const auto&){ return 0; }); // All states map to 0.
 
     // initial stack: [A,B,C]
     NFA<std::string> initial(std::unordered_set<std::string>{"A"});
@@ -399,8 +399,8 @@ A,B,C
 # SWAP rules use LABEL
 )");
     auto factory = ParsingCegarPdaFactory<>::create(i_stream,
-                                                    [](const auto& label){ return 0; }, // All labels map to 0.
-                                                    [](const auto& s){ return 0; }); // All states map to 0.
+                                                    [](const auto&){ return 0; }, // All labels map to 0.
+                                                    [](const auto&){ return 0; }); // All states map to 0.
 
     // initial stack: [A,B,C]
     NFA<std::string> initial(std::unordered_set<std::string>{"A"});
@@ -491,8 +491,8 @@ A,B,C
 # SWAP rules use LABEL
 )");
     auto factory = ParsingCegarPdaFactory<>::create(i_stream,
-                                                    [](const auto& label){ return 0; }, // All labels map to 0.
-                                                    [](const auto& s){ return 0; }); // All states map to 0.
+                                                    [](const auto&){ return 0; }, // All labels map to 0.
+                                                    [](const auto&){ return 0; }); // All states map to 0.
 
     // initial stack: [A,B,C]
     NFA<std::string> initial(std::unordered_set<std::string>{"A"});

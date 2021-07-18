@@ -1,0 +1,3 @@
+include(CMakeFindDependencyMacro)
+find_dependency(absl)
+include(${CMAKE_CURRENT_LIST_DIR}/pdaaal_targets.cmake)
