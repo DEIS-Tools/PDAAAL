@@ -43,14 +43,16 @@ namespace pdaaal {
     // Allow conditionally enabling state mapping. (E.g. string -> size_t map vs. just directly use size_t states.)
     template<typename state_t>
     struct state_mapping {
-        state_t get_state(size_t id) const {
+        [[nodiscard]] state_t get_state(size_t id) const {
             assert(id < _state_map.size());
             return _state_map.at(id);
         }
     protected:
         utils::ptrie_set<state_t> _state_map;
     };
-    struct no_state_mapping {};
+    struct no_state_mapping {
+        [[nodiscard]] size_t get_state(size_t id) const { return id; } // Dummy to match get_state when there is a state mapping.
+    };
 
     template<typename label_t, typename W = weight<void>, fut::type Container = fut::type::vector, typename state_t = size_t, bool skip_state_mapping = std::is_same_v<state_t,size_t>>
     class TypedPDA : public PDA<W, Container>, public std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {

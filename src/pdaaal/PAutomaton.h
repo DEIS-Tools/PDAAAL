@@ -53,47 +53,68 @@ namespace pdaaal {
         size_t _state = std::numeric_limits<size_t>::max(); // _state = p
         size_t _rule_id = std::numeric_limits<size_t>::max(); // size_t _to = pda.states()[_from]._rules[_rule_id]._to; // _to = q
         uint32_t _label = std::numeric_limits<uint32_t>::max(); // _label = \gamma
+        // if is_null() { return; all is invalid. }
         // if is_pre_trace() {
         // then {use _rule_id (and potentially _state)}
         // else if is_post_epsilon_trace()
         // then {_state = q'; _rule_id invalid }
         // else {_state = p; _label = \gamma}
 
-        trace_t() = default;
+        constexpr trace_t() = default;
 
-        trace_t(size_t rule_id, size_t temp_state)
+        constexpr trace_t(size_t rule_id, size_t temp_state)
                 : _state(temp_state), _rule_id(rule_id), _label(std::numeric_limits<uint32_t>::max() - 1) {};
 
-        trace_t(size_t from, size_t rule_id, uint32_t label)
+        constexpr trace_t(size_t from, size_t rule_id, uint32_t label)
                 : _state(from), _rule_id(rule_id), _label(label) {};
 
-        explicit trace_t(size_t epsilon_state)
+        constexpr explicit trace_t(size_t epsilon_state)
                 : _state(epsilon_state) {};
 
-        [[nodiscard]] bool is_pre_trace() const {
+        [[nodiscard]] constexpr bool is_pre_trace() const {
             return _label == std::numeric_limits<uint32_t>::max() - 1;
         }
-        [[nodiscard]] bool is_post_epsilon_trace() const {
+        [[nodiscard]] constexpr bool is_post_epsilon_trace() const {
             return _label == std::numeric_limits<uint32_t>::max();
+        }
+        [[nodiscard]] constexpr bool is_null() const {
+            return _state == std::numeric_limits<size_t>::max() &&
+                   _rule_id == std::numeric_limits<size_t>::max() &&
+                   _label == std::numeric_limits<uint32_t>::max();
         }
     };
 
-    template<typename W> using trace_ptr = std::conditional_t<is_weighted<W>, std::pair<const trace_t*, typename W::type>, const trace_t*>;
-    template<typename W> inline constexpr trace_ptr<W> default_trace_ptr() {
-        if constexpr (is_weighted<W>) {
-            return std::make_pair<const trace_t*, typename W::type>(nullptr, W::zero());
-        } else {
+    template<bool indirect> using trace_ = std::conditional_t<indirect, const trace_t*, trace_t>;
+    template<bool indirect> inline constexpr trace_<indirect> default_trace_() {
+        if constexpr (indirect) {
             return nullptr;
+        } else {
+            return trace_t();
         }
     }
-    template<typename W> inline constexpr trace_ptr<W> trace_ptr_from(const trace_t *trace) {
+    template<bool indirect> inline constexpr bool trace_is_null(trace_<indirect> trace) {
+        if constexpr (indirect) {
+            return trace == nullptr;
+        } else {
+            return trace.is_null();
+        }
+    }
+    template<typename W, bool indirect = true> using trace_ptr = std::conditional_t<is_weighted<W>, std::pair<trace_<indirect>, typename W::type>, trace_<indirect>>;
+    template<typename W, bool indirect = true> inline constexpr trace_ptr<W,indirect> default_trace_ptr() {
+        if constexpr (is_weighted<W>) {
+            return std::make_pair<trace_<indirect>, typename W::type>(default_trace_<indirect>(), W::zero());
+        } else {
+            return default_trace_<indirect>();
+        }
+    }
+    template<typename W, bool indirect = true> inline constexpr trace_ptr<W,indirect> trace_ptr_from(trace_<indirect> trace) {
         if constexpr (is_weighted<W>) {
             return std::make_pair(trace, W::zero());
         } else {
             return trace;
         }
     }
-    template<typename W> inline constexpr const trace_t * trace_from(trace_ptr<W> t) {
+    template<typename W, bool indirect = true> inline constexpr trace_<indirect> trace_from(trace_ptr<W,indirect> t) {
         if constexpr (is_weighted<W>) {
             return t.first;
         } else {
@@ -101,8 +122,9 @@ namespace pdaaal {
         }
     }
 
-
-    template <typename W = weight<void>>
+    // indirect trace_info saves space for normal pre* and post*, but for weighted fixed point versions it might not,
+    // since we need to update it several times, and we don't know when it is safe to delete from _trace_info.
+    template <typename W = weight<void>, bool indirect = true>
     class PAutomaton {
     public:
         static constexpr auto epsilon = std::numeric_limits<uint32_t>::max();
@@ -110,7 +132,7 @@ namespace pdaaal {
         struct state_t {
             bool _accepting = false;
             size_t _id;
-            fut::set<std::tuple<size_t,uint32_t,trace_ptr<W>>, fut::type::hash, fut::type::vector> _edges;
+            fut::set<std::tuple<size_t,uint32_t,trace_ptr<W,indirect>>, fut::type::hash, fut::type::vector> _edges;
 
             state_t(bool accepting, size_t id) : _accepting(accepting), _id(id) {};
 
@@ -158,12 +180,12 @@ namespace pdaaal {
                 }
             }
         }
-        PAutomaton(PAutomaton<W>&& other, const PDA<W>& pda) noexcept // Move constructor, but update reference to PDA.
+        PAutomaton(PAutomaton<W,indirect>&& other, const PDA<W>& pda) noexcept // Move constructor, but update reference to PDA.
         : _states(std::move(other._states)), _initial(std::move(other._initial)),
           _accepting(std::move(other._accepting)), _trace_info(std::move(other._trace_info)), _pda(pda) {};
 
-        PAutomaton(PAutomaton<W> &&) noexcept = default;
-        PAutomaton(const PAutomaton<W>& other) : _pda(other._pda) {
+        PAutomaton(PAutomaton<W,indirect> &&) noexcept = default;
+        PAutomaton(const PAutomaton<W,indirect>& other) : _pda(other._pda) {
             std::unordered_map<state_t *, state_t *> indir;
             for (auto &s : other._states) {
                 _states.emplace_back(std::make_unique<state_t>(*s));
@@ -181,7 +203,7 @@ namespace pdaaal {
         
         [[nodiscard]] const PDA<W> &pda() const { return _pda; }
 
-        void or_extend(PAutomaton<W>&& other) {
+        void or_extend(PAutomaton<W,indirect>&& other) {
             assert(_pda.states().size() == other._pda.states().size()); // We compare number of PDA states, since operator== is not implemented for PDA.
             const size_t pda_size = _pda.states().size();
             const size_t automaton_size = _states.size();
@@ -209,45 +231,88 @@ namespace pdaaal {
             }
         }
 
-        void to_dot(std::ostream &out, const std::function<void(std::ostream &, const uint32_t&)> &printer = [](auto &s, auto &l) {
-                        s << l;
-                    }) const {
+        void to_dot(std::ostream &out,
+                    const std::function<void(std::ostream &, const uint32_t&)>& label_printer = [](auto &s, auto &l){ s << l; },
+                    const std::function<void(std::ostream &, const size_t&)>& state_printer = [](auto &s, auto &id){ s << id; }) const {
             out << "digraph NFA {\n";
             for (auto &s : _states) {
-                out << "\"" << s->_id << "\" [shape=";
+                out << "\"";
+                state_printer(out, s->_id);
+                out << "\" [shape=";
                 if (s->_accepting)
                     out << "double";
                 out << "circle];\n";
                 for (const auto &[to, labels] : s->_edges) {
-                    out << "\"" << s->_id << "\" -> \"" << to << "\" [ label=\"";
+                    out << "\"";
+                    state_printer(out, s->_id);
+                    out << "\" -> \"";
+                    state_printer(out, to);
+                    out << "\" [ label=\"";
                     auto has_epsilon = labels.contains(epsilon);
                     auto size = labels.size() - (has_epsilon ? 1 : 0);
-                    if (size == number_of_labels()) {
-                        out << "*";
-                    } else if (size > 0) {
-                        out << "\\[";
-                        bool first = true;
-                        for (const auto& [l,_] : labels) {
-                            if (l == epsilon) { continue; }
-                            if (!first)
-                                out << ", ";
-                            first = false;
-                            printer(out, l);
+                    if constexpr(is_weighted<W>) {
+                        if (size > 0) {
+                            out << "\\[";
+                            bool first = true;
+                            for (const auto& [l,tw] : labels) {
+                                if (l == epsilon) { continue; }
+                                if (!first)
+                                    out << ", ";
+                                first = false;
+                                label_printer(out, l);
+                                bool special_weight = false;
+                                if (tw.second == W::max()) {
+                                    out << "(∞)";
+                                    special_weight = true;
+                                } else {
+                                    if constexpr(W::is_signed) {
+                                        if (tw.second == W::bottom()) {
+                                            out << "(-∞)";
+                                            special_weight = true;
+                                        }
+                                    }
+                                }
+                                if (!special_weight) {
+                                    out << "(" << tw.second << ")";
+                                }
+                            }
+                            out << "\\]";
                         }
-                        out << "\\]";
+                    } else {
+                        if (size == number_of_labels()) {
+                            out << "*";
+                        } else if (size > 0) {
+                            out << "\\[";
+                            bool first = true;
+                            for (const auto& [l,tw] : labels) {
+                                if (l == epsilon) { continue; }
+                                if (!first)
+                                    out << ", ";
+                                first = false;
+                                label_printer(out, l);
+                            }
+                            out << "\\]";
+                        }
                     }
-                    if (labels.contains(epsilon)) {
+                    if (has_epsilon) {
                         if (labels.size() > 1) out << " ";
                         out << "𝜀";
+                        if constexpr(is_weighted<W>) {
+                            out << "(" << labels.find(epsilon)->second.second << ")";
+                        }
                     }
                     out << "\"];\n";
                 }
             }
             for (auto &i : _initial) {
-                out << "\"I" << i->_id << "\" -> \"" << i->_id << "\";\n";
-                out << "\"I" << i->_id << "\" [style=invisible];\n";
+                out << "\"I";
+                state_printer(out, i->_id);
+                out << "\" -> \"";
+                state_printer(out, i->_id);
+                out << "\";\n" << "\"I";
+                state_printer(out, i->_id);
+                out << "\" [style=invisible];\n";
             }
-
             out << "}\n";
         }
 
@@ -389,14 +454,14 @@ namespace pdaaal {
             }
         }
 
-        [[nodiscard]] const trace_t *get_trace_label(const std::tuple<size_t, uint32_t, size_t> &edge) const {
+        [[nodiscard]] trace_<indirect> get_trace_label(const std::tuple<size_t, uint32_t, size_t> &edge) const {
             return get_trace_label(std::get<0>(edge), std::get<1>(edge), std::get<2>(edge));
         }
-        [[nodiscard]] const trace_t *get_trace_label(size_t from, uint32_t label, size_t to) const {
+        [[nodiscard]] trace_<indirect> get_trace_label(size_t from, uint32_t label, size_t to) const {
             auto trace = _states[from]->_edges.get(to, label);
-            if (trace) return trace_from<W>(*trace);
+            if (trace) return trace_from<W,indirect>(*trace);
             assert(false); // We assume the edge exists.
-            return nullptr;
+            return default_trace_<indirect>();
         }
 
         [[nodiscard]] size_t number_of_labels() const { return _pda.number_of_labels(); }
@@ -420,13 +485,18 @@ namespace pdaaal {
             return _states.size();
         }
 
-        void add_epsilon_edge(size_t from, size_t to, trace_ptr<W> trace = default_trace_ptr<W>()) {
+        void add_epsilon_edge(size_t from, size_t to, trace_ptr<W,indirect> trace = default_trace_ptr<W,indirect>()) {
             _states[from]->_edges.emplace(to, epsilon, trace);
         }
 
-        void add_edge(size_t from, size_t to, uint32_t label, trace_ptr<W> trace = default_trace_ptr<W>()) {
+        void add_edge(size_t from, size_t to, uint32_t label, trace_ptr<W,indirect> trace = default_trace_ptr<W,indirect>()) {
             assert(label < std::numeric_limits<uint32_t>::max() - 1);
             _states[from]->_edges.emplace(to, label, trace);
+        }
+        void update_edge(size_t from, size_t to, uint32_t label, trace_ptr<W,indirect> trace) {
+            auto ptr = _states[from]->_edges.get(to, label);
+            assert(ptr != nullptr);
+            *ptr = trace;
         }
 
         void add_edges(size_t from, size_t to, bool negated, const std::vector<uint32_t>& labels) {
@@ -478,21 +548,37 @@ namespace pdaaal {
             }
         }
 
-        const trace_t *new_pre_trace(size_t rule_id) {
-            _trace_info.emplace_back(std::make_unique<trace_t>(rule_id, std::numeric_limits<size_t>::max()));
-            return _trace_info.back().get();
+        trace_<indirect> new_pre_trace(size_t rule_id) {
+            if constexpr (indirect) {
+                _trace_info.emplace_back(std::make_unique<trace_t>(rule_id, std::numeric_limits<size_t>::max()));
+                return _trace_info.back().get();
+            } else {
+                return trace_t(rule_id, std::numeric_limits<size_t>::max());
+            }
         }
-        const trace_t *new_pre_trace(size_t rule_id, size_t temp_state) {
-            _trace_info.emplace_back(std::make_unique<trace_t>(rule_id, temp_state));
-            return _trace_info.back().get();
+        trace_<indirect> new_pre_trace(size_t rule_id, size_t temp_state) {
+            if constexpr (indirect) {
+                _trace_info.emplace_back(std::make_unique<trace_t>(rule_id, temp_state));
+                return _trace_info.back().get();
+            } else {
+                return trace_t(rule_id, temp_state);
+            }
         }
-        const trace_t *new_post_trace(size_t from, size_t rule_id, uint32_t label) {
-            _trace_info.emplace_back(std::make_unique<trace_t>(from, rule_id, label));
-            return _trace_info.back().get();
+        trace_<indirect> new_post_trace(size_t from, size_t rule_id, uint32_t label) {
+            if constexpr (indirect) {
+                _trace_info.emplace_back(std::make_unique<trace_t>(from, rule_id, label));
+                return _trace_info.back().get();
+            } else {
+                return trace_t(from, rule_id, label);
+            }
         }
-        const trace_t *new_post_trace(size_t epsilon_state) {
-            _trace_info.emplace_back(std::make_unique<trace_t>(epsilon_state));
-            return _trace_info.back().get();
+        trace_<indirect> new_post_trace(size_t epsilon_state) {
+            if constexpr (indirect) {
+                _trace_info.emplace_back(std::make_unique<trace_t>(epsilon_state));
+                return _trace_info.back().get();
+            } else {
+                return trace_t(epsilon_state);
+            }
         }
     private:
         template<typename T, bool use_mapping = true>

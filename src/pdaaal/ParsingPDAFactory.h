@@ -183,7 +183,6 @@ namespace pdaaal {
         using abstract_state_t = state_t;
         using parent_t = CegarPdaFactory<label_t, W>;
         using abstract_rule_t = typename parent_t::abstract_rule_t;
-        using solver_instance_t = typename parent_t::solver_instance_t;
     public:
         struct ConcretePDA {
             explicit ConcretePDA(std::istream& input) {
@@ -323,12 +322,12 @@ namespace pdaaal {
         using configuration_range_t = const std::vector<configuration_t>&;
         using parent_t = CegarPdaReconstruction<label_t, state_t, configuration_range_t, concrete_trace_t, W>;
         using abstract_rule_t = typename parent_t::abstract_rule_t;
-        using solver_instance_t = typename parent_t::solver_instance_t;
+        using product_t = typename parent_t::product_t;
     public:
         using refinement_t = typename parent_t::refinement_t;
         using header_refinement_t = typename parent_t::header_refinement_t;
 
-        explicit ParsingCegarPdaReconstruction(const ParsingCegarPdaFactory<W>& factory, const solver_instance_t& instance,
+        explicit ParsingCegarPdaReconstruction(const ParsingCegarPdaFactory<W>& factory, const product_t& instance,
                                                const NFA<label_t>& initial_headers, const NFA<label_t>& final_headers)
         : parent_t(instance, initial_headers, final_headers),
           _state_abstraction(factory._state_abstraction), _rules(factory._concrete_pda._rules), _initial_states(factory._concrete_pda._initial) {};
