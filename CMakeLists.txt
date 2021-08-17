@@ -3,13 +3,13 @@ cmake_minimum_required(VERSION 3.14)
 cmake_policy(SET CMP0048 NEW)
 cmake_policy(SET CMP0069 NEW)
 
-set(CMAKE_CXX_STANDARD 17)
 if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif (NOT CMAKE_BUILD_TYPE)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-project(pdaaal VERSION 1.0.0 LANGUAGES CXX)
+set(PDAAAL_VERSION 1.0.0)
+project(pdaaal VERSION ${PDAAAL_VERSION} LANGUAGES CXX)
 
 
 option(PDAAAL_BuildTests "Build the unit tests when BUILD_TESTING is enabled." ON)
@@ -18,9 +18,9 @@ option(PDAAAL_AddressSanitizer "Enables address sanitization during compilation.
 option(PDAAAL_GetDependencies "Fetch external dependencies from web." ON)
 
 
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -Wall -fPIC")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2 -DNDEBUG -Wall -Wpedantic -fPIC")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lstdc++ -lm")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -Wall")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2 -Wall -Wpedantic")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lstdc++")
 #set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 #set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 #set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)

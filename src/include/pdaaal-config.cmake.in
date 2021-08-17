@@ -1,3 +1,4 @@
+# This file is used to make sure pdaaal's dependencies are also available to the project that uses pdaaal. (I.e. this makes transitive dependencies work)
 include(CMakeFindDependencyMacro)
 find_dependency(absl)
-include(${CMAKE_CURRENT_LIST_DIR}/pdaaal_targets.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/pdaaal-targets.cmake)

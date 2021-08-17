@@ -31,7 +31,7 @@
 #include "parsing/Parsing.h"
 #include "Verifier.h"
 
-#include "git_hash.h" // Generated at build time. Defines PDAAAL_GIT_HASH and PDAAAL_GIT_HASH_STR
+#include "git_hash.h" // Generated at build time. Defines PDAAAL_GIT_HASH, PDAAAL_GIT_HASH_STR, PDAAAL_VERSION and PDAAAL_VERSION_STR
 
 namespace po = boost::program_options;
 using namespace pdaaal;
@@ -65,7 +65,7 @@ int main(int argc, const char** argv) {
         return 1;
     }
     if (vm.count("version")) {
-        std::cout << "PDAAAL v0.3.0 - git hash: " PDAAAL_GIT_HASH_STR << std::endl
+        std::cout << "PDAAAL v" PDAAAL_VERSION_STR " - git hash: " PDAAAL_GIT_HASH_STR << std::endl
                   << "Copyright (C) 2021  Morten K. Schou, Peter G. Jensen, Dan Kristiansen, Bernhard C. Schrenk" << std::endl
                   << "License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>." << std::endl
                   << "This is free software: you are free to change and redistribute it." << std::endl
