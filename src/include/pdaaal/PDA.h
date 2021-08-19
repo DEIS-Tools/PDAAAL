@@ -121,16 +121,6 @@ namespace pdaaal::details {
         friend H AbslHashValue(H h, const rule_t<W>& rule) {
             return H::combine(std::move(h), rule._to, rule._operation, rule._op_label);
         }
-
-        struct hasher {
-            size_t operator()(const pdaaal::details::rule_t<W> &rule) const noexcept {
-                size_t seed = 0;
-                boost::hash_combine(seed, rule._to);
-                boost::hash_combine(seed, rule._op_label);
-                boost::hash_combine(seed, rule._operation);
-                return seed;
-            }
-        };
     };
 
     template<typename W>

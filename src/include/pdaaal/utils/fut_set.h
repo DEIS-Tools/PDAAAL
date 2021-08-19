@@ -40,22 +40,6 @@ namespace pdaaal::fut {
 
     namespace detail {
 
-        // Use std::hash by default, but for tuples use custom implementation based on boost::hash_combine, but using std::hash on inner types.
-//        template <typename T>
-//        struct hash {
-//            size_t operator()(const T& t) const {
-//                return std::hash<T>()(t);
-//            }
-//        };
-//        template <typename... Args>
-//        struct hash<std::tuple<Args...>> {
-//            size_t operator()(const std::tuple<Args...>& tuple) const {
-//                size_t seed = 0;
-//                std::apply([&seed](auto&&... args){ (boost::hash_detail::hash_combine_impl(seed, std::hash<std20::remove_cvref_t<decltype(args)>>()(args)), ...); }, tuple);
-//                return seed;
-//            }
-//        };
-
         // FUT-set is a Fast Unordered Tuple-set. Hopefully so fast that executing it says FUT.
         template<class T, type... C>
         class fut_set { };
