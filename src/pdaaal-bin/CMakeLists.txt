@@ -1,17 +1,10 @@
 cmake_minimum_required(VERSION 3.14)
 project(PDAAAL-bin VERSION ${PDAAAL_VERSION} LANGUAGES CXX)
 
-# We prefer FetchContent rather than direct file download. (WHY!??!)
-#    file(DOWNLOAD
-#        https://github.com/nlohmann/json/releases/download/v3.9.1/json.hpp
-#        ${EXTERNAL_INSTALL_LOCATION}/include/json.hpp
-#        EXPECTED_HASH SHA256=7804b38146921d03374549c9e2a5e3acda097814c43caf2b96a0278e58df26e0
-#    )
 include(FetchContent)
 FetchContent_Declare(json
-    GIT_REPOSITORY https://github.com/ArthurSonzogni/nlohmann_json_cmake_fetchcontent # Use this rather than https://github.com/nlohmann/json to reduce download size.
-#    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    GIT_TAG v3.9.1
+    URL https://github.com/nlohmann/json/archive/refs/tags/v3.10.0.tar.gz
+    URL_HASH SHA512=1531780110260ea4cd8fbe79d860f1ea46fa8377d520669f938ddb5f8a4b11fe550fc7d2d978a281d5ddcc511447d160a2f68c06583672496c57c6672a4036a1
 )
 FetchContent_GetProperties(json)
 if(NOT json_POPULATED)
