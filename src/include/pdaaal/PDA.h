@@ -38,7 +38,6 @@
 #include <algorithm>
 #include <functional>
 #include <type_traits>
-#include <boost/container_hash/hash.hpp>
 
 namespace pdaaal {
 

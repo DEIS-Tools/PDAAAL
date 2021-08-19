@@ -46,4 +46,20 @@ if(BUILD_TESTING AND PDAAAL_BuildTests)
 
     #testing
     add_subdirectory(test)
+    enable_testing()
+    add_test(NAME Weight_test               COMMAND Weight_test)
+    add_test(NAME PDA_test                  COMMAND PDA_test)
+    add_test(NAME PAutomaton_test           COMMAND PAutomaton_test)
+    add_test(NAME Solver_test               COMMAND Solver_test)
+    add_test(NAME Reducer_test              COMMAND Reducer_test)
+    add_test(NAME PDAFactory_test           COMMAND PDAFactory_test)
+    add_test(NAME fut_set_test              COMMAND fut_set_test)
+    add_test(NAME NFA_test                  COMMAND NFA_test)
+    add_test(NAME ParsingPDAFactory_test    COMMAND ParsingPDAFactory_test)
+    add_test(NAME NfaParser_test            COMMAND NfaParser_test)
+
+    if (PDAAAL_Build_Main) # We need the dependencies for pdaaal-bin to test it.
+        add_test(NAME Verification_test         COMMAND Verification_test)
+    endif()
+
 endif()

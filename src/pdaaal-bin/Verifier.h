@@ -80,7 +80,7 @@ namespace pdaaal {
             auto final_p_automaton = PAutomatonParser::parse_file(final_pa_file, pda);
             PAutomatonProduct instance(pda, std::move(initial_p_automaton), std::move(final_p_automaton));
 
-            bool result;
+            bool result = false;
             std::vector<typename pda_t::tracestate_t> trace;
             switch (engine) {
                 case 1: {
