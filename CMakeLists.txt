@@ -11,9 +11,15 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(PDAAAL_VERSION 1.0.0)
 project(pdaaal VERSION ${PDAAAL_VERSION} LANGUAGES CXX)
 
+# MAIN_PROJECT CHECK
+# Determine if pdaaal is built as a subproject (using add_subdirectory) or if it is the main project
+set(PDAAAL_MAIN_PROJECT OFF)
+if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+    set(PDAAAL_MAIN_PROJECT ON)
+endif()
 
-option(PDAAAL_BuildTests "Build the unit tests when BUILD_TESTING is enabled." ON)
-option(PDAAAL_Build_Main "Build the stand-alone PDAAAL binary." ON)
+option(PDAAAL_BuildTests "Build the unit tests when BUILD_TESTING is enabled." ${PDAAAL_MAIN_PROJECT})
+option(PDAAAL_Build_Main "Build the stand-alone PDAAAL binary." ${PDAAAL_MAIN_PROJECT})
 option(PDAAAL_AddressSanitizer "Enables address sanitization during compilation." OFF)
 option(PDAAAL_GetDependencies "Fetch external dependencies from web." ON)
 
@@ -21,9 +27,6 @@ option(PDAAAL_GetDependencies "Fetch external dependencies from web." ON)
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -Wall")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2 -Wall -Wpedantic")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lstdc++")
-#set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-#set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 if(PDAAAL_AddressSanitizer)
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
