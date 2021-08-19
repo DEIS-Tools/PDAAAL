@@ -357,29 +357,29 @@ namespace pdaaal {
                 }
                 // Dijkstra.
                 struct queue_elem {
-                    typename W::type weight;
-                    size_t state;
-                    size_t stack_index;
-                    const queue_elem *back_pointer;
-                    queue_elem(typename W::type weight, size_t state, size_t stack_index, const queue_elem *back_pointer = nullptr)
-                    : weight(weight), state(state), stack_index(stack_index), back_pointer(back_pointer) {};
+                    typename W::type _weight;
+                    size_t _state;
+                    size_t _stack_index;
+                    const queue_elem* _back_pointer;
+                    queue_elem(typename W::type weight, size_t state, size_t stack_index, const queue_elem* back_pointer = nullptr)
+                    : _weight(weight), _state(state), _stack_index(stack_index), _back_pointer(back_pointer) {};
 
-                    bool operator<(const queue_elem &other) const {
-                        if (state != other.state) {
-                            return state < other.state;
+                    bool operator<(const queue_elem& other) const {
+                        if (_state != other._state) {
+                            return _state < other._state;
                         }
-                        return stack_index < other.stack_index;
+                        return _stack_index < other._stack_index;
                     }
-                    bool operator==(const queue_elem &other) const {
-                        return state == other.state && stack_index == other.stack_index;
+                    bool operator==(const queue_elem& other) const {
+                        return _state == other._state && _stack_index == other._stack_index;
                     }
-                    bool operator!=(const queue_elem &other) const {
+                    bool operator!=(const queue_elem& other) const {
                         return !(*this == other);
                     }
                 };
                 struct queue_elem_comp {
-                    bool operator()(const queue_elem &lhs, const queue_elem &rhs){
-                        return W::less(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
+                    bool operator()(const queue_elem& lhs, const queue_elem& rhs){
+                        return W::less(rhs._weight, lhs._weight); // Used in a max-heap, so swap arguments to make it a min-heap.
                     }
                 };
                 queue_elem_comp less;
@@ -390,13 +390,13 @@ namespace pdaaal {
                 while(!search_queue.empty()) {
                     auto current = search_queue.top();
                     search_queue.pop();
-                    if (current.stack_index == stack.size()) {
+                    if (current._stack_index == stack.size()) {
                         std::vector<size_t> path(stack.size() + 1);
-                        path[current.stack_index] = current.state;
-                        for (auto p = current.back_pointer; p != nullptr; p = p->back_pointer) {
-                            path[p->stack_index] = p->state;
+                        path[current._stack_index] = current._state;
+                        for (auto p = current._back_pointer; p != nullptr; p = p->_back_pointer) {
+                            path[p->_stack_index] = p->_state;
                         }
-                        return std::make_pair(path, current.weight);
+                        return std::make_pair(path, current._weight);
                     }
                     auto lb = std::lower_bound(visited.begin(), visited.end(), current);
                     if (lb != std::end(visited) && *lb == current) {
@@ -411,11 +411,11 @@ namespace pdaaal {
                     auto u_pointer = std::make_unique<queue_elem>(*lb);
                     auto pointer = u_pointer.get();
                     pointers.push_back(std::move(u_pointer));
-                    for (const auto &[to,labels] : _states[current.state]->_edges) {
-                        auto label = labels.get(stack[current.stack_index]);
+                    for (const auto &[to,labels] : _states[current._state]->_edges) {
+                        auto label = labels.get(stack[current._stack_index]);
                         if (label != nullptr) {
-                            if (current.stack_index + 1 < stack.size() || _states[to]->_accepting) {
-                                search_queue.emplace(W::add(current.weight, label->second), to, current.stack_index + 1, pointer);
+                            if (current._stack_index + 1 < stack.size() || _states[to]->_accepting) {
+                                search_queue.emplace(W::add(current._weight, label->second), to, current._stack_index + 1, pointer);
                             }
                         }
                     }

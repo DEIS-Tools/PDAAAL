@@ -1,83 +1,9 @@
-cmake_minimum_required(VERSION 3.7)
-project(PDAAAL C CXX)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
+cmake_minimum_required(VERSION 3.14)
 
-add_library(pdaaal ${HEADER_FILES} pdaaal/PDA.cpp pdaaal/Reducer.cpp pdaaal/parsing/NfaParser.cpp)
+# The source code is divided into the library (src/include) and the code for the stand-alone binary (src/pdaaal-bin).
 
-if (NOT PTRIE_INSTALL_DIR)
-    add_dependencies(pdaaal ptrie-ext)
+add_subdirectory(include)
+
+if (PDAAAL_Build_Main)
+    add_subdirectory(pdaaal-bin)
 endif()
-add_dependencies(pdaaal petgl-ext)
-
-target_include_directories (pdaaal PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-
-if(DEFINED ENV{GITHUB_SHA}) # Workaround for Github CI workflow, where the current directory (for some odd reason) is not a git repository.
-    add_custom_command(OUTPUT git_hash.h
-            COMMAND ${CMAKE_COMMAND} -E echo_append "#define PDAAAL_GIT_HASH " > git_hash.h
-            COMMAND ${CMAKE_COMMAND} -E echo "$ENV{GITHUB_SHA}" >> git_hash.h
-            COMMAND ${CMAKE_COMMAND} -E echo "#define STRINGIFY(x) #x" >> git_hash.h
-            COMMAND ${CMAKE_COMMAND} -E echo "#define STRINGIFY_MACRO(x) STRINGIFY(x) " >> git_hash.h
-            COMMAND ${CMAKE_COMMAND} -E echo "#define PDAAAL_GIT_HASH_STR STRINGIFY_MACRO(PDAAAL_GIT_HASH) " >> git_hash.h
-            DEPENDS pdaaal main.cpp pdaaal/parsing/Parsing.cpp
-            VERBATIM)
-else()
-    find_package(Git)
-    add_custom_command(OUTPUT git_hash.h
-            COMMAND ${CMAKE_COMMAND} -E echo_append "#define PDAAAL_GIT_HASH " > git_hash.h
-            COMMAND ${GIT_EXECUTABLE} rev-parse HEAD >> git_hash.h
-            COMMAND ${CMAKE_COMMAND} -E echo "#define STRINGIFY(x) #x" >> git_hash.h
-            COMMAND ${CMAKE_COMMAND} -E echo "#define STRINGIFY_MACRO(x) STRINGIFY(x) " >> git_hash.h
-            COMMAND ${CMAKE_COMMAND} -E echo "#define PDAAAL_GIT_HASH_STR STRINGIFY_MACRO(PDAAAL_GIT_HASH) " >> git_hash.h
-            DEPENDS pdaaal main.cpp pdaaal/parsing/Parsing.cpp
-            VERBATIM)
-endif()
-add_custom_target(generate_hash DEPENDS "git_hash.h")
-
-find_package(Boost 1.66 COMPONENTS program_options REQUIRED)
-include_directories(${Boost_INCLUDE_DIR})
-
-add_executable(pdaaal-bin main.cpp pdaaal/parsing/Parsing.cpp)
-target_link_libraries(pdaaal-bin PRIVATE pdaaal ${Boost_LIBRARIES})
-add_dependencies(pdaaal-bin generate_hash)
-set_target_properties(pdaaal-bin PROPERTIES OUTPUT_NAME pdaaal)
-
-install(TARGETS pdaaal
-        RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
-
-install (FILES
-        pdaaal/AbstractionMapping.h
-        pdaaal/AbstractionPAutomaton.h
-        pdaaal/AbstractionPDA.h
-        pdaaal/CegarPdaFactory.h
-        pdaaal/NFA.h
-#        pdaaal/ParsingPDAFactory.h
-        pdaaal/PAutomaton.h
-        pdaaal/PAutomatonProduct.h
-        pdaaal/PDA.h
-        pdaaal/PDAFactory.h
-        pdaaal/Reducer.h
-        pdaaal/Refinement.h
-        pdaaal/SimplePDAFactory.h
-        pdaaal/Solver.h
-        pdaaal/SolverInstance.h
-        pdaaal/TypedPDA.h
-#        pdaaal/Verifier.h
-        pdaaal/Weight.h
-        DESTINATION include/pdaaal)
-install (FILES
-        pdaaal/utils/fut_set.h
-        pdaaal/utils/ptrie_interface.h
-        pdaaal/utils/std20.h
-#        pdaaal/utils/stopwatch.h
-        pdaaal/utils/vector_set.h
-        DESTINATION include/pdaaal/utils)
-install (FILES
-        pdaaal/parsing/NfaParser.h
-        pdaaal/parsing/NfaParserGrammar.h
-#        pdaaal/parsing/Parsing.h
-#        pdaaal/parsing/PAutomatonParser.h
-#        pdaaal/parsing/PdaJsonParser.h
-        DESTINATION include/pdaaal/parsing)

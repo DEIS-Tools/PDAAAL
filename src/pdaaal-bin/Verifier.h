@@ -28,7 +28,7 @@
 #define PDAAAL_VERIFIER_H
 
 #include <pdaaal/Solver.h>
-#include <pdaaal/parsing/PAutomatonParser.h>
+#include <parsing/PAutomatonParser.h>
 
 namespace pdaaal {
 

@@ -1,67 +1,39 @@
-cmake_minimum_required(VERSION 3.7)
+cmake_minimum_required(VERSION 3.14)
 
 cmake_policy(SET CMP0048 NEW)
 cmake_policy(SET CMP0069 NEW)
 
-set(CMAKE_CXX_STANDARD 17)
 if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif (NOT CMAKE_BUILD_TYPE)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-project(pdaaal VERSION 1.0.0 LANGUAGES CXX)
+set(PDAAAL_VERSION 1.0.0)
+project(pdaaal VERSION ${PDAAAL_VERSION} LANGUAGES CXX)
 
+# MAIN_PROJECT CHECK
+# Determine if pdaaal is built as a subproject (using add_subdirectory) or if it is the main project
+set(PDAAAL_MAIN_PROJECT OFF)
+if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+    set(PDAAAL_MAIN_PROJECT ON)
+endif()
 
-option(PDAAAL_BuildTests "Build the unit tests when BUILD_TESTING is enabled." ON)
+option(PDAAAL_BuildTests "Build the unit tests when BUILD_TESTING is enabled." ${PDAAAL_MAIN_PROJECT})
+option(PDAAAL_Build_Main "Build the stand-alone PDAAAL binary." ${PDAAAL_MAIN_PROJECT})
 option(PDAAAL_AddressSanitizer "Enables address sanitization during compilation." OFF)
 option(PDAAAL_GetDependencies "Fetch external dependencies from web." ON)
 
 
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wpedantic -fPIC")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2 -DNDEBUG -Wall -Wpedantic -fPIC")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lstdc++ -lm")
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -Wall")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2 -Wall -Wpedantic")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lstdc++")
 
 if(PDAAAL_AddressSanitizer)
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}  -fno-omit-frame-pointer -fsanitize=address")
 endif(PDAAAL_AddressSanitizer)
 
-if (PDAAAL_GetDependencies)
-    # setup for external imports
-    include(ExternalProject)
-    set(EXTERNAL_INSTALL_LOCATION ${CMAKE_BINARY_DIR}/external)
-
-    if (PTRIE_INSTALL_DIR)
-        include_directories(${PTRIE_INSTALL_DIR})
-    else()
-        ExternalProject_add(ptrie-ext
-                URL https://github.com/MortenSchou/ptrie/archive/refs/tags/v1.1.2beta.zip
-                URL_HASH SHA512=7dbfd54839509187d27e2ddea34c253ac1f26712012c29eca0d96b9f7bcf9844bdc3b40955aa98e391344745b734aa2f28cf115572b4b0ab2873582b32dfe228
-                CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EXTERNAL_INSTALL_LOCATION} -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
-                )
-        file(MAKE_DIRECTORY ${EXTERNAL_INSTALL_LOCATION}/include)
-    endif()
-
-    file(DOWNLOAD
-            https://github.com/nlohmann/json/releases/download/v3.9.1/json.hpp
-            ${EXTERNAL_INSTALL_LOCATION}/include/json.hpp
-            EXPECTED_HASH SHA256=7804b38146921d03374549c9e2a5e3acda097814c43caf2b96a0278e58df26e0
-    )
-
-    ExternalProject_add(petgl-ext
-            URL https://github.com/taocpp/PEGTL/archive/refs/tags/3.2.0.zip
-            URL_HASH SHA512=b24d5b77de864fc79fd60c9d17e040dfc5d6a400c7282eac62cb87c1a53c6f6f932c62b88a296f487c6155e98d04f1b5e69059589db99e95c313766ffbbc3913
-            CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EXTERNAL_INSTALL_LOCATION} -DPEGTL_BUILD_TESTS=OFF -DPEGTL_BUILD_EXAMPLES=OFF -DCMAKE_BUILD_TYPE=Release
-    )
-
-    # we can now include external libraries
-    include_directories(${EXTERNAL_INSTALL_LOCATION}/include)
-    link_directories(${EXTERNAL_INSTALL_LOCATION}/lib)
-endif (PDAAAL_GetDependencies)
-
+find_package(Boost 1.70 CONFIG REQUIRED COMPONENTS headers program_options unit_test_framework)
 
 #actual library
 add_subdirectory(src)
@@ -74,17 +46,4 @@ if(BUILD_TESTING AND PDAAAL_BuildTests)
 
     #testing
     add_subdirectory(test)
-    enable_testing()
-    add_test(NAME TestPDAFactory    COMMAND TestPDAFactory)
-    add_test(NAME Weight            COMMAND Weight)
-    add_test(NAME WPDA              COMMAND WPDA)
-    add_test(NAME PAutomaton        COMMAND PAutomaton)
-    add_test(NAME Solver            COMMAND Solver)
-    add_test(NAME Reducer           COMMAND Reducer)
-    add_test(NAME PDAFactory        COMMAND PDAFactory)
-    add_test(NAME fut_set           COMMAND fut_set)
-    add_test(NAME NFA               COMMAND NFA)
-    add_test(NAME ParsingPDAFactory COMMAND ParsingPDAFactory)
-    add_test(NAME NfaParser         COMMAND NfaParser)
-    add_test(NAME Verification      COMMAND Verification)
 endif()

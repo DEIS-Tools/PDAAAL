@@ -31,8 +31,8 @@
 #include <iostream>
 #include <fstream>
 
-#include <pdaaal/utils/stopwatch.h>
-#include <pdaaal/parsing/PdaJsonParser.h>
+#include <utils/stopwatch.h>
+#include <parsing/PdaJsonParser.h>
 
 namespace po = boost::program_options;
 

@@ -30,6 +30,7 @@
 #include <pdaaal/PAutomaton.h>
 #include <pdaaal/TypedPDA.h>
 #include <pdaaal/SolverInstance.h>
+#include <absl/hash/hash.h>
 
 namespace pdaaal {
 
@@ -59,15 +60,9 @@ namespace pdaaal {
             bool operator!=(const temp_edge_t &other) const {
                 return !(*this == other);
             }
-        };
-        struct temp_edge_hasher {
-            std::size_t operator()(const temp_edge_t& e) const
-            {
-                std::size_t seed = 0;
-                boost::hash_combine(seed, e._from);
-                boost::hash_combine(seed, e._to);
-                boost::hash_combine(seed, e._label);
-                return seed;
+            template <typename H>
+            friend H AbslHashValue(H h, const temp_edge_t& e) {
+                return H::combine(std::move(h), e._from, e._to, e._label);
             }
         };
 
@@ -95,7 +90,7 @@ namespace pdaaal {
             const size_t _n_pda_states;
             const size_t _n_automaton_states;
             const size_t _n_pda_labels;
-            std::unordered_set<temp_edge_t, temp_edge_hasher> _edges;
+            std::unordered_set<temp_edge_t, absl::Hash<temp_edge_t>> _edges;
             std::stack<temp_edge_t> _workset;
             std::vector<std::vector<std::pair<size_t,uint32_t>>> _rel;
             std::vector<std::vector<std::pair<size_t, size_t>>> _delta_prime;
@@ -233,7 +228,7 @@ namespace pdaaal {
             std::unordered_map<std::pair<size_t, uint32_t>, size_t, boost::hash<std::pair<size_t, uint32_t>>> _q_prime{};
 
             size_t _n_automaton_states{};
-            std::unordered_set<temp_edge_t, temp_edge_hasher> _edges;
+            std::unordered_set<temp_edge_t, absl::Hash<temp_edge_t>> _edges;
             std::queue<temp_edge_t> _workset;
             std::vector<std::vector<std::pair<size_t,uint32_t>>> _rel1; // faster access for lookup _from -> (_to, _label)
             std::vector<std::vector<size_t>> _rel2; // faster access for lookup _to -> _from  (when _label is uint32_t::max)
@@ -357,15 +352,15 @@ namespace pdaaal {
             static_assert(W::is_weight);
 
             struct weight_edge_trace {
-                typename W::type weight;
-                temp_edge_t edge;
-                const trace_t *trace = nullptr;
-                weight_edge_trace(typename W::type weight, temp_edge_t edge, const trace_t *trace) : weight(weight), edge(edge), trace(trace) {};
+                typename W::type _weight;
+                temp_edge_t _edge;
+                const trace_t* _trace = nullptr;
+                weight_edge_trace(typename W::type weight, temp_edge_t edge, const trace_t* trace) : _weight(weight), _edge(edge), _trace(trace) {};
                 weight_edge_trace() = default;
             };
             struct weight_edge_trace_comp{
                 bool operator()(const weight_edge_trace &lhs, const weight_edge_trace &rhs){
-                    return W::less(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
+                    return W::less(rhs._weight, lhs._weight); // Used in a max-heap, so swap arguments to make it a min-heap.
                 }
             };
             struct rel3_elem {
@@ -408,7 +403,7 @@ namespace pdaaal {
             size_t _n_automaton_states{};
             std::vector<typename W::type> _minpath;
 
-            std::unordered_map<temp_edge_t, std::pair<typename W::type, typename W::type>, temp_edge_hasher> _edge_weights;
+            std::unordered_map<temp_edge_t, std::pair<typename W::type, typename W::type>, absl::Hash<temp_edge_t>> _edge_weights;
             std::priority_queue<weight_edge_trace, std::vector<weight_edge_trace>, weight_edge_trace_comp> _workset;
             std::vector<std::vector<std::pair<size_t,uint32_t>>> _rel1; // faster access for lookup _from -> (_to, _label)
             std::vector<std::vector<size_t>> _rel2; // faster access for lookup _to -> _from  (when _label is uint32_t::max)
@@ -519,9 +514,9 @@ namespace pdaaal {
                 // pop t = (q, y, q') from workset
                 auto elem = _workset.top();
                 _workset.pop();
-                auto t = elem.edge;
+                auto t = elem._edge;
                 auto weights = (*_edge_weights.find(t)).second;
-                if (W::less(weights.second, elem.weight)) {
+                if (W::less(weights.second, elem._weight)) {
                     return; // Same edge with a smaller weight was already processed.
                 }
                 auto t_weight = weights.first;
@@ -529,12 +524,12 @@ namespace pdaaal {
                 // rel = rel U {t}
                 insert_rel(t._from, t._label, t._to);
                 if (t._label == epsilon) {
-                    _automaton.add_epsilon_edge(t._from, t._to, std::make_pair(elem.trace, t_weight));
+                    _automaton.add_epsilon_edge(t._from, t._to, std::make_pair(elem._trace, t_weight));
                 } else {
-                    _automaton.add_edge(t._from, t._to, t._label, std::make_pair(elem.trace, t_weight));
+                    _automaton.add_edge(t._from, t._to, t._label, std::make_pair(elem._trace, t_weight));
                 }
                 if constexpr (ET) {
-                    _found |= _early_termination(t._from, t._label, t._to, std::make_pair(elem.trace, t_weight));
+                    _found |= _early_termination(t._from, t._label, t._to, std::make_pair(elem._trace, t_weight));
                 }
 
                 // if y != epsilon
@@ -544,7 +539,7 @@ namespace pdaaal {
                         const auto &[rule,labels] = rules[rule_id];
                         if (!labels.contains(t._label)) { continue; }
                         auto trace = _automaton.new_post_trace(t._from, rule_id, t._label);
-                        auto wd = W::add(elem.weight, rule._weight);
+                        auto wd = W::add(elem._weight, rule._weight);
                         auto wb = W::add(t_weight, rule._weight);
                         if (rule._operation != PUSH) {
                             uint32_t label = 0;
@@ -701,7 +696,7 @@ namespace pdaaal {
             const size_t _round_limit;
 
             size_t _rounds = 0;
-            std::unordered_map<temp_edge_t, weight_t, temp_edge_hasher> _edges;
+            std::unordered_map<temp_edge_t, weight_t, absl::Hash<temp_edge_t>> _edges;
             std::deque<temp_edge_t> _workset;
             std::vector<std::vector<std::pair<size_t,uint32_t>>> _rel; // Fast access to _edges based on _from.
             std::vector<std::vector<std::tuple<size_t, size_t, weight_t>>> _delta_prime;
@@ -953,7 +948,7 @@ namespace pdaaal {
         static bool pre_star_accepts(PAutomaton<W> &automaton, size_t state, const std::vector<uint32_t> &stack) {
             if (stack.size() == 1) {
                 auto s_label = stack[0];
-                return pre_star<W,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
+                return pre_star<W,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to, trace_ptr<W>) -> bool {
                     return from == state && label == s_label && automaton.states()[to]->_accepting;
                 });
             } else {
@@ -972,7 +967,7 @@ namespace pdaaal {
 
         template <typename W, bool ET=false>
         static bool pre_star(PAutomaton<W> &automaton,
-                             const details::early_termination_fn<W>& early_termination = [](size_t f, uint32_t l, size_t t, trace_ptr<W> trace) -> bool { return false; }) {
+                             const details::early_termination_fn<W>& early_termination = [](size_t, uint32_t, size_t, trace_ptr<W>) -> bool { return false; }) {
             details::PreStarSaturation<W,ET> saturation(automaton, early_termination);
             while(!saturation.workset_empty()) {
                 if constexpr (ET) {
@@ -987,7 +982,7 @@ namespace pdaaal {
         static bool post_star_accepts(PAutomaton<W> &automaton, size_t state, const std::vector<uint32_t> &stack) {
             if (stack.size() == 1) {
                 auto s_label = stack[0];
-                return post_star<trace_type,W,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to, trace_ptr<W> trace) -> bool {
+                return post_star<trace_type,W,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to, trace_ptr<W>) -> bool {
                     return from == state && label == s_label && automaton.states()[to]->_accepting;
                 });
             } else {
@@ -1005,7 +1000,7 @@ namespace pdaaal {
 
         template <Trace_Type trace_type = Trace_Type::Any, typename W, bool ET = false>
         static bool post_star(PAutomaton<W> &automaton,
-                              const details::early_termination_fn<W>& early_termination = [](size_t f, uint32_t l, size_t t, trace_ptr<W> trace) -> bool { return false; }) {
+                              const details::early_termination_fn<W>& early_termination = [](size_t, uint32_t, size_t, trace_ptr<W>) -> bool { return false; }) {
             static_assert(is_weighted<W> || trace_type != Trace_Type::Shortest, "Cannot do shortest-trace post* for PDA without weights."); // TODO: Consider: W=uin32_t, weight==1 as a default weight.
             if constexpr (is_weighted<W> && trace_type == Trace_Type::Shortest) {
                 return post_star_shortest<W,true,ET>(automaton, early_termination);
@@ -1128,12 +1123,12 @@ namespace pdaaal {
             if (path.empty()) {
                 return std::vector<tracestate_t>();
             }
-            std::deque<std::tuple<size_t, uint32_t, size_t>> edges;
+            std::deque<std::tuple<size_t, uint32_t, size_t>> first_edges;
             for (size_t i = stack.size(); i > 0; --i) {
-                edges.emplace_back(path[i - 1], stack[i - 1], path[i]);
+                first_edges.emplace_back(path[i - 1], stack[i - 1], path[i]);
             }
 
-            auto decode_edges = [&pda](const std::deque<std::tuple<size_t, uint32_t, size_t>> &edges) -> tracestate_t {
+            auto decode_edges = [&pda](const std::deque<std::tuple<size_t, uint32_t, size_t>>& edges) -> tracestate_t {
                 tracestate_t result{std::get<0>(edges.back()), std::vector<T>()};
                 auto num_labels = pda.number_of_labels();
                 for (auto it = edges.crbegin(); it != edges.crend(); ++it) {
@@ -1146,8 +1141,8 @@ namespace pdaaal {
             };
 
             std::vector<tracestate_t> trace;
-            trace.push_back(decode_edges(edges));
-            details::TraceBack tb(automaton, std::move(edges));
+            trace.push_back(decode_edges(first_edges));
+            details::TraceBack tb(automaton, std::move(first_edges));
             while (tb.next()) {
                 trace.push_back(decode_edges(tb.edges()));
             }

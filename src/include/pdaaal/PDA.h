@@ -117,15 +117,10 @@ namespace pdaaal::details {
             return !(*this == other);
         }
 
-        struct hasher {
-            size_t operator()(const pdaaal::details::rule_t<W> &rule) const noexcept {
-                size_t seed = 0;
-                boost::hash_combine(seed, rule._to);
-                boost::hash_combine(seed, rule._op_label);
-                boost::hash_combine(seed, rule._operation);
-                return seed;
-            }
-        };
+        template <typename H>
+        friend H AbslHashValue(H h, const rule_t<W>& rule) {
+            return H::combine(std::move(h), rule._to, rule._operation, rule._op_label);
+        }
     };
 
     template<typename W>
@@ -154,25 +149,9 @@ namespace pdaaal::details {
             return !(*this == other);
         }
 
-        struct hasher {
-            size_t operator()(const pdaaal::details::rule_t<W> &rule) const noexcept {
-                size_t seed = 0;
-                boost::hash_combine(seed, rule._to);
-                boost::hash_combine(seed, rule._op_label);
-                boost::hash_combine(seed, rule._operation);
-                boost::hash_combine(seed, rule._weight);
-                return seed;
-            }
-        };
-    };
-}
-
-namespace std {
-    template<typename W>
-    struct hash<pdaaal::details::rule_t<W>> {
-        size_t operator()(const pdaaal::details::rule_t<W>& rule) const noexcept {
-            typename pdaaal::details::rule_t<W>::hasher hasher;
-            return hasher(rule);
+        template <typename H>
+        friend H AbslHashValue(H h, const rule_t<W>& rule) {
+            return H::combine(std::move(h), rule._to, rule._operation, rule._weight, rule._op_label);
         }
     };
 }

@@ -28,8 +28,8 @@
 
 #include <boost/test/unit_test.hpp>
 
-#include <pdaaal/parsing/PAutomatonParser.h>
-#include <pdaaal/parsing/PdaJsonParser.h>
+#include <parsing/PAutomatonParser.h>
+#include <parsing/PdaJsonParser.h>
 #include <pdaaal/SolverInstance.h>
 #include <pdaaal/Solver.h>
 

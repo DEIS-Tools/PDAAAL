@@ -80,10 +80,10 @@ namespace pdaaal {
         // Make NfaBuilder work with the pegtl::state rule
         // Get label function from first 'upper' state object.
         template<typename ParseInput, typename State, typename... States>
-        explicit NfaBuilder(const ParseInput& in, State&& st1, States&&... st)
+        explicit NfaBuilder(const ParseInput&, State&& st1, States&&... st)
         : _label_function(st1.get_label_map()) { }
         template<typename ParseInput, typename State, typename... States>
-        void success(const ParseInput& in, State&& st1, States&&... st) {
+        void success(const ParseInput&, State&& st1, States&&... st) {
             st1.accept_nfa(get_nfa()); // Move NFA to the first 'upper' state object.
         }
 

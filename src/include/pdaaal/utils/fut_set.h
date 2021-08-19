@@ -28,7 +28,7 @@
 #define PDAAAL_FUT_SET_H
 
 #include <pdaaal/utils/vector_set.h>
-#include <boost/functional/hash.hpp>
+#include <absl/hash/hash.h>
 #include <pdaaal/utils/std20.h>
 
 namespace pdaaal::fut {
@@ -40,30 +40,14 @@ namespace pdaaal::fut {
 
     namespace detail {
 
-        // Use std::hash by default, but for tuples use custom implementation based on boost::hash_combine, but using std::hash on inner types.
-        template <typename T>
-        struct hash {
-            size_t operator()(const T& t) const {
-                return std::hash<T>()(t);
-            }
-        };
-        template <typename... Args>
-        struct hash<std::tuple<Args...>> {
-            size_t operator()(const std::tuple<Args...>& tuple) const {
-                size_t seed = 0;
-                std::apply([&seed](auto&&... args){ (boost::hash_detail::hash_combine_impl(seed, std::hash<std20::remove_cvref_t<decltype(args)>>()(args)), ...); }, tuple);
-                return seed;
-            }
-        };
-
         // FUT-set is a Fast Unordered Tuple-set. Hopefully so fast that executing it says FUT.
         template<class T, type... C>
         class fut_set { };
 
         template<typename Key, typename Value, type C>
-        using map_container = std::conditional_t<C == type::hash, std20::unordered_map<Key, Value, hash<Key>>, vector_map<Key, Value>>;
+        using map_container = std::conditional_t<C == type::hash, std20::unordered_map<Key, Value, absl::Hash<Key>>, vector_map<Key, Value>>;
         template<typename Key, type C>
-        using set_container = std::conditional_t<C == type::hash, std20::unordered_set<Key, hash<Key>>, vector_set<Key>>;
+        using set_container = std::conditional_t<C == type::hash, std20::unordered_set<Key, absl::Hash<Key>>, vector_set<Key>>;
 
         // TODO: Add 'compare_by' functionality somehow.
 

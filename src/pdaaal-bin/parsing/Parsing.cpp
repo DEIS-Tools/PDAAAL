@@ -26,7 +26,7 @@
 
 #include <algorithm>
 
-#include <pdaaal/parsing/Parsing.h>
+#include "Parsing.h"
 
 namespace pdaaal {
 
