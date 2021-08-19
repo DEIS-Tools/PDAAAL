@@ -31,7 +31,7 @@
 #include "parsing/Parsing.h"
 #include "Verifier.h"
 
-#include "git_hash.h" // Generated at build time. Defines PDAAAL_GIT_HASH, PDAAAL_GIT_HASH_STR, PDAAAL_VERSION and PDAAAL_VERSION_STR
+#include "version.h" // Generated at build time. Defines PDAAAL_GIT_HASH, PDAAAL_GIT_HASH_STR, PDAAAL_VERSION and PDAAAL_VERSION_STR
 
 namespace po = boost::program_options;
 using namespace pdaaal;
