@@ -1002,7 +1002,7 @@ namespace pdaaal {
         template <Trace_Type trace_type = Trace_Type::Any, typename pda_t, typename automaton_t, typename W>
         static auto get_trace(const PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
-            if constexpr (trace_type == Trace_Type::Shortest) {
+            if constexpr (trace_type == Trace_Type::Shortest || trace_type == Trace_Type::ShortestFixedPoint) {
                 auto [path, stack, weight] = instance.template find_path<trace_type>();
                 return std::make_pair(_get_trace(instance.pda(), instance.automaton(), path, stack), weight);
             } else {

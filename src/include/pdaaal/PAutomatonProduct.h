@@ -176,11 +176,23 @@ namespace pdaaal {
         using path_state = std::conditional_t<abstraction, std::pair<size_t,size_t>, size_t>;
 
         template<Trace_Type trace_type = Trace_Type::Any, bool abstraction = false>
-        [[nodiscard]] typename std::conditional_t<trace_type == Trace_Type::Shortest && is_weighted<W>,
+        [[nodiscard]] typename std::conditional_t<
+            (trace_type == Trace_Type::Shortest || trace_type == Trace_Type::ShortestFixedPoint) && is_weighted<W>,
         std::tuple<std::vector<path_state<abstraction>>, std::vector<uint32_t>, typename W::type>,
         std::tuple<std::vector<path_state<abstraction>>, std::vector<uint32_t>>>
         find_path() const {
-            if constexpr (trace_type == Trace_Type::Shortest && is_weighted<W>) { // TODO: Consider unweighted shortest path.
+            if constexpr (trace_type == Trace_Type::ShortestFixedPoint && is_weighted<W>) {
+                assert(W::is_signed); // Why use this algorithm for unsigned weights???
+                PAutomatonFixedPoint fixed_point(_product);
+                fixed_point.run();
+                if (fixed_point.not_accepting()) {
+                    return {std::vector<size_t>(), std::vector<uint32_t>(), W::max()};
+                }
+                if (fixed_point.is_infinite()) {
+                    return {std::vector<size_t>(), std::vector<uint32_t>(), W::bottom()}; // TODO: Can we provide more info than this??
+                }
+                return fixed_point.get_path();
+            } else if constexpr (trace_type == Trace_Type::Shortest && is_weighted<W>) { // TODO: Consider unweighted shortest path.
                 // Dijkstra.
                 struct queue_elem {
                     typename W::type weight;
@@ -307,24 +319,6 @@ namespace pdaaal {
                     }
                 }
                 return std::make_tuple(std::vector<path_state<abstraction>>(), std::vector<uint32_t>());
-            }
-        }
-
-        // TODO: Integrate with find_path...
-        [[nodiscard]] std::tuple<std::vector<size_t>, std::vector<uint32_t>, typename W::type>
-        find_path_fixed_point() const {
-            if constexpr (is_weighted<W> && W::is_signed) {
-                PAutomatonFixedPoint fixed_point(_product);
-                fixed_point.run();
-                if (fixed_point.not_accepting()) {
-                    return {std::vector<size_t>(), std::vector<uint32_t>(), W::max()};
-                }
-                if (fixed_point.is_infinite()) {
-                    return {std::vector<size_t>(), std::vector<uint32_t>(), W::bottom()}; // TODO: Can we provide more info than this??
-                }
-                return fixed_point.get_path();
-            } else {
-                assert(false);
             }
         }
 

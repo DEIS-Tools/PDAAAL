@@ -183,7 +183,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_path_test)
     print_automaton(instance.product_automaton(), pda, s);
     BOOST_TEST_MESSAGE(s.str());
 
-    auto [path, stack, w] = instance.find_path_fixed_point();
+    auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
     BOOST_TEST(w == weight<int32_t>::bottom());
 }
 
@@ -209,7 +209,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_path2_test)
     print_automaton(instance.product_automaton(), pda, s);
     BOOST_TEST_MESSAGE(s.str());
 
-    auto [path, stack, w] = instance.find_path_fixed_point();
+    auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
     BOOST_TEST(w == weight<int32_t>::bottom());
 }
 
@@ -234,7 +234,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_not_accepting_test)
     print_automaton(instance.product_automaton(), pda, s);
     BOOST_TEST_MESSAGE(s.str());
 
-    auto [path, stack, w] = instance.find_path_fixed_point();
+    auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
     BOOST_TEST(w == weight<int32_t>::bottom());
 }
 

@@ -1,0 +1,18 @@
+{
+  "pda": {
+	"states": {
+      "Zero": {
+	    "A": [{"to": "Two", "swap": "B", "weight": -2}, 
+              {"to": "One", "pop": "", "weight": 0}], 
+        "B": {"to": "Zero", "swap":"A", "weight": -10}
+      },
+	  "One": {
+	    "B": {"to": "Two", "push": "B", "weight": -1}
+	  },
+	  "Two": {
+	    "B": {"to": "Zero", "pop": "", "weight": 7}
+	  }
+    }
+  }
+}
+

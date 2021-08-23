@@ -46,7 +46,8 @@ namespace pdaaal {
     enum class Trace_Type {
         None,
         Any,
-        Shortest
+        Shortest,
+        ShortestFixedPoint // TODO: Detect the need for fixed-point computation automatically.
     };
 
     struct trace_t {
