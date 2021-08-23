@@ -27,6 +27,8 @@
 #ifndef PDAAAL_PAUTOMATONPRODUCT_H
 #define PDAAAL_PAUTOMATONPRODUCT_H
 
+#include <pdaaal/PAutomatonAlgorithms.h>
+
 namespace pdaaal {
 
     template <typename pda_t, typename automaton_t, typename W>
@@ -158,6 +160,9 @@ namespace pdaaal {
         const automaton_t& final_automaton() const {
             return _final;
         }
+        [[nodiscard]] const product_automaton_t& product_automaton() const {
+            return _product;
+        }
 
         const pda_t& pda() const {
             return _pda;
@@ -190,7 +195,7 @@ namespace pdaaal {
                         if (state != other.state) {
                             return state < other.state;
                         }
-                        return label < other.label;
+                        return label < other.label; // TODO: Is this correct? Should it not just be state?? and better then make 'visited' std::unordered_map<size_t, typename W::type>.
                     }
                     bool operator==(const queue_elem &other) const {
                         return state == other.state && label == other.label;
@@ -204,7 +209,6 @@ namespace pdaaal {
                         return W::less(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
                     }
                 };
-                queue_elem_comp less;
                 std::priority_queue<queue_elem, std::vector<queue_elem>, queue_elem_comp> search_queue;
                 std::vector<queue_elem> visited;
                 std::vector<std::unique_ptr<queue_elem>> pointers;
@@ -234,7 +238,7 @@ namespace pdaaal {
 
                     auto lb = std::lower_bound(visited.begin(), visited.end(), current);
                     if (lb != std::end(visited) && *lb == current) {
-                        if (less(*lb, current)) {
+                        if (W::less(current.weight, lb->weight)) {
                             *lb = current;
                         } else {
                             continue;
@@ -306,6 +310,24 @@ namespace pdaaal {
             }
         }
 
+        // TODO: Integrate with find_path...
+        [[nodiscard]] std::tuple<std::vector<size_t>, std::vector<uint32_t>, typename W::type>
+        find_path_fixed_point() const {
+            if constexpr (is_weighted<W> && W::is_signed) {
+                PAutomatonFixedPoint fixed_point(_product);
+                fixed_point.run();
+                if (fixed_point.not_accepting()) {
+                    return {std::vector<size_t>(), std::vector<uint32_t>(), W::max()};
+                }
+                if (fixed_point.is_infinite()) {
+                    return {std::vector<size_t>(), std::vector<uint32_t>(), W::bottom()}; // TODO: Can we provide more info than this??
+                }
+                return fixed_point.get_path();
+            } else {
+                assert(false);
+            }
+        }
+
     private:
 
         // Returns whether an accepting state in the product automaton was reached.
@@ -367,7 +389,7 @@ namespace pdaaal {
             }
         };
 
-        pair_size_t get_original_ids(size_t id) const {
+        [[nodiscard]] pair_size_t get_original_ids(size_t id) const {
             if (id < _pda_size) {
                 return {id,id};
             }

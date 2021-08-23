@@ -27,6 +27,7 @@
 #ifndef PDAAAL_SOLVER_H
 #define PDAAAL_SOLVER_H
 
+#include <pdaaal/utils/workset.h>
 #include <pdaaal/PAutomaton.h>
 #include <pdaaal/TypedPDA.h>
 #include <pdaaal/SolverInstance.h>
@@ -627,7 +628,8 @@ namespace pdaaal {
         };
 
         template<typename W, bool indirect_trace_info>
-        class PreStarFixedPointSaturation {
+        class PreStarFixedPointSaturation : public fixed_point_workset<PreStarFixedPointSaturation<W,indirect_trace_info>, temp_edge_t> {
+            using parent_t = fixed_point_workset<PreStarFixedPointSaturation<W,indirect_trace_info>, temp_edge_t>;
             static_assert(is_weighted<W>);
             using weight_t = typename W::type;
 
@@ -657,7 +659,7 @@ namespace pdaaal {
                     }
                 }
                 if (is_changed) {
-                    _workset.emplace_back(from, label, to);
+                    parent_t::emplace(from, label, to);
                 }
             }
             template<bool change_is_bottom = false>
@@ -674,34 +676,30 @@ namespace pdaaal {
             }
         public:
             explicit PreStarFixedPointSaturation(PAutomaton<W,indirect_trace_info>& automaton)
-                    : _automaton(automaton), _pda_states(_automaton.pda().states()), _n_automaton_states(_automaton.states().size()),
-                      _n_pda_states(_pda_states.size()), _n_pda_labels(_automaton.number_of_labels()),
-                      _round_limit(_n_automaton_states * _n_pda_labels * _n_automaton_states),
-                      _rel(_n_automaton_states), _delta_prime(_n_automaton_states) {
+            : parent_t(std::pow(automaton.states().size(), 2) * automaton.number_of_labels()),
+              _automaton(automaton), _pda_states(_automaton.pda().states()), _n_automaton_states(_automaton.states().size()),
+              _n_pda_states(_pda_states.size()), _n_pda_labels(_automaton.number_of_labels()),
+              _rel(_n_automaton_states), _delta_prime(_n_automaton_states) {
                 initialize();
             };
             PreStarFixedPointSaturation(PAutomaton<W,indirect_trace_info>& automaton, size_t round_limit)
-                    : _automaton(automaton), _pda_states(_automaton.pda().states()), _n_automaton_states(_automaton.states().size()),
-                      _n_pda_states(_pda_states.size()), _n_pda_labels(_automaton.number_of_labels()), _round_limit(round_limit),
-                      _rel(_n_automaton_states), _delta_prime(_n_automaton_states) {
+            : parent_t(round_limit),
+              _automaton(automaton), _pda_states(_automaton.pda().states()), _n_automaton_states(_automaton.states().size()),
+              _n_pda_states(_pda_states.size()), _n_pda_labels(_automaton.number_of_labels()),
+              _rel(_n_automaton_states), _delta_prime(_n_automaton_states) {
                 initialize();
             };
-
+            static constexpr temp_edge_t next_round_elem = temp_edge_t();
         private:
             PAutomaton<W,indirect_trace_info>& _automaton;
             const std::vector<typename PDA<W>::state_t>& _pda_states;
             const size_t _n_automaton_states;
             const size_t _n_pda_states;
             const size_t _n_pda_labels;
-            const size_t _round_limit;
 
-            size_t _rounds = 0;
             std::unordered_map<temp_edge_t, weight_t, absl::Hash<temp_edge_t>> _edges;
-            std::deque<temp_edge_t> _workset;
             std::vector<std::vector<std::pair<size_t,uint32_t>>> _rel; // Fast access to _edges based on _from.
             std::vector<std::vector<std::tuple<size_t, size_t, weight_t>>> _delta_prime;
-
-            static constexpr temp_edge_t next_round_elem = temp_edge_t();
 
             void initialize() {
                 for (const auto &from : _automaton.states()) {
@@ -722,22 +720,11 @@ namespace pdaaal {
                         ++rule_id;
                     }
                 }
-                _workset.emplace_back(next_round_elem);
             }
 
         public:
             template<bool change_is_bottom = false>
-            bool step() {
-                // pop t = (q, y, q') from workset (line 4)
-                auto t = _workset.front();
-                _workset.pop_front();
-
-                if (t == next_round_elem) {
-                    ++_rounds;
-                    _workset.emplace_back(next_round_elem);
-                    return false;
-                }
-
+            bool step_with(temp_edge_t&& t) {
                 assert(_edges.find(t) != _edges.end());
                 auto w = _edges.find(t)->second;
 
@@ -794,17 +781,6 @@ namespace pdaaal {
                     }
                 }
                 return true;
-            }
-            void finalize() {
-                _rounds = 0; // Reset _round count and run again, this time changes gives -inf weight.
-                while (!done()) {
-                    step<true>();
-                }
-                // TODO: How to handle traces??
-            }
-            [[nodiscard]] bool done() const {
-                return _workset.size() <= 1 // Only next_round_elem is in workset.
-                       || _rounds == _round_limit;
             }
         };
         template<typename W, bool indirect_trace_info>

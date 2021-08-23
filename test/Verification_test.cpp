@@ -137,3 +137,104 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_test)
     BOOST_TEST(qYq != nullptr);
     BOOST_TEST(qYq->second == -2);
 }
+
+BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "p":  { "X":{"to": "p", "pop":"", "weight": -1} }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton = PAutomatonParser::parse_string("< [p] , >", pda);
+
+    Solver::pre_star_fixed_point(p_automaton);
+
+    std::stringstream s;
+    print_automaton(p_automaton, pda, s);
+    BOOST_TEST_MESSAGE(s.str());
+
+    auto pXp = get_edge<std::string,std::string>(p_automaton, pda, "p", "X", "p");
+    BOOST_TEST(pXp != nullptr);
+    BOOST_TEST(pXp->second == -1);
+}
+
+BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_path_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "p":  { "X":{"to": "p", "pop":"", "weight": -1} }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string("< [p] , .* >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    Solver::pre_star_fixed_point_accepts(instance);
+
+    std::stringstream s;
+    print_automaton(instance.automaton(), pda, s);
+    s << std::endl;
+    print_automaton(instance.product_automaton(), pda, s);
+    BOOST_TEST_MESSAGE(s.str());
+
+    auto [path, stack, w] = instance.find_path_fixed_point();
+    BOOST_TEST(w == weight<int32_t>::bottom());
+}
+
+BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_path2_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "p":  { "X":{"to": "p", "pop":"", "weight": -1} }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string("< [p] , .+ >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    Solver::pre_star_fixed_point_accepts(instance);
+
+    std::stringstream s;
+    print_automaton(instance.automaton(), pda, s);
+    s << std::endl;
+    print_automaton(instance.product_automaton(), pda, s);
+    BOOST_TEST_MESSAGE(s.str());
+
+    auto [path, stack, w] = instance.find_path_fixed_point();
+    BOOST_TEST(w == weight<int32_t>::bottom());
+}
+
+BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_not_accepting_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "p":  { "X":{"to": "p", "pop":"", "weight": -1} },
+          "q":  { "Y":{"to": "p", "swap":"X", "weight": 1} }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string("< [q] , [Y] .+ >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    Solver::pre_star_fixed_point_accepts(instance);
+
+    std::stringstream s;
+    print_automaton(instance.product_automaton(), pda, s);
+    BOOST_TEST_MESSAGE(s.str());
+
+    auto [path, stack, w] = instance.find_path_fixed_point();
+    BOOST_TEST(w == weight<int32_t>::bottom());
+}
+

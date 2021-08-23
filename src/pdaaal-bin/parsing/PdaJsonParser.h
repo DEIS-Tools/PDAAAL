@@ -359,7 +359,7 @@ namespace pdaaal {
             }
             return true;
         }
-        bool binary(binary_t& val) {
+        bool binary(binary_t& /*val*/) {
             if (last_key == keys::unknown) {
                 return true;
             }
@@ -557,7 +557,7 @@ namespace pdaaal {
     class PdaJSONParser {
     public:
         template <typename W = weight<void>, bool use_state_names = true>
-        static auto parse(std::istream& stream, std::ostream& warnings, json::input_format_t format = json::input_format_t::json) {
+        static auto parse(std::istream& stream, std::ostream& /*warnings*/, json::input_format_t format = json::input_format_t::json) {
             std::stringstream es; // For errors;
             PdaaalSAXHandler<W,use_state_names> my_sax(es);
             if (!json::sax_parse(stream, &my_sax, format)) {
