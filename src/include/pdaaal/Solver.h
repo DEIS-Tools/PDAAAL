@@ -27,6 +27,7 @@
 #ifndef PDAAAL_SOLVER_H
 #define PDAAAL_SOLVER_H
 
+#include <pdaaal/AutomatonPath.h>
 #include <pdaaal/PAutomaton.h>
 #include <pdaaal/TypedPDA.h>
 #include <pdaaal/SolverInstance.h>
@@ -814,21 +815,21 @@ namespace pdaaal {
         class TraceBack {
             using rule_t = user_rule_t<W>;
         public:
-            TraceBack(const PAutomaton<W,indirect_trace_info>& automaton, std::deque<std::tuple<size_t, uint32_t, size_t>>&& edges)
-            : _automaton(automaton), _edges(std::move(edges)) { };
+            TraceBack(const PAutomaton<W,indirect_trace_info>& automaton, AutomatonPath&& path)
+            : _automaton(automaton), _path(std::move(path)) { };
         private:
             const PAutomaton<W,indirect_trace_info>& _automaton;
-            std::deque<std::tuple<size_t, uint32_t, size_t>> _edges;
+            AutomatonPath _path;
             bool _post = false;
         public:
             [[nodiscard]] bool post() const { return _post; }
-            [[nodiscard]] const std::deque<std::tuple<size_t, uint32_t, size_t>>& edges() const { return _edges; }
+            [[nodiscard]] const AutomatonPath& path() const { return _path; }
             std::optional<rule_t> next() {
                 while(true) { // In case of post_epsilon_trace, keep going until a rule is found or we are done.
-                    auto[from, label, to] = _edges.back();
+                    auto[from, label, to] = _path.front_edge();
                     auto trace_label_temp = _automaton.get_trace_label(from, label, to);
                     if (trace_is_null<indirect_trace_info>(trace_label_temp)) return std::nullopt; // Done
-                    _edges.pop_back();
+                    _path.pop();
                     trace_t trace_label;
                     if constexpr(indirect_trace_info) {
                         trace_label = *trace_label_temp;
@@ -843,14 +844,14 @@ namespace pdaaal {
                             case POP:
                                 break;
                             case SWAP:
-                                _edges.emplace_back(rule._to, rule._op_label, to);
+                                _path.emplace(rule._to, rule._op_label);
                                 break;
                             case NOOP:
-                                _edges.emplace_back(rule._to, label, to);
+                                _path.emplace(rule._to, label);
                                 break;
                             case PUSH:
-                                _edges.emplace_back(trace_label._state, label, to);
-                                _edges.emplace_back(rule._to, rule._op_label, trace_label._state);
+                                _path.emplace(trace_label._state, label);
+                                _path.emplace(rule._to, rule._op_label);
                                 break;
                         }
                         return rule_t(from, label, rule);
@@ -858,8 +859,8 @@ namespace pdaaal {
                         // Intermediate post* trace
                         // Current edge is the result of merging with an epsilon edge.
                         // Reconstruct epsilon edge and the other edge.
-                        _edges.emplace_back(trace_label._state, label, to);
-                        _edges.emplace_back(from, std::numeric_limits<uint32_t>::max(), trace_label._state);
+                        _path.emplace(trace_label._state, label);
+                        _path.emplace(from, std::numeric_limits<uint32_t>::max());
 
                     } else { // post* trace
                         _post = true;
@@ -868,18 +869,18 @@ namespace pdaaal {
                             case POP:
                             case SWAP:
                             case NOOP:
-                                _edges.emplace_back(trace_label._state, trace_label._label, to);
+                                _path.emplace(trace_label._state, trace_label._label);
                                 break;
                             case PUSH:
-                                auto[from2, label2, to2] = _edges.back();
-                                _edges.pop_back();
+                                auto[from2, label2, to2] = _path.front_edge();
+                                _path.pop();
                                 assert(!trace_is_null<indirect_trace_info>(_automaton.get_trace_label(from2, label2, to2)));
                                 if constexpr(indirect_trace_info) {
                                     trace_label = *_automaton.get_trace_label(from2, label2, to2);
                                 } else {
                                     trace_label = _automaton.get_trace_label(from2, label2, to2);
                                 }
-                                _edges.emplace_back(trace_label._state, trace_label._label, to2);
+                                _path.emplace(trace_label._state, trace_label._label);
                                 break;
                         }
                         assert(from == rule._to);
@@ -1123,16 +1124,12 @@ namespace pdaaal {
             if (path.empty()) {
                 return std::vector<tracestate_t>();
             }
-            std::deque<std::tuple<size_t, uint32_t, size_t>> first_edges;
-            for (size_t i = stack.size(); i > 0; --i) {
-                first_edges.emplace_back(path[i - 1], stack[i - 1], path[i]);
-            }
+            AutomatonPath automaton_path(path, stack);
 
-            auto decode_edges = [&pda](const std::deque<std::tuple<size_t, uint32_t, size_t>>& edges) -> tracestate_t {
-                tracestate_t result{std::get<0>(edges.back()), std::vector<T>()};
+            auto decode_edges = [&pda](const AutomatonPath& path) -> tracestate_t {
+                tracestate_t result{path.front_state(), std::vector<T>()};
                 auto num_labels = pda.number_of_labels();
-                for (auto it = edges.crbegin(); it != edges.crend(); ++it) {
-                    auto label = std::get<1>(*it);
+                for (auto label : path.stack()) {
                     if (label < num_labels){
                         result._stack.emplace_back(pda.get_symbol(label));
                     }
@@ -1141,10 +1138,10 @@ namespace pdaaal {
             };
 
             std::vector<tracestate_t> trace;
-            trace.push_back(decode_edges(first_edges));
-            details::TraceBack tb(automaton, std::move(first_edges));
+            trace.push_back(decode_edges(automaton_path));
+            details::TraceBack tb(automaton, std::move(automaton_path));
             while (tb.next()) {
-                trace.push_back(decode_edges(tb.edges()));
+                trace.push_back(decode_edges(tb.path()));
             }
             if (tb.post()) {
                 std::reverse(trace.begin(), trace.end());
@@ -1177,27 +1174,19 @@ namespace pdaaal {
                 goal_path.push_back(b);
             }
             // Build up stack of edges in the PAutomaton. Each PDA rule corresponds to changing some of the top edges.
-            std::deque<std::tuple<size_t, uint32_t, size_t>> edges;
+            AutomatonPath automaton_path(paths.back().first);
             for (size_t i = stack.size(); i > 0; --i) {
-                edges.emplace_back(paths[i - 1].first, stack[i - 1], paths[i].first);
+                automaton_path.emplace(paths[i - 1].first, stack[i - 1]);
             }
 
-            details::TraceBack tb(automaton, std::move(edges));
+            details::TraceBack tb(automaton, std::move(automaton_path));
             std::vector<rule_t> trace;
             while (auto rule = tb.next()) {
                 trace.emplace_back(rule.value());
             }
 
             // Get accepting path of initial stack (and the initial stack itself - for post*)
-            std::vector<uint32_t> start_stack;
-            start_stack.reserve(tb.edges().size());
-            std::vector<size_t> start_path;
-            start_path.reserve(tb.edges().size() + 1);
-            start_path.push_back(std::get<0>(tb.edges().back()));
-            for (auto it = tb.edges().crbegin(); it != tb.edges().crend(); ++it) {
-                start_path.push_back(std::get<2>(*it));
-                start_stack.push_back(std::get<1>(*it));
-            }
+            auto [start_path, start_stack] = tb.path().get_path_and_stack();
 
             if (tb.post()) { // post* was used
                 std::reverse(trace.begin(), trace.end());
@@ -1225,17 +1214,17 @@ namespace pdaaal {
             }
             assert(stack.size() + 1 == paths.size());
             // Build up stack of edges in the PAutomaton. Each PDA rule corresponds to changing some of the top edges.
-            std::deque<std::tuple<size_t, uint32_t, size_t>> initial_edges;
+            AutomatonPath initial_automaton_path(paths.back().first);
             for (size_t i = stack.size(); i > 0; --i) {
-                initial_edges.emplace_back(paths[i - 1].first, stack[i - 1], paths[i].first);
+                initial_automaton_path.emplace(paths[i - 1].first, stack[i - 1]);
             }
-            auto [trace, initial_stack, initial_path] = _get_trace_stack_path(initial_automaton, std::move(initial_edges));
+            auto [trace, initial_stack, initial_path] = _get_trace_stack_path(initial_automaton, std::move(initial_automaton_path));
 
-            std::deque<std::tuple<size_t, uint32_t, size_t>> final_edges;
+            AutomatonPath final_automaton_path(paths.back().second);
             for (size_t i = stack.size(); i > 0; --i) {
-                final_edges.emplace_back(paths[i - 1].second, stack[i - 1], paths[i].second);
+                final_automaton_path.emplace(paths[i - 1].second, stack[i - 1]);
             }
-            auto [trace2, final_stack, final_path] = _get_trace_stack_path(final_automaton, std::move(final_edges));
+            auto [trace2, final_stack, final_path] = _get_trace_stack_path(final_automaton, std::move(final_automaton_path));
             // Concat traces
             trace.insert(trace.end(), trace2.begin(), trace2.end());
             return std::make_tuple(trace[0].from(), trace, initial_stack, final_stack, initial_path, final_path);
@@ -1243,24 +1232,17 @@ namespace pdaaal {
 
         template <typename W, bool indirect>
         static std::tuple<std::vector<user_rule_t<W>>, std::vector<uint32_t>, std::vector<size_t>>
-        _get_trace_stack_path(const PAutomaton<W,indirect>& automaton, std::deque<std::tuple<size_t, uint32_t, size_t>>&& edges) {
+        _get_trace_stack_path(const PAutomaton<W,indirect>& automaton, AutomatonPath&& automaton_path) {
             std::vector<user_rule_t<W>> trace;
-            details::TraceBack tb(automaton, std::move(edges));
+            details::TraceBack tb(automaton, std::move(automaton_path));
             while(auto rule = tb.next()) {
                 trace.emplace_back(rule.value());
             }
             if (tb.post()) {
                 std::reverse(trace.begin(), trace.end());
             }
-
             // Get accepting path of initial stack (and the initial stack itself - for post*)
-            std::vector<uint32_t> stack; stack.reserve(tb.edges().size());
-            std::vector<size_t> path; path.reserve(tb.edges().size() + 1);
-            path.push_back(std::get<0>(tb.edges().back()));
-            for (auto it = tb.edges().crbegin(); it != tb.edges().crend(); ++it) {
-                path.push_back(std::get<2>(*it));
-                stack.push_back(std::get<1>(*it));
-            }
+            auto [path, stack] = tb.path().get_path_and_stack();
             return {trace, stack, path};
         }
     };
