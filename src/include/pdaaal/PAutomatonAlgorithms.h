@@ -99,20 +99,27 @@ namespace pdaaal {
         [[nodiscard]] bool is_infinite() const {
             return _states[_min_accepting_state].weight == W::bottom(); // TODO: Allow for better stuff than this...
         }
-        [[nodiscard]] std::tuple<std::vector<size_t>, std::vector<uint32_t>, typename W::type> get_path() const {
+        [[nodiscard]] auto get_path() const {
+            return get_path([](size_t s){ return s; });
+        }
+        template<typename MapFn>
+        [[nodiscard]] std::tuple<std::vector<size_t>, std::vector<uint32_t>, typename W::type> get_path(MapFn&& state_map) const {
+            static_assert(std::is_convertible_v<MapFn,std::function<size_t(size_t)>>);
             // assert(this->_workset.size() == 1 && this->_workset.back() == next_round_elem);
             // Return path and stack
             std::vector<size_t> path;
-            path.emplace_back(_min_accepting_state);
+            path.emplace_back(state_map(_min_accepting_state));
             std::vector<uint32_t> stack;
             size_t state = _min_accepting_state;
             while (_states[state].predecessor != std::numeric_limits<size_t>::max()) {
                 assert(_states[state].label != std::numeric_limits<uint32_t>::max());
-                path.emplace_back(_states[state].predecessor);
+                path.emplace_back(state_map(_states[state].predecessor));
                 stack.emplace_back(_states[state].label);
                 state = _states[state].predecessor;
                 assert(path.size() <= _states.size()); // There should be no loop here - covered elsewhere.
             }
+            std::reverse(path.begin(), path.end());
+            std::reverse(stack.begin(), stack.end());
             return {path, stack, _states[_min_accepting_state].weight};
         }
     };

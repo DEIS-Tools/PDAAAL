@@ -191,7 +191,7 @@ namespace pdaaal {
                 if (fixed_point.is_infinite()) {
                     return {std::vector<size_t>(), std::vector<uint32_t>(), W::bottom()}; // TODO: Can we provide more info than this??
                 }
-                return fixed_point.get_path();
+                return fixed_point.get_path([this](size_t state) -> size_t { return get_original_ids(state).first; });
             } else if constexpr (trace_type == Trace_Type::Shortest && is_weighted<W>) { // TODO: Consider unweighted shortest path.
                 // Dijkstra.
                 struct queue_elem {
