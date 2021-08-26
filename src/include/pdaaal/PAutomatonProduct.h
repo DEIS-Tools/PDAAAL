@@ -33,6 +33,7 @@ namespace pdaaal {
     class PAutomatonProduct {
         using product_automaton_t = PAutomaton<W>; // No explicit abstraction on product automaton - this is covered by _initial and _final.
         using state_t = typename product_automaton_t::state_t;
+        static constexpr auto epsilon = product_automaton_t::epsilon;
     public:
         template<typename T>
         PAutomatonProduct(const pda_t& pda, const NFA<T>& initial_nfa, const std::vector<size_t>& initial_states,
@@ -58,86 +59,18 @@ namespace pdaaal {
 
         // Returns whether an accepting state in the product automaton was reached.
         bool add_edge_product(size_t from, uint32_t label, size_t to, trace_ptr<W> trace) {
-            const automaton_t& initial = _swap_initial_final ? _final : _initial;
-            const automaton_t& final = _swap_initial_final ? _initial : _final;
-
-            std::vector<std::pair<size_t,size_t>> from_states;
-            if (from < _id_fast_lookup.size()) { // Avoid out-of-bounds.
-                from_states = _id_fast_lookup[from]; // Copy here, since loop-body might alter _id_fast_lookup[from].
-            }
-            if (from < _pda_size) {
-                from_states.emplace_back(from, from); // Initial states are not stored in _id_fast_lookup.
-            }
-            std::vector<size_t> waiting;
-            for (auto [final_from, product_from] : from_states) { // Iterate through reachable 'from-states'.
-                for (const auto& [final_to,final_labels] : final.states()[final_from]->_edges) {
-                    if (final_labels.contains(label)) {
-                        auto [fresh, product_to] = get_product_state(initial.states()[to].get(), final.states()[final_to].get());
-                        _product.add_edge(product_from, product_to, label, trace);
-                        if (_product.has_accepting_state()) {
-                            return true; // Early termination
-                        }
-                        if (fresh) {
-                            waiting.push_back(product_to); // If the 'to-state' is new (was not previously reachable), we need to continue constructing from there.
-                        }
-                    }
-                }
-            }
-            return construct_reachable(waiting, initial, final);
+            return add_edge(from, label, to, trace,
+                            _swap_initial_final ? _final : _initial,
+                            _swap_initial_final ? _initial : _final);
         }
 
         // This is for the dual_search mode:
         bool add_initial_edge(size_t from, uint32_t label, size_t to, trace_ptr<W> trace) {
-            std::vector<std::pair<size_t,size_t>> from_states;
-            if (from < _id_fast_lookup.size()) { // Avoid out-of-bounds.
-                from_states = _id_fast_lookup[from]; // Copy here, since loop-body might alter _id_fast_lookup[from].
-            }
-            if (from < _pda_size) {
-                from_states.emplace_back(from, from); // Initial states are not stored in _id_fast_lookup.
-            }
-            std::vector<size_t> waiting;
-            for (auto [final_from, product_from] : from_states) { // Iterate through reachable 'from-states'.
-                for (const auto& [final_to,final_labels] : _final.states()[final_from]->_edges) {
-                    if (final_labels.contains(label)) {
-                        auto [fresh, product_to] = get_product_state<true>(_initial.states()[to].get(), _final.states()[final_to].get());
-                        _product.add_edge(product_from, product_to, label, trace);
-                        if (_product.has_accepting_state()) {
-                            return true; // Early termination
-                        }
-                        if (fresh) {
-                            waiting.push_back(product_to); // If the 'to-state' is new (was not previously reachable), we need to continue constructing from there.
-                        }
-                    }
-                }
-            }
-            return construct_reachable<true>(waiting, _initial, _final);
+            return add_edge<true, true>(from, label, to, trace, _initial, _final);
         }
         bool add_final_edge(size_t from, uint32_t label, size_t to, trace_ptr<W> trace) {
-            std::vector<std::pair<size_t,size_t>> from_states;
-            if (from < _id_fast_lookup_back.size()) { // Avoid out-of-bounds.
-                from_states = _id_fast_lookup_back[from]; // Copy here, since loop-body might alter _id_fast_lookup[from].
-            }
-            if (from < _pda_size) {
-                from_states.emplace_back(from, from); // Initial states are not stored in _id_fast_lookup.
-            }
-            std::vector<size_t> waiting;
-            for (auto [initial_from, product_from] : from_states) { // Iterate through reachable 'from-states'.
-                for (const auto& [initial_to,initial_labels] : _initial.states()[initial_from]->_edges) {
-                    if (initial_labels.contains(label)) {
-                        auto [fresh, product_to] = get_product_state<true>(_initial.states()[initial_to].get(), _final.states()[to].get());
-                        _product.add_edge(product_from, product_to, label, trace);
-                        if (_product.has_accepting_state()) {
-                            return true; // Early termination
-                        }
-                        if (fresh) {
-                            waiting.push_back(product_to); // If the 'to-state' is new (was not previously reachable), we need to continue constructing from there.
-                        }
-                    }
-                }
-            }
-            return construct_reachable<true>(waiting, _initial, _final);
+            return add_edge<false, true>(from, label, to, trace, _initial, _final);
         }
-
 
         automaton_t& automaton() {
             return _swap_initial_final ? _final : _initial;
@@ -186,16 +119,13 @@ namespace pdaaal {
                     queue_elem(typename W::type weight, size_t state, uint32_t label, size_t stack_index, const queue_elem *back_pointer = nullptr)
                             : weight(weight), state(state), label(label), stack_index(stack_index), back_pointer(back_pointer) {};
 
-                    bool operator<(const queue_elem &other) const {
-                        if (state != other.state) {
-                            return state < other.state;
-                        }
-                        return label < other.label;
+                    bool operator<(const queue_elem& other) const {
+                        return std::tie(state, label) < std::tie(other.state, other.label);
                     }
-                    bool operator==(const queue_elem &other) const {
+                    bool operator==(const queue_elem& other) const {
                         return state == other.state && label == other.label;
                     }
-                    bool operator!=(const queue_elem &other) const {
+                    bool operator!=(const queue_elem& other) const {
                         return !(*this == other);
                     }
                 };
@@ -245,7 +175,7 @@ namespace pdaaal {
                     auto u_pointer = std::make_unique<queue_elem>(*lb);
                     auto pointer = u_pointer.get();
                     pointers.push_back(std::move(u_pointer));
-                    for (const auto &[to,labels] : _product.states()[current.state]->_edges) {
+                    for (const auto& [to,labels] : _product.states()[current.state]->_edges) {
                         if (!labels.empty()) {
                             auto label = std::min_element(labels.begin(), labels.end(), [](const auto& a, const auto& b){ return W::less(a.second.second, b.second.second); });
                             search_queue.emplace(W::add(current.weight, label->second.second), to, label->first, current.stack_index + 1, pointer);
@@ -307,6 +237,50 @@ namespace pdaaal {
         }
 
     private:
+        template<bool edge_in_first = true, bool needs_back_lookup = false>
+        bool add_edge(size_t from, uint32_t label, size_t to, trace_ptr<W> trace,
+                      const automaton_t& first, const automaton_t& second) { // States in first and second automaton corresponds to respectively first and second component of the states in product automaton.
+            static_assert(edge_in_first || needs_back_lookup, "If you insert edge in the second automaton, then you must also enable using _id_fast_lookup_back to keep the relevant information.");
+            const auto& fast_lookup = constexpr_ternary<edge_in_first>(_id_fast_lookup, _id_fast_lookup_back);
+            std::vector<std::pair<size_t,size_t>> from_states;
+            if (from < fast_lookup.size()) { // Avoid out-of-bounds.
+                from_states = fast_lookup[from]; // Copy here, since loop-body might alter fast_lookup[from].
+            }
+            if (from < _pda_size) {
+                from_states.emplace_back(from, from); // Initial states are not stored in _id_fast_lookup.
+            }
+            const auto& current = constexpr_ternary<edge_in_first>(first, second);
+            const auto& other = constexpr_ternary<edge_in_first>(second, first);
+            auto current_to = current.states()[to].get();
+            std::vector<size_t> waiting;
+            for (auto [other_from, product_from] : from_states) { // Iterate through reachable 'from-states'.
+                std::vector<size_t> other_tos;
+                if (label == epsilon) {
+                    other_tos.emplace_back(other_from);
+                } else {
+                    for (const auto& [other_to,other_labels] : other.states()[other_from]->_edges) {
+                        if (other_labels.contains(label)) {
+                            other_tos.emplace_back(other_to);
+                        }
+                    }
+                }
+                for (auto other_to : other_tos) {
+                    auto [fresh, product_to] = get_product_state<needs_back_lookup>(swap_if<!edge_in_first>(current_to, other.states()[other_to].get()));
+                    if (label == epsilon) {
+                        _product.add_epsilon_edge(product_from, product_to, trace);
+                    } else {
+                        _product.add_edge(product_from, product_to, label, trace);
+                    }
+                    if (_product.has_accepting_state()) {
+                        return true; // Early termination
+                    }
+                    if (fresh) {
+                        waiting.push_back(product_to); // If the 'to-state' is new (was not previously reachable), we need to continue constructing from there.
+                    }
+                }
+            }
+            return construct_reachable<needs_back_lookup>(waiting, first, second);
+        }
 
         // Returns whether an accepting state in the product automaton was reached.
         template<bool needs_back_lookup = false, bool ET = true>
@@ -316,13 +290,39 @@ namespace pdaaal {
                 waiting.pop_back();
                 auto [i_from,f_from] = get_original_ids(top);
                 for (const auto& [i_to,i_labels] : initial.states()[i_from]->_edges) {
+                    if (auto it = i_labels.find(epsilon); it != i_labels.end()) {
+                        auto [fresh, product_to] = get_product_state<needs_back_lookup>(initial.states()[i_to].get(), final.states()[f_from].get());
+                        _product.add_epsilon_edge(top, product_to, it->second);
+                        if constexpr (ET) {
+                            if (_product.has_accepting_state()) {
+                                return true; // Early termination
+                            }
+                        }
+                        if (fresh) {
+                            waiting.push_back(product_to);
+                        }
+                    }
                     for (const auto& [f_to,f_labels] : final.states()[f_from]->_edges) {
+                        if (auto it = f_labels.find(epsilon); it != f_labels.end()) {
+                            auto [fresh, product_to] = get_product_state<needs_back_lookup>(initial.states()[i_from].get(), final.states()[f_to].get());
+                            _product.add_epsilon_edge(top, product_to, it->second);
+                            if constexpr (ET) {
+                                if (_product.has_accepting_state()) {
+                                    return true; // Early termination
+                                }
+                            }
+                            if (fresh) {
+                                waiting.push_back(product_to);
+                            }
+                        }
                         std::vector<typename decltype(i_labels)::value_type> labels;
                         std::set_intersection(i_labels.begin(), i_labels.end(), f_labels.begin(), f_labels.end(), std::back_inserter(labels));
-                        if (!labels.empty()) {
+                        if (!labels.empty() && labels.size() > (labels.back() == epsilon ? 1 : 0)) {
                             auto [fresh, to_id] = get_product_state<needs_back_lookup>(initial.states()[i_to].get(), final.states()[f_to].get());
-                            for (const auto & [label, trace] : labels) {
-                                _product.add_edge(top, to_id, label, trace);
+                            for (const auto& [label, trace] : labels) {
+                                if (label != epsilon) {
+                                    _product.add_edge(top, to_id, label, trace);
+                                }
                             }
                             if constexpr (ET) {
                                 if (_product.has_accepting_state()) {
@@ -339,14 +339,6 @@ namespace pdaaal {
             return _product.has_accepting_state();
         }
 
-        template<typename Elem>
-        static std::vector<Elem> intersect_vector(const std::vector<Elem>& v1, const std::vector<Elem>& v2) {
-            assert(std::is_sorted(v1.begin(), v1.end()));
-            assert(std::is_sorted(v2.begin(), v2.end()));
-            std::vector<Elem> result;
-            std::set_intersection(v1.begin(), v1.end(), v2.begin(), v2.end(), std::back_inserter(result));
-            return result;
-        }
         static std::vector<size_t> get_initial_accepting(const automaton_t& a1, const automaton_t& a2) {
             assert(a1.pda().states().size() == a2.pda().states().size());
             auto size = a1.pda().states().size();
@@ -376,6 +368,10 @@ namespace pdaaal {
             return res;
         }
         template<bool needs_back_lookup = false>
+        std::pair<bool,size_t> get_product_state(std::pair<const state_t*, const state_t*> pair) {
+            return get_product_state<needs_back_lookup>(pair.first, pair.second);
+        }
+        template<bool needs_back_lookup = false>
         std::pair<bool,size_t> get_product_state(const state_t* a, const state_t* b) {
             if (a->_id == b->_id && a->_id < _pda_size) {
                 return std::make_pair(false, a->_id);
@@ -399,6 +395,39 @@ namespace pdaaal {
                 return std::make_pair(false ,id + _pda_size);
             }
         }
+
+        // ***
+        // Utility stuff that is used in this class.
+        // ***
+        // Change order of two arguments based on constexpr value can be annoying.
+        template<bool condition, typename T1, typename T2>
+        static constexpr auto swap_if(T1&& a, T2&& b) {
+            if constexpr (condition) {
+                return std::make_pair(std::forward<T2>(b), std::forward<T1>(a));
+            } else {
+                return std::make_pair(std::forward<T1>(a), std::forward<T2>(b));
+            }
+        }
+        // A const& needs to be initialized, and if constexpr has local scope, so this was the best solution I found
+        // to make a const&, where a compile-time predicate determines where it points to.
+        template<bool condition, typename T>
+        static constexpr const T& constexpr_ternary(const T& a, const T& b) noexcept {
+            if constexpr (condition) {
+                return a;
+            } else {
+                return b;
+            }
+        }
+        template<typename Elem>
+        static std::vector<Elem> intersect_vector(const std::vector<Elem>& v1, const std::vector<Elem>& v2) {
+            assert(std::is_sorted(v1.begin(), v1.end()));
+            assert(std::is_sorted(v2.begin(), v2.end()));
+            std::vector<Elem> result;
+            std::set_intersection(v1.begin(), v1.end(), v2.begin(), v2.end(), std::back_inserter(result));
+            return result;
+        }
+        // ***
+
     private:
         const pda_t& _pda;
         const size_t _pda_size;

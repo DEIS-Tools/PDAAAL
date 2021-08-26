@@ -76,8 +76,10 @@ namespace pdaaal {
             std::vector<size_t>   path;  path.reserve(_edges.size() + 1);
             std::vector<uint32_t> stack; stack.reserve(_edges.size());
             for (auto it = _edges.crbegin(); it != _edges.crend(); ++it) {
-                path.push_back(it->second);
-                stack.push_back(it->first);
+                if (it->first != std::numeric_limits<uint32_t>::max()) {
+                    path.push_back(it->second);
+                    stack.push_back(it->first);
+                }
             }
             path.push_back(_end);
             return std::make_pair(path, stack);
