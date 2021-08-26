@@ -96,8 +96,8 @@ BOOST_AUTO_TEST_CASE(Verification_Test_1)
 
     auto [trace, weight] = Solver::get_trace<Trace_Type::Shortest>(instance);
 
-    BOOST_TEST(weight == 1);
-    BOOST_TEST(trace.size() == 2);
+    BOOST_CHECK_EQUAL(weight, 1);
+    BOOST_CHECK_EQUAL(trace.size(), 2);
 
     std::cout << "Weight: " << weight << std::endl;
     print_trace(trace, pda);
@@ -126,16 +126,16 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_test)
     BOOST_TEST_MESSAGE(s.str());
 
     auto pXq = get_edge<std::string,std::string>(p_automaton, pda, "p", "X", "q");
-    BOOST_TEST(pXq != nullptr);
-    BOOST_TEST(pXq->second == weight<int32_t>::bottom());
+    BOOST_CHECK_NE(pXq, nullptr);
+    BOOST_CHECK_EQUAL(pXq->second, weight<int32_t>::bottom());
 
     auto pYp = get_edge<std::string,std::string>(p_automaton, pda, "p", "Y", "p");
-    BOOST_TEST(pYp != nullptr);
-    BOOST_TEST(pYp->second == 1);
+    BOOST_CHECK_NE(pYp, nullptr);
+    BOOST_CHECK_EQUAL(pYp->second, 1);
 
     auto qYq = get_edge<std::string,std::string>(p_automaton, pda, "q", "Y", "q");
-    BOOST_TEST(qYq != nullptr);
-    BOOST_TEST(qYq->second == -2);
+    BOOST_CHECK_NE(qYq, nullptr);
+    BOOST_CHECK_EQUAL(qYq->second, -2);
 }
 
 BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_test)
@@ -157,8 +157,8 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_test)
     BOOST_TEST_MESSAGE(s.str());
 
     auto pXp = get_edge<std::string,std::string>(p_automaton, pda, "p", "X", "p");
-    BOOST_TEST(pXp != nullptr);
-    BOOST_TEST(pXp->second == -1);
+    BOOST_CHECK_NE(pXp, nullptr);
+    BOOST_CHECK_EQUAL(pXp->second, -1);
 }
 
 BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_path_test)
@@ -184,7 +184,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_path_test)
     BOOST_TEST_MESSAGE(s.str());
 
     auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
-    BOOST_TEST(w == weight<int32_t>::bottom());
+    BOOST_CHECK_EQUAL(w, weight<int32_t>::bottom());
 }
 
 BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_path2_test)
@@ -210,7 +210,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_path2_test)
     BOOST_TEST_MESSAGE(s.str());
 
     auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
-    BOOST_TEST(w == weight<int32_t>::bottom());
+    BOOST_CHECK_EQUAL(w, weight<int32_t>::bottom());
 }
 
 BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_not_accepting_test)
@@ -235,7 +235,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_not_accepting_test)
     BOOST_TEST_MESSAGE(s.str());
 
     auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
-    BOOST_TEST(w == weight<int32_t>::bottom());
+    BOOST_CHECK_EQUAL(w, weight<int32_t>::bottom());
 }
 
 BOOST_AUTO_TEST_CASE(Verification_negative_weight_finite_path_test)
@@ -263,12 +263,12 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_finite_path_test)
     print_automaton(instance.product_automaton(), pda, s);
 
     auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
-    BOOST_TEST(w == -9);
+    BOOST_CHECK_EQUAL(w, -9);
 
     auto [trace, weight] = Solver::get_trace<Trace_Type::ShortestFixedPoint>(instance);
-    BOOST_TEST(w == weight);
+    BOOST_CHECK_EQUAL(w, weight);
 
-    BOOST_TEST(trace.size() == 6);
+    BOOST_CHECK_EQUAL(trace.size(), 6);
 
     s << std::endl;
     print_trace(trace, pda, s);

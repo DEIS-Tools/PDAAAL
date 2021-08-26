@@ -797,6 +797,7 @@ namespace pdaaal {
             [[nodiscard]] const AutomatonPath& path() const { return _path; }
             std::optional<rule_t> next() {
                 while(true) { // In case of post_epsilon_trace, keep going until a rule is found or we are done.
+                    if (_path.empty()) return std::nullopt;
                     auto[from, label, to] = _path.front_edge();
                     auto trace_label_temp = _automaton.get_trace_label(from, label, to);
                     if (trace_is_null<indirect_trace_info>(trace_label_temp)) return std::nullopt; // Done
