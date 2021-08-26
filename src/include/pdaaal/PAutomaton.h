@@ -235,14 +235,14 @@ namespace pdaaal {
                     const std::function<void(std::ostream &, const uint32_t&)>& label_printer = [](auto &s, auto &l){ s << l; },
                     const std::function<void(std::ostream &, const size_t&)>& state_printer = [](auto &s, auto &id){ s << id; }) const {
             out << "digraph NFA {\n";
-            for (auto &s : _states) {
+            for (const auto& s : _states) {
                 out << "\"";
                 state_printer(out, s->_id);
                 out << "\" [shape=";
                 if (s->_accepting)
                     out << "double";
                 out << "circle];\n";
-                for (const auto &[to, labels] : s->_edges) {
+                for (const auto& [to, labels] : s->_edges) {
                     out << "\"";
                     state_printer(out, s->_id);
                     out << "\" -> \"";
@@ -304,7 +304,7 @@ namespace pdaaal {
                     out << "\"];\n";
                 }
             }
-            for (auto &i : _initial) {
+            for (const auto& i : _initial) {
                 out << "\"I";
                 state_printer(out, i->_id);
                 out << "\" -> \"";
@@ -365,10 +365,7 @@ namespace pdaaal {
                     : _weight(weight), _state(state), _stack_index(stack_index), _back_pointer(back_pointer) {};
 
                     bool operator<(const queue_elem& other) const {
-                        if (_state != other._state) {
-                            return _state < other._state;
-                        }
-                        return _stack_index < other._stack_index;
+                        return std::tie(_state, _stack_index) < std::tie(other._state, other._stack_index);
                     }
                     bool operator==(const queue_elem& other) const {
                         return _state == other._state && _stack_index == other._stack_index;
@@ -411,7 +408,7 @@ namespace pdaaal {
                     auto u_pointer = std::make_unique<queue_elem>(*lb);
                     auto pointer = u_pointer.get();
                     pointers.push_back(std::move(u_pointer));
-                    for (const auto &[to,labels] : _states[current._state]->_edges) {
+                    for (const auto& [to,labels] : _states[current._state]->_edges) {
                         auto label = labels.get(stack[current._stack_index]);
                         if (label != nullptr) {
                             if (current._stack_index + 1 < stack.size() || _states[to]->_accepting) {

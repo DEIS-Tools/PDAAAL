@@ -46,9 +46,15 @@ namespace pdaaal::fut {
             explicit elem_t(std::pair<Key,Value>&& arg) : first(std::move(arg.first)), second(std::move(arg.second)) {};
             Key first;
             Value second;
-            bool operator<(const elem_t &other) const { return first < other.first; }
-            bool operator==(const elem_t &other) const { return first == other.first; }
-            bool operator!=(const elem_t &other) const { return !(*this == other); }
+            friend bool operator<( const elem_t& l, const elem_t& r) { return l.first < r.first; }
+            friend bool operator==(const elem_t& l, const elem_t& r) { return l.first == r.first; }
+            friend bool operator!=(const elem_t& l, const elem_t& r) { return !(l == r); }
+            friend bool operator<( const elem_t& l, const Key& r) { return l.first < r; }
+            friend bool operator==(const elem_t& l, const Key& r) { return l.first == r; }
+            friend bool operator!=(const elem_t& l, const Key& r) { return !(l == r); }
+            friend bool operator<( const Key& l, const elem_t& r) { return l < r.first; }
+            friend bool operator==(const Key& l, const elem_t& r) { return l == r.first; }
+            friend bool operator!=(const Key& l, const elem_t& r) { return !(l == r); }
         };
 
         vector_map() = default;

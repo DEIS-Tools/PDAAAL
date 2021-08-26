@@ -48,19 +48,14 @@ namespace pdaaal {
             temp_edge_t(size_t from, uint32_t label, size_t to)
                     : _from(from), _to(to), _label(label) {};
 
-            bool operator<(const temp_edge_t &other) const {
-                if (_from != other._from) return _from < other._from;
-                if (_label != other._label) return _label < other._label;
-                return _to < other._to;
+            bool operator<(const temp_edge_t& other) const {
+                return std::tie(_from, _label, _to) < std::tie(other._from, other._label, other._to);
             }
-
-            bool operator==(const temp_edge_t &other) const {
+            bool operator==(const temp_edge_t& other) const {
                 return _from == other._from && _to == other._to && _label == other._label;
             }
+            bool operator!=(const temp_edge_t& other) const { return !(*this == other); }
 
-            bool operator!=(const temp_edge_t &other) const {
-                return !(*this == other);
-            }
             template <typename H>
             friend H AbslHashValue(H h, const temp_edge_t& e) {
                 return H::combine(std::move(h), e._from, e._to, e._label);
@@ -255,10 +250,10 @@ namespace pdaaal {
 
                 // workset := ->_0 intersect (P x Gamma x Q)  (line 1)
                 // rel := ->_0 \ workset (line 2)
-                for (const auto &from : _automaton.states()) {
-                    for (const auto &[to,labels] : from->_edges) {
+                for (const auto& from : _automaton.states()) {
+                    for (const auto& [to,labels] : from->_edges) {
                         assert(!labels.contains(epsilon)); // PostStar algorithm assumes no epsilon transitions in the NFA.
-                        for (const auto &[label,_] : labels) {
+                        for (const auto& [label,_] : labels) {
                             insert_edge(from->_id, label, to, nullptr, from->_id >= _n_pda_states);
                         }
                     }
@@ -423,7 +418,7 @@ namespace pdaaal {
                     }
                     for (const auto& from : _automaton.states()) {
                         for (const auto& [to,labels] : from->_edges) {
-                            for (auto &[label,trace] : labels) {
+                            for (const auto& [label,trace] : labels) {
                                 if (W::less(trace.second, W::zero())) {
                                     return true;
                                 }
@@ -459,10 +454,10 @@ namespace pdaaal {
 
                 // workset := ->_0 intersect (P x Gamma x Q)
                 // rel := ->_0 \ workset
-                for (auto &from : _automaton.states()) {
-                    for (auto &[to,labels] : from->_edges) {
+                for (const auto& from : _automaton.states()) {
+                    for (const auto& [to,labels] : from->_edges) {
                         assert(!labels.contains(epsilon)); // PostStar algorithm assumes no epsilon transitions in the NFA.
-                        for (auto &[label,trace] : labels) {
+                        for (const auto& [label,trace] : labels) {
                             temp_edge_t temp_edge{from->_id, label, to};
                             _edge_weights.emplace(temp_edge, std::make_pair(W::zero(), W::zero()));
                             if (from->_id < _n_pda_states) {
@@ -705,9 +700,9 @@ namespace pdaaal {
             static constexpr temp_edge_t next_round_elem = temp_edge_t();
 
             void initialize() {
-                for (const auto &from : _automaton.states()) {
-                    for (const auto &[to,labels] : from->_edges) {
-                        for (const auto &[label,tw] : labels) {
+                for (const auto& from : _automaton.states()) {
+                    for (const auto& [to,labels] : from->_edges) {
+                        for (const auto& [label,tw] : labels) {
                             assert(tw == std::make_pair(default_trace_<indirect_trace_info>(), W::zero()));
                             update_edge(from->_id, label, to, W::zero(), default_trace_<indirect_trace_info>());
                         }
@@ -716,7 +711,7 @@ namespace pdaaal {
                 // for all <p, y> --> <p', epsilon> : workset U= (p, y, p') (line 2)
                 for (size_t state = 0; state < _n_pda_states; ++state) {
                     size_t rule_id = 0;
-                    for (const auto&[rule,labels] : _pda_states[state]._rules) {
+                    for (const auto& [rule,labels] : _pda_states[state]._rules) {
                         if (rule._operation == POP) {
                             update_edge_bulk(state, labels, rule._to, rule._weight, _automaton.new_pre_trace(rule_id));
                         }
@@ -1169,10 +1164,16 @@ namespace pdaaal {
             assert(stack.size() + 1 == paths.size());
             // Get path in goal automaton (returned in the end).
             std::vector<size_t> goal_path;
+            std::vector<uint32_t> goal_stack;
             goal_path.reserve(paths.size());
-            for (auto [a,b] : paths) {
-                goal_path.push_back(b);
+            goal_stack.reserve(stack.size());
+            for (size_t i = 0; i < stack.size(); ++i) {
+                if (stack[i] != std::numeric_limits<uint32_t>::max()) {
+                    goal_stack.push_back(stack[i]);
+                    goal_path.push_back(paths[i].second);
+                }
             }
+            goal_path.push_back(paths.back().second);
             // Build up stack of edges in the PAutomaton. Each PDA rule corresponds to changing some of the top edges.
             AutomatonPath automaton_path(paths.back().first);
             for (size_t i = stack.size(); i > 0; --i) {
@@ -1190,9 +1191,9 @@ namespace pdaaal {
 
             if (tb.post()) { // post* was used
                 std::reverse(trace.begin(), trace.end());
-                return std::make_tuple(trace[0].from(), trace, start_stack, stack, start_path, goal_path);
+                return std::make_tuple(trace[0].from(), trace, start_stack, goal_stack, start_path, goal_path);
             } else { // pre* was used
-                return std::make_tuple(paths[0].first, trace, stack, start_stack, goal_path, start_path);
+                return std::make_tuple(paths[0].first, trace, goal_stack, start_stack, goal_path, start_path);
             }
         }
 
