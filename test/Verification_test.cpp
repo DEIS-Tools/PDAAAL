@@ -274,3 +274,84 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_finite_path_test)
     print_trace(trace, pda, s);
     BOOST_TEST_MESSAGE(s.str());
 }
+
+BOOST_AUTO_TEST_CASE(Verification_poststar_pop_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "p": { "X": {"to":"p", "pop":""} }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<void>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string("< [p] , [X] [X] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , [X] >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    auto result = Solver::post_star_accepts(instance);
+    BOOST_TEST(result);
+
+    auto trace = Solver::get_trace(instance);
+    BOOST_CHECK_EQUAL(trace.size(), 2);
+    BOOST_CHECK_EQUAL(trace[0]._stack.size(), 2);
+    BOOST_CHECK_EQUAL(trace[1]._stack.size(), 1);
+
+    std::stringstream s;
+    print_trace(trace, pda, s);
+    BOOST_TEST_MESSAGE(s.str());
+}
+
+BOOST_AUTO_TEST_CASE(Verification_poststar_empty_final_stack_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "p": { "X": {"to":"p", "pop":""} }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<void>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string("< [p] , [X] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    auto result = Solver::post_star_accepts(instance);
+    BOOST_TEST(result);
+
+    auto trace = Solver::get_trace(instance);
+    BOOST_CHECK_EQUAL(trace.size(), 2);
+    BOOST_CHECK_EQUAL(trace[0]._stack.size(), 1);
+    BOOST_CHECK_EQUAL(trace[1]._stack.size(), 0);
+
+    std::stringstream s;
+    print_trace(trace, pda, s);
+    BOOST_TEST_MESSAGE(s.str());
+}
+
+BOOST_AUTO_TEST_CASE(Verification_poststar_no_ET_empty_final_stack_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "p": { "X": {"to":"p", "pop":""} }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<void>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string("< [p] , [X] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    auto result = Solver::post_star_accepts_no_ET(instance);
+    BOOST_TEST(result);
+
+    auto trace = Solver::get_trace(instance);
+    BOOST_CHECK_EQUAL(trace.size(), 2);
+    BOOST_CHECK_EQUAL(trace[0]._stack.size(), 1);
+    BOOST_CHECK_EQUAL(trace[1]._stack.size(), 0);
+
+    std::stringstream s;
+    print_trace(trace, pda, s);
+    BOOST_TEST_MESSAGE(s.str());
+}
