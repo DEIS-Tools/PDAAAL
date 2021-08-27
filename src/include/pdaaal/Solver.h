@@ -695,7 +695,7 @@ namespace pdaaal {
 
             std::unordered_map<temp_edge_t, weight_t, absl::Hash<temp_edge_t>> _edges;
             std::vector<std::vector<std::pair<size_t,uint32_t>>> _rel; // Fast access to _edges based on _from.
-            std::vector<std::vector<std::tuple<size_t, size_t, weight_t>>> _delta_prime;
+            std::vector<std::vector<std::tuple<size_t, size_t>>> _delta_prime;
 
             void initialize() {
                 for (const auto& from : _automaton.states()) {
@@ -725,12 +725,13 @@ namespace pdaaal {
                 auto w = _edges.find(t)->second;
 
                 // (line 7-8 for \Delta')
-                for (const auto& [state, rule_id, weight] : _delta_prime[t._from]) { // Loop over delta_prime (that match with t->from)
+                for (const auto& [state, rule_id] : _delta_prime[t._from]) { // Loop over delta_prime (that match with t->from)
                     const auto& [rule, labels] = _pda_states[state]._rules[rule_id];
                     if (labels.contains(t._label)) {
                         assert(_edges.find(temp_edge_t{rule._to, rule._op_label, t._from}) != _edges.end());
-                        assert(weight == W::add(rule._weight, _edges.find(temp_edge_t{rule._to, rule._op_label, t._from})->second));
-                        update_edge<change_is_bottom>(state, t._label, t._to, W::add(weight, w), _automaton.new_pre_trace(rule_id, t._from));
+                        update_edge<change_is_bottom>(state, t._label, t._to,
+                                                      W::add(W::add(rule._weight, _edges.find(temp_edge_t{rule._to, rule._op_label, t._from})->second), w),
+                                                      _automaton.new_pre_trace(rule_id, t._from));
                     }
                 }
 
@@ -759,7 +760,7 @@ namespace pdaaal {
                                 if (rule._op_label == t._label) {
                                     auto w_temp = W::add(rule._weight, w);
                                     // (line 10)
-                                    _delta_prime[t._to].emplace_back(pre_state, rule_id, w_temp);
+                                    _delta_prime[t._to].emplace_back(pre_state, rule_id); // TODO: Check existence before adding(?)
                                     auto trace = default_trace_<indirect_trace_info>();
                                     for (const auto& [rel_to, rel_label] : _rel[t._to]) { // (line 11-12)
                                         if (labels.contains(rel_label)) {
