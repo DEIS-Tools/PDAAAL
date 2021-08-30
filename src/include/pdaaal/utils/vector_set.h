@@ -83,20 +83,18 @@ namespace pdaaal::fut {
 
         template <typename... Args>
         auto emplace(const Key& key, Args&&... args) {
-            elem_t elem(key, std::forward<Args>(args)...);
-            auto lb = std::lower_bound(elems.begin(), elems.end(), elem);
-            if (lb == elems.end() || *lb != elem) {
-                lb = elems.insert(lb, std::move(elem));
+            auto lb = std::lower_bound(elems.begin(), elems.end(), key);
+            if (lb == elems.end() || *lb != key) {
+                lb = elems.insert(lb, elem_t(key, std::forward<Args>(args)...));
                 return std::make_pair(lb, true);
             }
             return std::make_pair(lb, false);
         }
         template <typename... Args>
         auto emplace(Key&& key, Args&&... args) {
-            elem_t elem(std::move(key), std::forward<Args>(args)...);
-            auto lb = std::lower_bound(elems.begin(), elems.end(), elem);
-            if (lb == elems.end() || *lb != elem) {
-                lb = elems.insert(lb, std::move(elem));
+            auto lb = std::lower_bound(elems.begin(), elems.end(), key);
+            if (lb == elems.end() || *lb != key) {
+                lb = elems.insert(lb, elem_t(std::move(key), std::forward<Args>(args)...));
                 return std::make_pair(lb, true);
             }
             return std::make_pair(lb, false);
@@ -106,23 +104,20 @@ namespace pdaaal::fut {
         template <typename... Args> auto try_emplace(Key&& key, Args&&... args) { return emplace(std::move(key), std::forward<Args>(args)...); }
 
         bool contains(const Key& key) const {
-            elem_t elem(key);
-            auto lb = std::lower_bound(elems.begin(), elems.end(), elem);
-            return lb != elems.end() && *lb == elem;
+            auto lb = std::lower_bound(elems.begin(), elems.end(), key);
+            return lb != elems.end() && *lb == key;
         }
 
         iterator find(const Key& key) {
-            elem_t elem(key);
-            auto lb = std::lower_bound(elems.begin(), elems.end(), elem);
-            if (lb == elems.end() || *lb != elem) {
+            auto lb = std::lower_bound(elems.begin(), elems.end(), key);
+            if (lb == elems.end() || *lb != key) {
                 return elems.end();
             }
             return lb;
         }
         const_iterator find(const Key& key) const {
-            elem_t elem(key);
-            auto lb = std::lower_bound(elems.begin(), elems.end(), elem);
-            if (lb == elems.end() || *lb != elem) {
+            auto lb = std::lower_bound(elems.begin(), elems.end(), key);
+            if (lb == elems.end() || *lb != key) {
                 return elems.end();
             }
             return lb;
@@ -136,8 +131,7 @@ namespace pdaaal::fut {
         void clear() noexcept { elems.clear(); };
 
         auto lower_bound(const Key& key) const {
-            elem_t elem(key);
-            return std::lower_bound(elems.begin(), elems.end(), elem);
+            return std::lower_bound(elems.begin(), elems.end(), key);
         }
 
     private:
