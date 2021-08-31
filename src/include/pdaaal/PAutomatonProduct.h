@@ -110,19 +110,18 @@ namespace pdaaal {
 
         template<Trace_Type trace_type = Trace_Type::Any, bool abstraction = false>
         [[nodiscard]] typename std::conditional_t<
-            (trace_type == Trace_Type::Shortest || trace_type == Trace_Type::ShortestFixedPoint) && is_weighted<W>,
+            (trace_type == Trace_Type::Shortest || trace_type == Trace_Type::Longest || trace_type == Trace_Type::ShortestFixedPoint) && is_weighted<W>,
         std::tuple<std::vector<path_state<abstraction>>, std::vector<uint32_t>, typename W::type>,
         std::tuple<std::vector<path_state<abstraction>>, std::vector<uint32_t>>>
         find_path() const {
-            if constexpr (trace_type == Trace_Type::ShortestFixedPoint && is_weighted<W>) {
-                assert(W::is_signed); // Why use this algorithm for unsigned weights???
-                PAutomatonFixedPoint fixed_point(_product);
+            if constexpr ((trace_type == Trace_Type::Longest || trace_type == Trace_Type::ShortestFixedPoint) && W::is_weight) {
+                PAutomatonFixedPoint<W,true,trace_type> fixed_point(_product);
                 fixed_point.run();
                 if (fixed_point.not_accepting()) {
-                    return {std::vector<size_t>(), std::vector<uint32_t>(), W::max()};
+                    return {std::vector<size_t>(), std::vector<uint32_t>(), solver_weight<W,trace_type>::max()};
                 }
                 if (fixed_point.is_infinite()) {
-                    return {std::vector<size_t>(), std::vector<uint32_t>(), W::bottom()}; // TODO: Can we provide more info than this??
+                    return {std::vector<size_t>(), std::vector<uint32_t>(), solver_weight<W,trace_type>::bottom()}; // TODO: Can we provide more info than this??
                 }
                 return fixed_point.get_path([this](size_t state) -> size_t { return get_original_ids(state).first; });
             } else if constexpr (trace_type == Trace_Type::Shortest && is_weighted<W>) { // TODO: Consider unweighted shortest path.
@@ -148,7 +147,7 @@ namespace pdaaal {
                 };
                 struct queue_elem_comp {
                     bool operator()(const queue_elem &lhs, const queue_elem &rhs){
-                        return W::less(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
+                        return solver_weight<W,trace_type>::less(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
                     }
                 };
                 std::priority_queue<queue_elem, std::vector<queue_elem>, queue_elem_comp> search_queue;
@@ -180,7 +179,7 @@ namespace pdaaal {
 
                     auto lb = std::lower_bound(visited.begin(), visited.end(), current);
                     if (lb != std::end(visited) && *lb == current) {
-                        if (W::less(current.weight, lb->weight)) {
+                        if (solver_weight<W,trace_type>::less(current.weight, lb->weight)) {
                             *lb = current;
                         } else {
                             continue;
@@ -193,12 +192,12 @@ namespace pdaaal {
                     pointers.push_back(std::move(u_pointer));
                     for (const auto& [to,labels] : _product.states()[current.state]->_edges) {
                         if (!labels.empty()) {
-                            auto label = std::min_element(labels.begin(), labels.end(), [](const auto& a, const auto& b){ return W::less(a.second.second, b.second.second); });
-                            search_queue.emplace(W::add(current.weight, label->second.second), to, label->first, current.stack_index + 1, pointer);
+                            auto label = std::min_element(labels.begin(), labels.end(), [](const auto& a, const auto& b){ return solver_weight<W,trace_type>::less(a.second.second, b.second.second); });
+                            search_queue.emplace(solver_weight<W,trace_type>::add(current.weight, label->second.second), to, label->first, current.stack_index + 1, pointer);
                         }
                     }
                 }
-                return std::make_tuple(std::vector<path_state<abstraction>>(), std::vector<uint32_t>(), W::max());
+                return std::make_tuple(std::vector<path_state<abstraction>>(), std::vector<uint32_t>(), solver_weight<W,trace_type>::max());
             } else {
                 // DFS search.
                 std::vector<path_state<abstraction>> path;
@@ -456,9 +455,9 @@ namespace pdaaal {
         std::vector<std::vector<std::pair<size_t,size_t>>> _id_fast_lookup_back; // maps final_state -> (initial_state, product_state)  Only used in dual_search
     };
 
-    template<typename label_t, typename W, typename state_t, bool skip_state_mapping>
+    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, bool indirect>
     PAutomatonProduct(const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
-                      PAutomaton<W> initial, PAutomaton<W> final) -> PAutomatonProduct<TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>,PAutomaton<W>,W>;
+                      PAutomaton<W,indirect> initial, PAutomaton<W,indirect> final) -> PAutomatonProduct<TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>,PAutomaton<W,indirect>,W>;
 
 }
 

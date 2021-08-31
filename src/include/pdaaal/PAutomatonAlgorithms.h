@@ -32,11 +32,12 @@
 
 namespace pdaaal {
 
-    template<typename W, bool indirect>
-    class PAutomatonFixedPoint : public fixed_point_workset<PAutomatonFixedPoint<W, indirect>, size_t> {
-        using parent_t = fixed_point_workset<PAutomatonFixedPoint<W, indirect>, size_t>;
+    template<typename W, bool indirect, Trace_Type trace_type>
+    class PAutomatonFixedPoint : public fixed_point_workset<PAutomatonFixedPoint<W, indirect, trace_type>, size_t> {
+        using parent_t = fixed_point_workset<PAutomatonFixedPoint<W, indirect, trace_type>, size_t>;
+        using solverW = solver_weight<W,trace_type>;
         struct state_info {
-            typename W::type weight = W::max();
+            typename W::type weight = solverW::max();
             uint32_t label = std::numeric_limits<uint32_t>::max();
             size_t predecessor = std::numeric_limits<size_t>::max();
             bool in_queue = false;
@@ -64,21 +65,21 @@ namespace pdaaal {
             _states[current].in_queue = false;
             const auto& current_weight = _states[current].weight;
             if (_automaton.states()[current]->_accepting) {
-                if (current_weight == W::bottom()) {
+                if (current_weight == solverW::bottom()) {
                     _min_accepting_state = current;
                     return false; // Signal stop
                 }
-                if (_min_accepting_state == std::numeric_limits<size_t>::max() || W::less(current_weight, _states[_min_accepting_state].weight)) {
+                if (_min_accepting_state == std::numeric_limits<size_t>::max() || solverW::less(current_weight, _states[_min_accepting_state].weight)) {
                     _min_accepting_state = current;
                 }
             }
             for (const auto& [to,labels] : _automaton.states()[current]->_edges) {
                 if (!labels.empty()) {
-                    auto label = std::min_element(labels.begin(), labels.end(), [](const auto& a, const auto& b){ return W::less(a.second.second, b.second.second); });
-                    auto to_weight = W::add(current_weight, label->second.second);
-                    if (W::less(to_weight, _states[to].weight)) {
+                    auto label = std::min_element(labels.begin(), labels.end(), [](const auto& a, const auto& b){ return solverW::less(a.second.second, b.second.second); });
+                    auto to_weight = solverW::add(current_weight, label->second.second);
+                    if (solverW::less(to_weight, _states[to].weight)) {
                         if constexpr(change_is_bottom) {
-                            _states[to].weight = W::bottom();
+                            _states[to].weight = solverW::bottom();
                         } else {
                             _states[to].weight = to_weight;
                         }
@@ -97,7 +98,7 @@ namespace pdaaal {
             return _min_accepting_state == std::numeric_limits<size_t>::max();
         }
         [[nodiscard]] bool is_infinite() const {
-            return _states[_min_accepting_state].weight == W::bottom(); // TODO: Allow for better stuff than this...
+            return _states[_min_accepting_state].weight == solverW::bottom(); // TODO: Allow for better stuff than this...
         }
         [[nodiscard]] auto get_path() const {
             return get_path([](size_t s){ return s; });
@@ -123,8 +124,6 @@ namespace pdaaal {
             return {path, stack, _states[_min_accepting_state].weight};
         }
     };
-    template<typename W, bool indirect>
-    PAutomatonFixedPoint(const PAutomaton<W,indirect>& automaton) -> PAutomatonFixedPoint<W,indirect>;
 }
 
 #endif //PDAAAL_PAUTOMATONALGORITHMS_H
