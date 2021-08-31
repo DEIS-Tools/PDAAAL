@@ -27,6 +27,7 @@
 #ifndef PDAAAL_SOLVER_H
 #define PDAAAL_SOLVER_H
 
+#include <pdaaal/utils/workset.h>
 #include <pdaaal/AutomatonPath.h>
 #include <pdaaal/PAutomaton.h>
 #include <pdaaal/TypedPDA.h>
@@ -221,7 +222,7 @@ namespace pdaaal {
             const std::vector<typename PDA<W>::state_t>& _pda_states;
             const size_t _n_pda_states;
             const size_t _n_Q;
-            std::unordered_map<std::pair<size_t, uint32_t>, size_t, boost::hash<std::pair<size_t, uint32_t>>> _q_prime{};
+            std::unordered_map<std::pair<size_t, uint32_t>, size_t, absl::Hash<std::pair<size_t, uint32_t>>> _q_prime{};
 
             size_t _n_automaton_states{};
             std::unordered_set<temp_edge_t, absl::Hash<temp_edge_t>> _edges;
@@ -346,6 +347,7 @@ namespace pdaaal {
         template<typename W, bool Enable, bool ET, typename = std::enable_if_t<Enable>>
         class PostStarShortestSaturation {
             static_assert(W::is_weight);
+            using solver_weight = min_weight<typename W::type>;
 
             struct weight_edge_trace {
                 typename W::type _weight;
@@ -356,7 +358,7 @@ namespace pdaaal {
             };
             struct weight_edge_trace_comp{
                 bool operator()(const weight_edge_trace &lhs, const weight_edge_trace &rhs){
-                    return W::less(rhs._weight, lhs._weight); // Used in a max-heap, so swap arguments to make it a min-heap.
+                    return solver_weight::less(rhs._weight, lhs._weight); // Used in a max-heap, so swap arguments to make it a min-heap.
                 }
             };
             struct rel3_elem {
@@ -394,7 +396,7 @@ namespace pdaaal {
             const std::vector<typename PDA<W>::state_t>& _pda_states;
             const size_t _n_pda_states;
             const size_t _n_Q;
-            std::unordered_map<std::pair<size_t, uint32_t>, size_t, boost::hash<std::pair<size_t, uint32_t>>> _q_prime{};
+            std::unordered_map<std::pair<size_t, uint32_t>, size_t, absl::Hash<std::pair<size_t, uint32_t>>> _q_prime{};
 
             size_t _n_automaton_states{};
             std::vector<typename W::type> _minpath;
@@ -411,7 +413,7 @@ namespace pdaaal {
                 if constexpr (W::is_signed) {
                     for (const auto& state : _pda_states) {
                         for (const auto& [rule,labels] : state._rules) {
-                            if (W::less(rule._weight, W::zero())) {
+                            if (solver_weight::less(rule._weight, W::zero())) {
                                 return true;
                             }
                         }
@@ -419,7 +421,7 @@ namespace pdaaal {
                     for (const auto& from : _automaton.states()) {
                         for (const auto& [to,labels] : from->_edges) {
                             for (const auto& [label,trace] : labels) {
-                                if (W::less(trace.second, W::zero())) {
+                                if (solver_weight::less(trace.second, W::zero())) {
                                     return true;
                                 }
                             }
@@ -445,7 +447,7 @@ namespace pdaaal {
                 _n_automaton_states = _automaton.states().size();
                 _minpath.resize(_n_automaton_states - _n_Q);
                 for (size_t i = 0; i < _minpath.size(); ++i) {
-                    _minpath[i] = W::max();
+                    _minpath[i] = solver_weight::max();
                 }
 
                 _rel1.resize(_n_Q);
@@ -477,11 +479,11 @@ namespace pdaaal {
                 auto res = _edge_weights.emplace(temp_edge_t{from, label, to}, std::make_pair(edge_weight, workset_weight));
                 if (!res.second) {
                     auto result = std::make_pair(false, false);
-                    if (W::less(edge_weight, (*res.first).second.first)) {
+                    if (solver_weight::less(edge_weight, (*res.first).second.first)) {
                         (*res.first).second.first = edge_weight;
                         result.first = true;
                     }
-                    if (W::less(workset_weight, (*res.first).second.second)) {
+                    if (solver_weight::less(workset_weight, (*res.first).second.second)) {
                         (*res.first).second.second = workset_weight;
                         result.second = true;
                     }
@@ -490,7 +492,7 @@ namespace pdaaal {
                 return std::make_pair(res.second, res.second);
             }
             void update_edge(size_t from, uint32_t label, size_t to, typename W::type edge_weight, const trace_t* trace) {
-                auto workset_weight = to < _n_Q ? edge_weight : W::add(_minpath[to - _n_Q], edge_weight);
+                auto workset_weight = to < _n_Q ? edge_weight : solver_weight::add(_minpath[to - _n_Q], edge_weight);
                 if (update_edge_(from, label, to, edge_weight, workset_weight).second) {
                     _workset.emplace(workset_weight, temp_edge_t{from, label, to}, trace);
                 }
@@ -512,7 +514,7 @@ namespace pdaaal {
                 _workset.pop();
                 auto t = elem._edge;
                 auto weights = (*_edge_weights.find(t)).second;
-                if (W::less(weights.second, elem._weight)) {
+                if (solver_weight::less(weights.second, elem._weight)) {
                     return; // Same edge with a smaller weight was already processed.
                 }
                 auto t_weight = weights.first;
@@ -535,8 +537,8 @@ namespace pdaaal {
                         const auto &[rule,labels] = rules[rule_id];
                         if (!labels.contains(t._label)) { continue; }
                         auto trace = _automaton.new_post_trace(t._from, rule_id, t._label);
-                        auto wd = W::add(elem._weight, rule._weight);
-                        auto wb = W::add(t_weight, rule._weight);
+                        auto wd = solver_weight::add(elem._weight, rule._weight);
+                        auto wb = solver_weight::add(t_weight, rule._weight);
                         if (rule._operation != PUSH) {
                             uint32_t label = 0;
                             switch(rule._operation) {
@@ -565,11 +567,11 @@ namespace pdaaal {
                                 auto lb = std::lower_bound(relq.begin(), relq.end(), new_elem);
                                 if (lb == std::end(relq) || *lb != new_elem) {
                                     relq.insert(lb, new_elem);
-                                } else if (W::less(wb, lb->_weight)) {
+                                } else if (solver_weight::less(wb, lb->_weight)) {
                                     *lb = new_elem;
                                 }
                             }
-                            if (W::less(wd, _minpath[q_new - _n_Q])) {
+                            if (solver_weight::less(wd, _minpath[q_new - _n_Q])) {
                                 _minpath[q_new - _n_Q] = wd;
                                 if (add_to_workset) {
                                     _workset.emplace(wd, temp_edge_t{rule._to, rule._op_label, q_new}, trace);
@@ -578,7 +580,7 @@ namespace pdaaal {
                                 if (!_rel2[q_new - _n_Q].empty()) {
                                     auto trace_q_new = _automaton.new_post_trace(q_new);
                                     for (auto f : _rel2[q_new - _n_Q]) {
-                                        update_edge(f, t._label, t._to, W::add(get_weight(f, epsilon, q_new), wb), trace_q_new);
+                                        update_edge(f, t._label, t._to, solver_weight::add(get_weight(f, epsilon, q_new), wb), trace_q_new);
                                     }
                                 }
                             }
@@ -590,14 +592,14 @@ namespace pdaaal {
                             auto trace = _automaton.new_post_trace(t._to);
                             for (auto e : _rel1[t._to]) {
                                 assert(e.first >= _n_pda_states);
-                                update_edge(t._from, e.second, e.first, W::add(get_weight(t._to, e.second, e.first), t_weight), trace);
+                                update_edge(t._from, e.second, e.first, solver_weight::add(get_weight(t._to, e.second, e.first), t_weight), trace);
                             }
                         }
                     } else {
                         if (!_rel3[t._to - _n_Q].empty()) {
                             auto trace = _automaton.new_post_trace(t._to);
                             for (auto &e : _rel3[t._to - _n_Q]) {
-                                update_edge(t._from, e._label, e._to, W::add(get_weight(t._to, e._label, e._to), t_weight), trace);
+                                update_edge(t._from, e._label, e._to, solver_weight::add(get_weight(t._to, e._label, e._to), t_weight), trace);
                             }
                         }
                     }
@@ -622,10 +624,12 @@ namespace pdaaal {
             }
         };
 
-        template<typename W, bool indirect_trace_info>
-        class PreStarFixedPointSaturation {
+        template<typename W, bool indirect_trace_info, Trace_Type trace_type>
+        class PreStarFixedPointSaturation : public fixed_point_workset<PreStarFixedPointSaturation<W,indirect_trace_info,trace_type>, temp_edge_t> {
+            using parent_t = fixed_point_workset<PreStarFixedPointSaturation<W,indirect_trace_info,trace_type>, temp_edge_t>;
             static_assert(is_weighted<W>);
             using weight_t = typename W::type;
+            using solverW = solver_weight<W,trace_type>;
 
             template<bool change_is_bottom = false>
             void update_edge(size_t from, uint32_t label, size_t to, const weight_t& edge_weight, trace_<indirect_trace_info> trace) {
@@ -641,10 +645,10 @@ namespace pdaaal {
                     }
                     is_changed = true;
                 } else {
-                    if (W::less(edge_weight, it->second)) {
+                    if (solverW::less(edge_weight, it->second)) {
                         if constexpr(change_is_bottom) {
-                            it->second = W::bottom();
-                            _automaton.update_edge(from, to, label, std::make_pair(trace, W::bottom()));
+                            it->second = solverW::bottom();
+                            _automaton.update_edge(from, to, label, std::make_pair(trace, solverW::bottom()));
                         } else {
                             it->second = edge_weight;
                             _automaton.update_edge(from, to, label, std::make_pair(trace, edge_weight));
@@ -653,7 +657,7 @@ namespace pdaaal {
                     }
                 }
                 if (is_changed) {
-                    _workset.emplace_back(from, label, to);
+                    parent_t::emplace(from, label, to);
                 }
             }
             template<bool change_is_bottom = false>
@@ -670,34 +674,30 @@ namespace pdaaal {
             }
         public:
             explicit PreStarFixedPointSaturation(PAutomaton<W,indirect_trace_info>& automaton)
-                    : _automaton(automaton), _pda_states(_automaton.pda().states()), _n_automaton_states(_automaton.states().size()),
-                      _n_pda_states(_pda_states.size()), _n_pda_labels(_automaton.number_of_labels()),
-                      _round_limit(_n_automaton_states * _n_pda_labels * _n_automaton_states),
-                      _rel(_n_automaton_states), _delta_prime(_n_automaton_states) {
+            : parent_t(std::pow(automaton.states().size(), 2) * automaton.number_of_labels()),
+              _automaton(automaton), _pda_states(_automaton.pda().states()), _n_automaton_states(_automaton.states().size()),
+              _n_pda_states(_pda_states.size()), _n_pda_labels(_automaton.number_of_labels()),
+              _rel(_n_automaton_states), _delta_prime(_n_automaton_states) {
                 initialize();
             };
             PreStarFixedPointSaturation(PAutomaton<W,indirect_trace_info>& automaton, size_t round_limit)
-                    : _automaton(automaton), _pda_states(_automaton.pda().states()), _n_automaton_states(_automaton.states().size()),
-                      _n_pda_states(_pda_states.size()), _n_pda_labels(_automaton.number_of_labels()), _round_limit(round_limit),
-                      _rel(_n_automaton_states), _delta_prime(_n_automaton_states) {
+            : parent_t(round_limit),
+              _automaton(automaton), _pda_states(_automaton.pda().states()), _n_automaton_states(_automaton.states().size()),
+              _n_pda_states(_pda_states.size()), _n_pda_labels(_automaton.number_of_labels()),
+              _rel(_n_automaton_states), _delta_prime(_n_automaton_states) {
                 initialize();
             };
-
+            static constexpr temp_edge_t next_round_elem = temp_edge_t();
         private:
             PAutomaton<W,indirect_trace_info>& _automaton;
             const std::vector<typename PDA<W>::state_t>& _pda_states;
             const size_t _n_automaton_states;
             const size_t _n_pda_states;
             const size_t _n_pda_labels;
-            const size_t _round_limit;
 
-            size_t _rounds = 0;
             std::unordered_map<temp_edge_t, weight_t, absl::Hash<temp_edge_t>> _edges;
-            std::deque<temp_edge_t> _workset;
             std::vector<std::vector<std::pair<size_t,uint32_t>>> _rel; // Fast access to _edges based on _from.
-            std::vector<std::vector<std::tuple<size_t, size_t, weight_t>>> _delta_prime;
-
-            static constexpr temp_edge_t next_round_elem = temp_edge_t();
+            std::vector<std::vector<std::tuple<size_t, size_t>>> _delta_prime;
 
             void initialize() {
                 for (const auto& from : _automaton.states()) {
@@ -718,32 +718,22 @@ namespace pdaaal {
                         ++rule_id;
                     }
                 }
-                _workset.emplace_back(next_round_elem);
             }
 
         public:
             template<bool change_is_bottom = false>
-            bool step() {
-                // pop t = (q, y, q') from workset (line 4)
-                auto t = _workset.front();
-                _workset.pop_front();
-
-                if (t == next_round_elem) {
-                    ++_rounds;
-                    _workset.emplace_back(next_round_elem);
-                    return false;
-                }
-
+            bool step_with(temp_edge_t&& t) {
                 assert(_edges.find(t) != _edges.end());
                 auto w = _edges.find(t)->second;
 
                 // (line 7-8 for \Delta')
-                for (const auto& [state, rule_id, weight] : _delta_prime[t._from]) { // Loop over delta_prime (that match with t->from)
+                for (const auto& [state, rule_id] : _delta_prime[t._from]) { // Loop over delta_prime (that match with t->from)
                     const auto& [rule, labels] = _pda_states[state]._rules[rule_id];
                     if (labels.contains(t._label)) {
                         assert(_edges.find(temp_edge_t{rule._to, rule._op_label, t._from}) != _edges.end());
-                        assert(weight == W::add(rule._weight, _edges.find(temp_edge_t{rule._to, rule._op_label, t._from})->second));
-                        update_edge<change_is_bottom>(state, t._label, t._to, W::add(weight, w), _automaton.new_pre_trace(rule_id, t._from));
+                        update_edge<change_is_bottom>(state, t._label, t._to,
+                                                      solverW::add(solverW::add(rule._weight, _edges.find(temp_edge_t{rule._to, rule._op_label, t._from})->second), w),
+                                                      _automaton.new_pre_trace(rule_id, t._from));
                     }
                 }
 
@@ -760,26 +750,26 @@ namespace pdaaal {
                                 break;
                             case SWAP: // (line 7-8 for \Delta)
                                 if (rule._op_label == t._label) {
-                                    update_edge_bulk<change_is_bottom>(pre_state, labels, t._to, W::add(rule._weight, w), _automaton.new_pre_trace(rule_id));
+                                    update_edge_bulk<change_is_bottom>(pre_state, labels, t._to, solverW::add(rule._weight, w), _automaton.new_pre_trace(rule_id));
                                 }
                                 break;
                             case NOOP: // (line 7-8 for \Delta)
                                 if (labels.contains(t._label)) {
-                                    update_edge<change_is_bottom>(pre_state, t._label, t._to, W::add(rule._weight, w), _automaton.new_pre_trace(rule_id));
+                                    update_edge<change_is_bottom>(pre_state, t._label, t._to, solverW::add(rule._weight, w), _automaton.new_pre_trace(rule_id));
                                 }
                                 break;
                             case PUSH: // (line 9)
                                 if (rule._op_label == t._label) {
-                                    auto w_temp = W::add(rule._weight, w);
+                                    auto w_temp = solverW::add(rule._weight, w);
                                     // (line 10)
-                                    _delta_prime[t._to].emplace_back(pre_state, rule_id, w_temp);
+                                    _delta_prime[t._to].emplace_back(pre_state, rule_id); // TODO: Check existence before adding(?)
                                     auto trace = default_trace_<indirect_trace_info>();
                                     for (const auto& [rel_to, rel_label] : _rel[t._to]) { // (line 11-12)
                                         if (labels.contains(rel_label)) {
                                             trace = trace_is_null<indirect_trace_info>(trace) ? _automaton.new_pre_trace(rule_id, t._to) : trace;
                                             auto it = _edges.find(temp_edge_t{t._to, rel_label, rel_to});
                                             assert(it != _edges.end());
-                                            update_edge<change_is_bottom>(pre_state, rel_label, rel_to, W::add(w_temp, it->second), trace);
+                                            update_edge<change_is_bottom>(pre_state, rel_label, rel_to, solverW::add(w_temp, it->second), trace);
                                         }
                                     }
                                 }
@@ -791,20 +781,7 @@ namespace pdaaal {
                 }
                 return true;
             }
-            void finalize() {
-                _rounds = 0; // Reset _round count and run again, this time changes gives -inf weight.
-                while (!done()) {
-                    step<true>();
-                }
-                // TODO: How to handle traces??
-            }
-            [[nodiscard]] bool done() const {
-                return _workset.size() <= 1 // Only next_round_elem is in workset.
-                       || _rounds == _round_limit;
-            }
         };
-        template<typename W, bool indirect_trace_info>
-        PreStarFixedPointSaturation(PAutomaton<W,indirect_trace_info>& automaton, size_t round_limit) -> PreStarFixedPointSaturation<W,indirect_trace_info>;
 
         template <typename W, bool indirect_trace_info>
         class TraceBack {
@@ -821,6 +798,7 @@ namespace pdaaal {
             [[nodiscard]] const AutomatonPath& path() const { return _path; }
             std::optional<rule_t> next() {
                 while(true) { // In case of post_epsilon_trace, keep going until a rule is found or we are done.
+                    if (_path.empty()) return std::nullopt;
                     auto[from, label, to] = _path.front_edge();
                     auto trace_label_temp = _automaton.get_trace_label(from, label, to);
                     if (trace_is_null<indirect_trace_info>(trace_label_temp)) return std::nullopt; // Done
@@ -889,15 +867,15 @@ namespace pdaaal {
 
     class Solver {
     public:
-        template <typename pda_t, typename automaton_t, typename W>
+        template <Trace_Type trace_type = Trace_Type::Longest, typename pda_t, typename automaton_t, typename W>
         static bool pre_star_fixed_point_accepts(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             instance.enable_pre_star();
-            pre_star_fixed_point(instance.automaton());
+            pre_star_fixed_point<trace_type>(instance.automaton());
             return instance.template initialize_product<false,false>();
         }
-        template <typename W, bool indirect>
+        template <Trace_Type trace_type = Trace_Type::Longest, typename W, bool indirect>
         static void pre_star_fixed_point(PAutomaton<W,indirect> &automaton) {
-            details::PreStarFixedPointSaturation saturation(automaton);
+            details::PreStarFixedPointSaturation<W,indirect,trace_type> saturation(automaton);
             while(!saturation.done()) {
                 saturation.step();
             }
@@ -1022,7 +1000,7 @@ namespace pdaaal {
         template <Trace_Type trace_type = Trace_Type::Any, typename pda_t, typename automaton_t, typename W>
         static auto get_trace(const PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
-            if constexpr (trace_type == Trace_Type::Shortest) {
+            if constexpr (trace_type == Trace_Type::Shortest || trace_type == Trace_Type::Longest || trace_type == Trace_Type::ShortestFixedPoint) {
                 auto [path, stack, weight] = instance.template find_path<trace_type>();
                 return std::make_pair(_get_trace(instance.pda(), instance.automaton(), path, stack), weight);
             } else {

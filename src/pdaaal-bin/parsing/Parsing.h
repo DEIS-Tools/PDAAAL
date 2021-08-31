@@ -44,13 +44,15 @@ namespace pdaaal {
                 PdaaalSAXHandler<weight<void>, true>::pda_t,
                 PdaaalSAXHandler<weight<void>, false>::pda_t,
                 PdaaalSAXHandler<weight<uint32_t>, true>::pda_t,
-                PdaaalSAXHandler<weight<uint32_t>, false>::pda_t>;
+                PdaaalSAXHandler<weight<uint32_t>, false>::pda_t,
+                PdaaalSAXHandler<weight<int32_t>, true>::pda_t,
+                PdaaalSAXHandler<weight<int32_t>, false>::pda_t>;
 
         explicit Parsing(const std::string& caption = "Input Options") : input_options{caption} {
             input_options.add_options()
                     ("input", po::value<std::string>(&input_file), "Input file. To read from std input specify '--input -'.")
                     ("format", po::value<std::string>(&input_format), "Input format. pdaaal|moped (default=pdaaal).")
-                    ("weight", po::value<std::string>(&weight_type), "Weight type. none|uint (default=none).")
+                    ("weight", po::value<std::string>(&weight_type), "Weight type. none|uint|int (default=none).")
                     ("state-names", po::bool_switch(&use_state_names), "Enable named states (instead of index).")
                     ;
         }

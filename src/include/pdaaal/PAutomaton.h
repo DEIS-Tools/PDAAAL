@@ -38,16 +38,18 @@
 #include <queue>
 #include <iostream>
 #include <cassert>
-#include <boost/functional/hash.hpp>
-
 
 namespace pdaaal {
 
     enum class Trace_Type {
         None,
         Any,
-        Shortest
+        Shortest,
+        Longest,
+        ShortestFixedPoint // TODO: Detect the need for fixed-point computation automatically.
     };
+
+    template<typename W, Trace_Type trace_type> using solver_weight = std::conditional_t<trace_type == Trace_Type::Longest, max_weight<typename W::type>, min_weight<typename W::type>>;
 
     struct trace_t {
         size_t _state = std::numeric_limits<size_t>::max(); // _state = p
@@ -186,6 +188,7 @@ namespace pdaaal {
 
         PAutomaton(PAutomaton<W,indirect> &&) noexcept = default;
         PAutomaton(const PAutomaton<W,indirect>& other) : _pda(other._pda) {
+            assert(other._trace_info.empty()); // This should not be needed. Otherwise, implement it...
             std::unordered_map<state_t *, state_t *> indir;
             for (auto &s : other._states) {
                 _states.emplace_back(std::make_unique<state_t>(*s));
@@ -204,6 +207,7 @@ namespace pdaaal {
         [[nodiscard]] const PDA<W> &pda() const { return _pda; }
 
         void or_extend(PAutomaton<W,indirect>&& other) {
+            assert(other._trace_info.empty()); // This should not be needed. Otherwise, implement it...
             assert(_pda.states().size() == other._pda.states().size()); // We compare number of PDA states, since operator== is not implemented for PDA.
             const size_t pda_size = _pda.states().size();
             const size_t automaton_size = _states.size();
@@ -261,12 +265,12 @@ namespace pdaaal {
                                 first = false;
                                 label_printer(out, l);
                                 bool special_weight = false;
-                                if (tw.second == W::max()) {
+                                if (tw.second == std::numeric_limits<typename W::type>::max()) {
                                     out << "(∞)";
                                     special_weight = true;
                                 } else {
                                     if constexpr(W::is_signed) {
-                                        if (tw.second == W::bottom()) {
+                                        if (tw.second == std::numeric_limits<typename W::type>::min()) {
                                             out << "(-∞)";
                                             special_weight = true;
                                         }
@@ -352,7 +356,7 @@ namespace pdaaal {
                     if (_states[state]->_accepting) {
                         return std::make_pair(std::vector<size_t>{state}, W::zero());
                     } else {
-                        return std::make_pair(std::vector<size_t>(), W::max());
+                        return std::make_pair(std::vector<size_t>(), solver_weight<W,trace_type>::max());
                     }
                 }
                 // Dijkstra.
@@ -376,7 +380,7 @@ namespace pdaaal {
                 };
                 struct queue_elem_comp {
                     bool operator()(const queue_elem& lhs, const queue_elem& rhs){
-                        return W::less(rhs._weight, lhs._weight); // Used in a max-heap, so swap arguments to make it a min-heap.
+                        return solver_weight<W,trace_type>::less(rhs._weight, lhs._weight); // Used in a max-heap, so swap arguments to make it a min-heap.
                     }
                 };
                 queue_elem_comp less;
@@ -412,12 +416,12 @@ namespace pdaaal {
                         auto label = labels.get(stack[current._stack_index]);
                         if (label != nullptr) {
                             if (current._stack_index + 1 < stack.size() || _states[to]->_accepting) {
-                                search_queue.emplace(W::add(current._weight, label->second), to, current._stack_index + 1, pointer);
+                                search_queue.emplace(solver_weight<W,trace_type>::add(current._weight, label->second), to, current._stack_index + 1, pointer);
                             }
                         }
                     }
                 }
-                return std::make_pair(std::vector<size_t>(), W::max());
+                return std::make_pair(std::vector<size_t>(), solver_weight<W,trace_type>::max());
             } else {
                 if (stack.empty()) {
                     if (_states[state]->_accepting) {

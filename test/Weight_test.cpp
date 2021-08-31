@@ -37,7 +37,7 @@ BOOST_AUTO_TEST_CASE(VectorWeight) {
     std::vector<int> c{3,1,9};
     std::vector<int> d{3,0,9};
     std::vector<int> e;
-    using W = weight<std::vector<int>>;
+    using W = min_weight<std::vector<int>>;
     auto result_1 = W::add(a,b);
     std::vector<int> expected_1{4,8,42};
     BOOST_CHECK_EQUAL_COLLECTIONS(result_1.begin(), result_1.end(), expected_1.begin(), expected_1.end());

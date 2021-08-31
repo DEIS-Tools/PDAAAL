@@ -31,7 +31,7 @@
 namespace pdaaal {
 
     enum class input_format {PDAAAL, MOPED};
-    enum class weight_type {NONE, UINT};
+    enum class weight_type {NONE, UINT, INT};
 
     struct parsing_options_t {
         parsing_options_t(std::ostream& warnings, input_format format, weight_type weight, bool use_state_names)
@@ -54,6 +54,8 @@ namespace pdaaal {
         switch (parse_opts.weight) {
             case weight_type::UINT:
                 return parse_stream_json_w<weight<uint32_t>>(stream, parse_opts);
+            case weight_type::INT:
+                return parse_stream_json_w<weight<int32_t>>(stream, parse_opts);
             case weight_type::NONE:
                 return parse_stream_json_w<weight<void>>(stream, parse_opts);
             default:
@@ -99,6 +101,8 @@ namespace pdaaal {
             return weight_type::NONE;
         } else if (equals_case_insensitive_1(weight_type, "uint")) {
             return weight_type::UINT;
+        } else if (equals_case_insensitive_1(weight_type, "int")) {
+            return weight_type::INT;
         } else {
             std::stringstream es;
             es << "error: Unrecognized weight type: " << weight_type << std::endl;

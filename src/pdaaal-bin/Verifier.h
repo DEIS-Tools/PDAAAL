@@ -41,6 +41,10 @@ namespace pdaaal {
             trace_type = Trace_Type::Any;
         } else if (token == "2") {
             trace_type = Trace_Type::Shortest;
+        } else if (token == "3") {
+            trace_type = Trace_Type::Longest;
+        } else if (token == "4") {
+            trace_type = Trace_Type::ShortestFixedPoint;
         } else {
             in.setstate(std::ios_base::failbit);
         }
@@ -57,6 +61,12 @@ namespace pdaaal {
             case Trace_Type::Shortest:
                 s << "2";
                 break;
+            case Trace_Type::Longest:
+                s << "3";
+                break;
+            case Trace_Type::ShortestFixedPoint:
+                s << "4";
+                break;
         }
         return s;
     }
@@ -66,7 +76,7 @@ namespace pdaaal {
         explicit Verifier(const std::string& caption) : verification_options{caption} {
             verification_options.add_options()
                     ("engine,e", po::value<size_t>(&engine), "Engine. 0=no verification, 1=post*, 2=pre*, 3=dual*")
-                    ("trace,t", po::value<Trace_Type>(&trace_type)->default_value(Trace_Type::None), "Trace type. 0=no trace, 1=any trace, 2=shortest trace")
+                    ("trace,t", po::value<Trace_Type>(&trace_type)->default_value(Trace_Type::None), "Trace type. 0=no trace, 1=any trace, 2=shortest trace, 3=longest trace, 4=fixed-point shortest trace")
                     ("initial-automaton,i", po::value<std::string>(&initial_pa_file), "Initial PAutomaton file input.")
                     ("final-automaton,f", po::value<std::string>(&final_pa_file), "Final PAutomaton file input.")
                     ;
@@ -108,6 +118,14 @@ namespace pdaaal {
                                 throw std::runtime_error("Cannot use shortest trace option for unweighted PDA.");
                             }
                             break;
+                        case Trace_Type::Longest:
+                            assert(false);
+                            throw std::runtime_error("Cannot use fixed-point longest trace, not implemented for post* engine.");
+                            break;
+                        case Trace_Type::ShortestFixedPoint:
+                            assert(false);
+                            throw std::runtime_error("Cannot use fixed-point shortest trace, not implemented for post* engine.");
+                            break;
                     }
                     break;
                 }
@@ -125,7 +143,43 @@ namespace pdaaal {
                             break;
                         case Trace_Type::Shortest:
                             assert(false);
-                            throw std::runtime_error("Cannot use shortest trace not implemented for pre* engine.");
+                            throw std::runtime_error("Cannot use shortest trace, not implemented for pre* engine.");
+                            break;
+                        case Trace_Type::Longest:
+                            if constexpr(pda_t::has_weight) {
+                                result = Solver::pre_star_fixed_point_accepts<Trace_Type::Longest>(instance);
+                                if (result) {
+                                    typename pda_t::weight_type weight;
+                                    std::tie(trace, weight) = Solver::get_trace<Trace_Type::Longest>(instance);
+                                    using W = typename pda_t::weight;
+                                    if (weight == solver_weight<W,Trace_Type::Longest>::bottom()) {
+                                        std::cout << "Weight: infinity" << std::endl;
+                                    } else {
+                                        std::cout << "Weight: " << weight << std::endl;
+                                    }
+                                }
+                            } else {
+                                assert(false);
+                                throw std::runtime_error("Cannot use longest (fixed point) trace option for unweighted PDA.");
+                            }
+                            break;
+                        case Trace_Type::ShortestFixedPoint:
+                            if constexpr(pda_t::has_weight) {
+                                result = Solver::pre_star_fixed_point_accepts<Trace_Type::ShortestFixedPoint>(instance);
+                                if (result) {
+                                    typename pda_t::weight_type weight;
+                                    std::tie(trace, weight) = Solver::get_trace<Trace_Type::ShortestFixedPoint>(instance);
+                                    using W = typename pda_t::weight;
+                                    if (weight == solver_weight<W,Trace_Type::ShortestFixedPoint>::bottom()) {
+                                        std::cout << "Weight: negative infinity" << std::endl;
+                                    } else {
+                                        std::cout << "Weight: " << weight << std::endl;
+                                    }
+                                }
+                            } else {
+                                assert(false);
+                                throw std::runtime_error("Cannot use shortest (fixed point) trace option for unweighted PDA.");
+                            }
                             break;
                     }
                     break;
@@ -144,7 +198,15 @@ namespace pdaaal {
                             break;
                         case Trace_Type::Shortest:
                             assert(false);
-                            throw std::runtime_error("Cannot use shortest trace not implemented for dual* engine.");
+                            throw std::runtime_error("Cannot use shortest trace, not implemented for dual* engine.");
+                            break;
+                        case Trace_Type::Longest:
+                            assert(false);
+                            throw std::runtime_error("Cannot use longest trace, not implemented for dual* engine.");
+                            break;
+                        case Trace_Type::ShortestFixedPoint:
+                            assert(false);
+                            throw std::runtime_error("Cannot use shortest (fixed-point) trace, not implemented for dual* engine.");
                             break;
                     }
                     break;

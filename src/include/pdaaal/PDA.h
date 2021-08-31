@@ -123,13 +123,8 @@ namespace pdaaal::details {
         uint32_t _op_label = 0;
 
         bool operator<(const rule_t<W>& other) const {
-            if (_to != other._to)
-                return _to < other._to;
-            if (_op_label != other._op_label)
-                return _op_label < other._op_label;
-            if (_operation != other._operation)
-                return _operation < other._operation;
-            return W::less(_weight, other._weight);
+            return std::tie(      _to,       _op_label,       _operation,       _weight)
+                 < std::tie(other._to, other._op_label, other._operation, other._weight);
         }
         bool operator==(const rule_t<W>& other) const {
             return _to == other._to && _op_label == other._op_label && _operation == other._operation &&
@@ -198,6 +193,7 @@ namespace pdaaal {
     class PDA {
     public:
         static constexpr bool has_weight = is_weighted<W>;
+        using weight = W;
         using weight_type = std::conditional_t<has_weight, typename W::type, void>;
 
         using rule_t = typename details::rule_t<W>;

@@ -35,16 +35,15 @@
 #include <vector>
 #include <optional>
 #include <functional>
-#include <boost/container_hash/hash.hpp>
 
 namespace pdaaal {
-
-    struct weight_base {
-        static constexpr bool is_weight = false;
-        static constexpr bool is_signed = false;
-        static constexpr bool has_mult = false;
-    };
-    template<typename W, typename = void> struct weight : public weight_base {
+    namespace details {
+        struct weight_base {
+            static constexpr bool is_weight = false;
+            static constexpr bool is_signed = false;
+        };
+    }
+    template<typename W, typename = void> struct weight : public details::weight_base {
         using type = W;
     };
     template<typename W>
@@ -52,49 +51,17 @@ namespace pdaaal {
         using type = W;
         static constexpr bool is_weight = true;
         static constexpr bool is_signed = std::numeric_limits<W>::is_signed;
-        static constexpr bool has_mult = true;
         static constexpr auto zero = []() -> type { return static_cast<type>(0); };
-        static constexpr auto bottom = []() -> type { return std::numeric_limits<type>::min(); };
-        static constexpr auto max = []() -> type { return std::numeric_limits<type>::max(); };
-        static constexpr bool less(type lhs, type rhs) {
-            return lhs < rhs;
-        }
-        static constexpr type add(type lhs, type rhs) {
-            if (lhs == max_val || rhs == max_val) return max_val;
-            if constexpr (is_signed) {
-                if (lhs == bottom_val || rhs == bottom_val) return bottom_val;
-            }
-            return lhs + rhs;
-        };
-        static constexpr type multiply(type lhs, type rhs) {
-            if (lhs == max_val || rhs == max_val) return max_val;
-            if constexpr (is_signed) {
-                if (lhs == bottom_val || rhs == bottom_val) return bottom_val; // We don't expect to multiply with bottom...
-            }
-            return lhs * rhs;
-        };
-    private:
-        static constexpr type bottom_val = std::numeric_limits<type>::min();
-        static constexpr type max_val = std::numeric_limits<type>::max();
     };
     template<typename Inner, std::size_t N>
     struct weight<std::array<Inner, N>, std::enable_if_t<std::is_arithmetic_v<Inner> && std::numeric_limits<Inner>::is_specialized>> {
         using type = std::array<Inner, N>;
         static constexpr bool is_weight = true;
         static constexpr bool is_signed = weight<Inner>::is_signed;
-        static constexpr bool has_mult = false;
-        static constexpr auto zero = []() -> type {std::array<Inner, N> arr{}; arr.fill(weight<Inner>::zero()); return arr;};
-        static constexpr auto bottom = []() -> type {std::array<Inner, N> arr{}; arr.fill(weight<Inner>::bottom()); return arr;};
-        static constexpr auto max = []() -> type {std::array<Inner, N> arr{}; arr.fill(weight<Inner>::max()); return arr;};
-        static constexpr bool less(const type& lhs, const type& rhs) {
-            return lhs < rhs;
-        }
-        static constexpr type add(const type& lhs, const type& rhs) {
-            std::array<Inner, N> res{};
-            for (size_t i = 0; i < N; ++i) {
-                res[i] = weight<Inner>::add(lhs[i], rhs[i]);
-            }
-            return res;
+        static constexpr auto zero = []() -> type {
+            std::array<Inner, N> arr{};
+            arr.fill(weight<Inner>::zero());
+            return arr;
         };
     };
     template<typename Inner>
@@ -102,57 +69,108 @@ namespace pdaaal {
         using type = std::vector<Inner>;
         static constexpr bool is_weight = true;
         static constexpr bool is_signed = weight<Inner>::is_signed;
-        static constexpr bool has_mult = false;
-        static constexpr auto zero = []() -> type { return type{}; };
-        static constexpr auto bottom = []() -> type { return type{weight<Inner>::bottom()}; };
-        static constexpr auto max = []() -> type { return type{weight<Inner>::max()}; }; // TODO: When C++20 arrives, use a constexpr vector instead
-        static constexpr bool less(const type& lhs, const type& rhs) {
-            if constexpr (is_signed) {
-                if (rhs.size() == 1 && rhs[0] == weight<Inner>::bottom()) return false;
-                if (lhs.size() == 1 && lhs[0] == weight<Inner>::bottom()) return true;
-            }
-            return lhs < rhs;
-        }
-        static constexpr type add(const type& lhs, const type& rhs) {
-            const auto& [small, large] = std::minmax(lhs, rhs, [](const type& l, const type& r){ return l.size() < r.size(); });
-            std::vector<Inner> result = large;
-            std::transform(small.begin(), small.end(), large.begin(),
-                           result.begin(), weight<Inner>::add);
-            return result;
-        };
+        static constexpr auto zero = []() -> type { return type{}; }; // TODO: When C++20 arrives, use a constexpr vector instead
     };
 
-//    template <typename T, typename = void> struct has_type : std::false_type {};
-//    template <typename T> struct has_type<T, std::void_t<decltype(std::declval<typename T::type>())>> : std::true_type {};
-//    template <typename T> inline constexpr auto has_type_v = has_type<T>::value;
-//
-//    template <typename T, typename = void> struct has_zero : std::false_type {};
-//    template <typename T> struct has_zero<T, std::void_t<decltype(T::zero())>> : std::true_type {};
-//    template <typename T> inline constexpr auto has_zero_v = has_zero<T>::value;
-//
-//    template <typename T, typename = void> struct has_max : std::false_type {};
-//    template <typename T> struct has_max<T, std::void_t<decltype(T::max())>> : std::true_type {};
-//    template <typename T> inline constexpr auto has_max_v = has_max<T>::value;
-//
-//    template <typename T, typename = void> struct has_less : std::false_type {};
-//    template <typename T> struct has_less<T, std::void_t<decltype(T::less(std::declval<typename T::type>(), std::declval<typename T::type>()))>> : std::true_type {};
-//    template <typename T> inline constexpr auto has_less_v = has_less<T>::value;
-//
-//    template <typename T, typename = void> struct has_add : std::false_type {};
-//    template <typename T> struct has_add<T, std::void_t<decltype(T::add(std::declval<typename T::type>(), std::declval<typename T::type>()))>> : std::true_type {};
-//    template <typename T> inline constexpr auto has_add_v = has_add<T>::value;
+    namespace details {
+        template<typename W, bool maximize, typename = void> struct weight_impl : public weight<W> {};
 
-    template <typename T, typename = void> struct has_boost_hash : std::false_type {};
-    template <typename T> struct has_boost_hash<T, std::void_t<decltype(std::declval<boost::hash<typename T::type>>())>> : std::true_type {};
-    template <typename T> inline constexpr auto has_boost_hash_v = has_boost_hash<T>::value;
+        template<typename W, bool maximize>
+        struct weight_impl<W, maximize, std::enable_if_t<std::is_arithmetic_v<W> && std::numeric_limits<W>::is_specialized>>
+                : public weight<W> {
+            using parent_t = weight<W>;
+            using typename parent_t::type;
+            static constexpr bool is_signed = parent_t::is_signed;
+        private:
+            static constexpr type bottom_val = maximize ? std::numeric_limits<type>::max() - (is_signed ? 0 : 1)
+                                                        : std::numeric_limits<type>::min();
+            static constexpr type max_val = (maximize && is_signed) ? std::numeric_limits<type>::min()
+                                                                    : std::numeric_limits<type>::max();
+        public:
+            static constexpr auto bottom = []() -> type { return bottom_val; };
+            static constexpr auto max = []() -> type { return max_val; };
+            static constexpr bool less(type lhs, type rhs) {
+                if constexpr (maximize) {
+                    if constexpr (!is_signed) {
+                        if (lhs == max_val) return false;
+                        if (rhs == max_val) return true;
+                    }
+                    return rhs < lhs;
+                } else {
+                    return lhs < rhs;
+                }
+            }
+            static constexpr type add(type lhs, type rhs) {
+                if (lhs == max_val || rhs == max_val) return max_val;
+                if constexpr (bottom_val != 0) {
+                    if (lhs == bottom_val || rhs == bottom_val) return bottom_val;
+                }
+                return lhs + rhs;
+            };
+        };
+        template<typename Inner, std::size_t N, bool maximize>
+        struct weight_impl<std::array<Inner, N>, maximize, std::enable_if_t<std::is_arithmetic_v<Inner> && std::numeric_limits<Inner>::is_specialized>>
+                : public weight<std::array<Inner, N>> {
+            using parent_t = weight<std::array<Inner, N>>;
+            using typename parent_t::type;
 
-    template<typename W> inline constexpr auto is_weighted = W::is_weight && has_boost_hash_v<W>;
-//            !std::is_void_v<W> && has_type_v<W> && !std::is_void_v<typename W::type> &&
-//            has_zero_v<W> && has_max_v<W> && has_less_v<W> && has_add_v<W> && has_boost_hash_v<W>;
+            static constexpr auto bottom = []() -> type {std::array<Inner, N> arr{}; arr.fill(weight_impl<Inner, maximize>::bottom()); return arr;};
+            static constexpr auto max = []() -> type {std::array<Inner, N> arr{}; arr.fill(weight_impl<Inner, maximize>::max()); return arr;};
+            static constexpr bool less(const type& lhs, const type& rhs) {
+                return std::lexicographical_compare(
+                        lhs.begin(), lhs.end(),
+                        rhs.begin(), rhs.end(),
+                        weight_impl<Inner, maximize>::less);
+            }
+            static constexpr type add(const type& lhs, const type& rhs) {
+                std::array<Inner, N> res{};
+                for (size_t i = 0; i < N; ++i) {
+                    res[i] = weight_impl<Inner, maximize>::add(lhs[i], rhs[i]);
+                }
+                return res;
+            };
+        };
+        template<typename Inner, bool maximize>
+        struct weight_impl<std::vector<Inner>, maximize, std::enable_if_t<std::is_arithmetic_v<Inner> && std::numeric_limits<Inner>::is_specialized>>
+                : public weight<std::vector<Inner>> {
+            using parent_t = weight<std::vector<Inner>>;
+            using typename parent_t::type;
+            static constexpr bool is_signed = parent_t::is_signed;
 
-//    template <typename T, typename = void> struct has_mult : std::false_type {};
-//    template <typename T> struct has_mult<T, std::void_t<decltype(T::multiply(std::declval<typename T::type>(), std::declval<typename T::type>()))>> : std::true_type {};
-//    template <typename T> constexpr auto has_mult_v = has_mult<T>::value;
+            static constexpr auto bottom = []() -> type { return type{weight_impl<Inner, maximize>::bottom()}; };
+            static constexpr auto max = []() -> type { return type{weight_impl<Inner, maximize>::max()}; }; // TODO: When C++20 arrives, use a constexpr vector instead
+            static constexpr bool less(const type& lhs, const type& rhs) {
+                if constexpr (!maximize && !is_signed) {
+                    return lhs < rhs;
+                } else {
+                    auto f1 = lhs.begin(), f2 = rhs.begin();
+                    auto l1 = lhs.end(), l2 = rhs.end();
+                    bool exhaust1 = (f1 == l1);
+                    bool exhaust2 = (f2 == l2);
+                    for (; !exhaust1 || !exhaust2; exhaust1 = (++f1 == l1), exhaust2 = (++f2 == l2)) {
+                        auto v1 = exhaust1 ? weight<Inner>::zero() : *f1; // Missing elements are implicitly zero.
+                        auto v2 = exhaust2 ? weight<Inner>::zero() : *f2;
+                        if (weight_impl<Inner, maximize>::less(v1, v2)) return true;
+                        if (weight_impl<Inner, maximize>::less(v2, v1)) return false;
+                        // if (auto c = weight<Inner, maximize>::compare(v1, v2); c != 0) return c;
+                    }
+                    return false; // return std::strong_ordering::equal;
+                }
+            }
+            static constexpr type add(const type& lhs, const type& rhs) {
+                const auto& [small, large] = std::minmax(lhs, rhs, [](const type& l, const type& r){ return l.size() < r.size(); });
+                std::vector<Inner> result = large;
+                std::transform(small.begin(), small.end(), large.begin(),
+                               result.begin(), weight_impl<Inner, maximize>::add);
+                return result;
+            };
+        };
+    }
+
+    template<typename W> using min_weight = details::weight_impl<W,false>;
+    template<typename W> using max_weight = details::weight_impl<W,true>;
+
+    template<typename W> inline constexpr auto is_weighted = W::is_weight; // TODO: Remove usage of is_weighted<W>. Just use W::is_weight directly instead.
 
     template <typename W, typename... Args>
     class linear_weight_function {
@@ -160,24 +178,22 @@ namespace pdaaal {
         const std::vector<std::pair<W, linear_weight_function<W, Args...>>> _functions;
         const std::optional<std::function<W(Args...)>> _function;
     public:
-        static_assert(is_weighted<weight<W>>);
+        static_assert(std::is_arithmetic_v<W> && std::numeric_limits<W>::is_specialized);
         using result_type = W;
 
         // A single function
         explicit linear_weight_function(std::function<W(Args...)> function) : _function(function) {}
 
         // Linear combination of functions
-        explicit linear_weight_function(std::vector<std::pair<W, linear_weight_function<W, Args...>>> functions) : _functions(functions) {
-            static_assert(weight<W>::has_mult, "For a linear combination, the weight type W needs to implement W::multiply.");
-        }
+        explicit linear_weight_function(std::vector<std::pair<W, linear_weight_function<W, Args...>>> functions) : _functions(functions) {}
 
         constexpr result_type operator()(Args... args) const {
             if (_function) {
                 return _function.value()(args...);
             }
-            return std::accumulate(_functions.begin(), _functions.end(), weight<W>::zero(),
+            return std::accumulate(_functions.begin(), _functions.end(), 0,
                     [&args...](const W& lhs, const std::pair<W, linear_weight_function<W, Args...>>& rhs) -> W {
-                return weight<W>::add(lhs, weight<W>::multiply(rhs.first, rhs.second(args...)));
+                return lhs + (rhs.first * rhs.second(args...));
             });
         }
     };
@@ -189,7 +205,7 @@ namespace pdaaal {
     private:
         const std::vector<linear_weight_function<W, Args...>> _functions;
     public:
-        static_assert(is_weighted<weight<W>>);
+        static_assert(std::is_arithmetic_v<W> && std::numeric_limits<W>::is_specialized);
         using result_type = std::vector<W>;
 
         explicit ordered_weight_function(std::vector<linear_weight_function<W, Args...>> functions) : _functions(functions) {}

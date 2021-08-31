@@ -96,8 +96,8 @@ BOOST_AUTO_TEST_CASE(Verification_Test_1)
 
     auto [trace, weight] = Solver::get_trace<Trace_Type::Shortest>(instance);
 
-    BOOST_TEST(weight == 1);
-    BOOST_TEST(trace.size() == 2);
+    BOOST_CHECK_EQUAL(weight, 1);
+    BOOST_CHECK_EQUAL(trace.size(), 2);
 
     std::cout << "Weight: " << weight << std::endl;
     print_trace(trace, pda);
@@ -119,23 +119,169 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_test)
     auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
     auto p_automaton = PAutomatonParser::parse_string("< [q] , >", pda);
 
-    Solver::pre_star_fixed_point(p_automaton);
+    Solver::pre_star_fixed_point<Trace_Type::Shortest>(p_automaton);
 
     std::stringstream s;
     print_automaton(p_automaton, pda, s);
     BOOST_TEST_MESSAGE(s.str());
 
     auto pXq = get_edge<std::string,std::string>(p_automaton, pda, "p", "X", "q");
-    BOOST_TEST(pXq != nullptr);
-    BOOST_TEST(pXq->second == weight<int32_t>::bottom());
+    BOOST_CHECK_NE(pXq, nullptr);
+    BOOST_CHECK_EQUAL(pXq->second, min_weight<int32_t>::bottom());
 
     auto pYp = get_edge<std::string,std::string>(p_automaton, pda, "p", "Y", "p");
-    BOOST_TEST(pYp != nullptr);
-    BOOST_TEST(pYp->second == 1);
+    BOOST_CHECK_NE(pYp, nullptr);
+    BOOST_CHECK_EQUAL(pYp->second, 1);
 
     auto qYq = get_edge<std::string,std::string>(p_automaton, pda, "q", "Y", "q");
-    BOOST_TEST(qYq != nullptr);
-    BOOST_TEST(qYq->second == -2);
+    BOOST_CHECK_NE(qYq, nullptr);
+    BOOST_CHECK_EQUAL(qYq->second, -2);
+}
+
+BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "p":  { "X":{"to": "p", "pop":"", "weight": -1} }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton = PAutomatonParser::parse_string("< [p] , >", pda);
+
+    Solver::pre_star_fixed_point<Trace_Type::Shortest>(p_automaton);
+
+    std::stringstream s;
+    print_automaton(p_automaton, pda, s);
+    BOOST_TEST_MESSAGE(s.str());
+
+    auto pXp = get_edge<std::string,std::string>(p_automaton, pda, "p", "X", "p");
+    BOOST_CHECK_NE(pXp, nullptr);
+    BOOST_CHECK_EQUAL(pXp->second, -1);
+}
+
+BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_path_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "p":  { "X":{"to": "p", "pop":"", "weight": -1} }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string("< [p] , .* >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    Solver::pre_star_fixed_point_accepts<Trace_Type::Shortest>(instance);
+
+    std::stringstream s;
+    print_automaton(instance.automaton(), pda, s);
+    s << std::endl;
+    print_automaton(instance.product_automaton(), pda, s);
+    BOOST_TEST_MESSAGE(s.str());
+
+    auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
+    BOOST_CHECK_EQUAL(w, min_weight<int32_t>::bottom());
+
+    auto [trace, weight] = Solver::get_trace<Trace_Type::ShortestFixedPoint>(instance);
+    BOOST_CHECK_EQUAL(w, weight);
+}
+
+BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_path2_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "p":  { "X":{"to": "p", "pop":"", "weight": -1} }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string("< [p] , .+ >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    Solver::pre_star_fixed_point_accepts<Trace_Type::Shortest>(instance);
+
+    std::stringstream s;
+    print_automaton(instance.automaton(), pda, s);
+    s << std::endl;
+    print_automaton(instance.product_automaton(), pda, s);
+    BOOST_TEST_MESSAGE(s.str());
+
+    auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
+    BOOST_CHECK_EQUAL(w, min_weight<int32_t>::bottom());
+
+    auto [trace, weight] = Solver::get_trace<Trace_Type::ShortestFixedPoint>(instance);
+    BOOST_CHECK_EQUAL(w, weight);
+}
+
+BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_not_accepting_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "p":  { "X":{"to": "p", "pop":"", "weight": -1} },
+          "q":  { "Y":{"to": "p", "swap":"X", "weight": 1} }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string("< [q] , [Y] .+ >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    Solver::pre_star_fixed_point_accepts<Trace_Type::Shortest>(instance);
+
+    std::stringstream s;
+    print_automaton(instance.product_automaton(), pda, s);
+    BOOST_TEST_MESSAGE(s.str());
+
+    auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
+    BOOST_CHECK_EQUAL(w, min_weight<int32_t>::bottom());
+
+    auto [trace, weight] = Solver::get_trace<Trace_Type::ShortestFixedPoint>(instance);
+    BOOST_CHECK_EQUAL(w, weight);
+}
+
+BOOST_AUTO_TEST_CASE(Verification_negative_weight_finite_path_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "a":  { "X":[{"to": "b", "push":"X", "weight": -1},
+                       {"to": "b", "push":"Y", "weight": -4}] },
+          "b":  { "X":{"to": "c", "push":"X", "weight": -1},
+                  "Y":{"to": "c", "push":"Y", "weight": -1} },
+          "c":  { "X":{"to": "c", "pop":"", "weight": -2},
+                  "Y":{"to": "c", "pop":"", "weight": -1} }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string("< [a] , [X] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string("< [c] , >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    Solver::pre_star_fixed_point_accepts<Trace_Type::Shortest>(instance);
+
+    std::stringstream s;
+    print_automaton(instance.product_automaton(), pda, s);
+
+    auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
+    BOOST_CHECK_EQUAL(w, -9);
+
+    auto [trace, weight] = Solver::get_trace<Trace_Type::ShortestFixedPoint>(instance);
+    BOOST_CHECK_EQUAL(w, weight);
+
+    BOOST_CHECK_EQUAL(trace.size(), 6);
+
+    s << std::endl;
+    print_trace(trace, pda, s);
+    BOOST_TEST_MESSAGE(s.str());
 }
 
 BOOST_AUTO_TEST_CASE(Verification_poststar_pop_test)
@@ -217,4 +363,109 @@ BOOST_AUTO_TEST_CASE(Verification_poststar_no_ET_empty_final_stack_test)
     std::stringstream s;
     print_trace(trace, pda, s);
     BOOST_TEST_MESSAGE(s.str());
+}
+
+BOOST_AUTO_TEST_CASE(Verification_negative_ring_push_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "p": { "X1":[{"to":"p", "pop":"", "weight": -1},
+                       {"to":"q", "swap":"X2", "weight": 0}],
+                 "X2": {"to":"q", "swap":"X3", "weight": 0},
+                 "X3": {"to":"q", "swap":"Xn", "weight": 0},
+                 "Xn": {"to":"q", "swap":"X1", "weight": 0}
+               },
+          "q": { "X1": {"to":"p", "push":"X1", "weight": 0},
+                 "X2": {"to":"p", "push":"X2", "weight": 0},
+                 "X3": {"to":"p", "push":"X3", "weight": 0},
+                 "Xn": {"to":"p", "push":"Xn", "weight": 0}
+               }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string("< [p] , [X1] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , [X1] >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    auto result = Solver::pre_star_fixed_point_accepts<Trace_Type::Shortest>(instance);
+    BOOST_TEST(result);
+
+    std::stringstream s;
+    print_automaton(instance.product_automaton(), pda, s);
+
+    auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
+    BOOST_CHECK_EQUAL(w, min_weight<int32_t>::bottom());
+
+    auto [trace, weight] = Solver::get_trace<Trace_Type::ShortestFixedPoint>(instance);
+    BOOST_CHECK_EQUAL(w, weight);
+}
+
+BOOST_AUTO_TEST_CASE(Verification_negative_ring_swap_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "p": { "X1":[{"to":"p", "pop":"", "weight": -1},
+                       {"to":"p", "push":"X2", "weight": 0}],
+                 "X2": {"to":"p", "swap":"X3", "weight": 0},
+                 "X3": {"to":"p", "swap":"X4", "weight": 0},
+                 "X4": {"to":"p", "swap":"X5", "weight": 0},
+                 "X5": {"to":"p", "swap":"Xn", "weight": 0},
+                 "Xn": {"to":"p", "swap":"X1", "weight": 0}
+               }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string("< [p] , [X1] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    auto result = Solver::pre_star_fixed_point_accepts<Trace_Type::Shortest>(instance);
+    BOOST_TEST(result);
+
+    std::stringstream s;
+    print_automaton(instance.product_automaton(), pda, s);
+
+    auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
+    BOOST_CHECK_EQUAL(w, min_weight<int32_t>::bottom());
+
+    auto [trace, weight] = Solver::get_trace<Trace_Type::ShortestFixedPoint>(instance);
+    BOOST_CHECK_EQUAL(w, weight);
+}
+
+BOOST_AUTO_TEST_CASE(Verification_longest_trace_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "p": { "X1":[{"to":"p", "pop":"", "weight": 1},
+                       {"to":"p", "push":"X2", "weight": 0}],
+                 "X2": {"to":"p", "swap":"X3", "weight": 0},
+                 "X3": {"to":"p", "swap":"X4", "weight": 0},
+                 "X4": {"to":"p", "swap":"X5", "weight": 0},
+                 "X5": {"to":"p", "swap":"Xn", "weight": 0},
+                 "Xn": {"to":"p", "swap":"X1", "weight": 0}
+               }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string("< [p] , [X1] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    auto result = Solver::pre_star_fixed_point_accepts<Trace_Type::Longest>(instance);
+    BOOST_TEST(result);
+
+    std::stringstream s;
+    print_automaton(instance.product_automaton(), pda, s);
+
+    auto [path, stack, w] = instance.find_path<Trace_Type::Longest>();
+    BOOST_CHECK_EQUAL(w, max_weight<uint32_t>::bottom());
+
+    auto [trace, weight] = Solver::get_trace<Trace_Type::Longest>(instance);
+    BOOST_CHECK_EQUAL(w, weight);
 }
