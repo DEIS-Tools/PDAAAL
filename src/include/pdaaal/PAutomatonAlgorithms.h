@@ -32,9 +32,9 @@
 
 namespace pdaaal {
 
-    template<typename W, bool indirect, Trace_Type trace_type>
-    class PAutomatonFixedPoint : public fixed_point_workset<PAutomatonFixedPoint<W, indirect, trace_type>, size_t> {
-        using parent_t = fixed_point_workset<PAutomatonFixedPoint<W, indirect, trace_type>, size_t>;
+    template<typename W, Trace_Type trace_type>
+    class PAutomatonFixedPoint : public fixed_point_workset<PAutomatonFixedPoint<W, trace_type>, size_t> {
+        using parent_t = fixed_point_workset<PAutomatonFixedPoint<W, trace_type>, size_t>;
         using solverW = solver_weight<W,trace_type>;
         struct state_info {
             typename W::type weight = solverW::max();
@@ -42,13 +42,13 @@ namespace pdaaal {
             size_t predecessor = std::numeric_limits<size_t>::max();
             bool in_queue = false;
         };
-        const PAutomaton<W, indirect>& _automaton;
+        const PAutomaton<W, TraceInfoType::Pair>& _automaton;
         std::vector<state_info> _states;
         size_t _min_accepting_state = std::numeric_limits<size_t>::max(); // Id of accept state with minimum path weight to it. (keep it updated).
     public:
         static constexpr size_t next_round_elem = std::numeric_limits<size_t>::max(); // Needs to be different from any proper queue element.
 
-        explicit PAutomatonFixedPoint(const PAutomaton<W, indirect>& automaton)
+        explicit PAutomatonFixedPoint(const PAutomaton<W, TraceInfoType::Pair>& automaton)
         : parent_t(automaton.states().size()),
         _automaton(automaton), _states(_automaton.states().size()) {
             initialize();
@@ -98,6 +98,7 @@ namespace pdaaal {
             return _min_accepting_state == std::numeric_limits<size_t>::max();
         }
         [[nodiscard]] bool is_infinite() const {
+            assert(_min_accepting_state < _states.size());
             return _states[_min_accepting_state].weight == solverW::bottom(); // TODO: Allow for better stuff than this...
         }
         [[nodiscard]] auto get_path() const {

@@ -65,14 +65,14 @@ namespace pdaaal {
     struct p_automaton_file : pegtl::must<pegtl::pad<p_automaton_expr<p_automaton_state>, ignored<comment>>, pegtl::eof> {};
 
     // The State object that gets passed around by the parser is a builder that constructs the PAutomaton.
-    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, bool indirect>
+    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
     class PAutomatonBuilder {
     public:
         explicit PAutomatonBuilder(TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
                                    const std::function<state_t(const std::string&)>& state_mapping)
         : _pda(pda), _state_mapping(state_mapping),
           _label_mapping([&pda](const std::string& label) -> uint32_t { return pda.insert_label(label); }) {};
-        PAutomaton<W,indirect> get_p_automaton() {
+        PAutomaton<W,trace_info_type> get_p_automaton() {
             return _current_p_automaton.value();
         }
         bool add_state(const std::string& state_name) {
@@ -95,7 +95,7 @@ namespace pdaaal {
         void finish_atom() {
             std::sort(_states.begin(), _states.end()); // Sort and remove duplicates. TODO: Consider using unordered_set instead...
             _states.erase(std::unique(_states.begin(), _states.end()), _states.end());
-            PAutomaton<W,indirect> new_p_automaton(_pda, _current_nfa, _states);
+            PAutomaton<W,trace_info_type> new_p_automaton(_pda, _current_nfa, _states);
             if (_current_p_automaton) {
                 _current_p_automaton.value().or_extend(std::move(new_p_automaton));
             } else {
@@ -106,21 +106,21 @@ namespace pdaaal {
     private:
         std::vector<size_t> _states;
         NFA<uint32_t> _current_nfa;
-        std::optional<PAutomaton<W,indirect>> _current_p_automaton;
+        std::optional<PAutomaton<W,trace_info_type>> _current_p_automaton;
 
         const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& _pda;
         const std::function<state_t(const std::string&)>& _state_mapping;
         std::function<uint32_t(const std::string&)> _label_mapping;
     };
-    template<bool indirect, typename label_t, typename W, typename state_t, bool skip_state_mapping>
+    template<TraceInfoType trace_info_type, typename label_t, typename W, typename state_t, bool skip_state_mapping>
     inline auto make_PAutomatonBuilder(TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
                                        const std::function<state_t(const std::string&)>& state_mapping) {
-        return PAutomatonBuilder<label_t,W,state_t,skip_state_mapping,indirect>(pda, state_mapping);
+        return PAutomatonBuilder<label_t,W,state_t,skip_state_mapping,trace_info_type>(pda, state_mapping);
     }
     // CTAD guide
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping>
     PAutomatonBuilder(TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
-                      const std::function<state_t(const std::string&)>& state_mapping) -> PAutomatonBuilder<label_t,W,state_t,skip_state_mapping,true>;
+                      const std::function<state_t(const std::string&)>& state_mapping) -> PAutomatonBuilder<label_t,W,state_t,skip_state_mapping,TraceInfoType::Single>;
 
     // Definition of the actions applied by the parser to the builder state object.
     // Combine NFA action, unescape action, and a new action that adds states.
@@ -128,14 +128,14 @@ namespace pdaaal {
     template<> struct p_automaton_build_action< pegtl::utf8::range< 0x20, 0x10FFFF > > : pegtl::unescape::append_all {};
     template<> struct p_automaton_build_action< escaped_c > : pegtl::unescape::unescape_c< escaped_c, '"', '\\' > {};
     template<> struct p_automaton_build_action<p_automaton_state_1> {
-        template<typename ActionInput, typename T, typename W, typename S, bool ssm, bool i> static void apply(const ActionInput& in, PAutomatonBuilder<T,W,S,ssm,i>& v) {
+        template<typename ActionInput, typename T, typename W, typename S, bool ssm, TraceInfoType t> static void apply(const ActionInput& in, PAutomatonBuilder<T,W,S,ssm,t>& v) {
             if (!v.add_state(in.string())) {
                 throw pegtl::parse_error("state is not found in the PDA.", in);
             }
         }
     };
     template<typename State> struct p_automaton_build_action<p_automaton_atom<State>> {
-        template<typename T, typename W, typename S, bool ssm, bool i> static void apply0(PAutomatonBuilder<T,W,S,ssm,i>& v) {
+        template<typename T, typename W, typename S, bool ssm, TraceInfoType t> static void apply0(PAutomatonBuilder<T,W,S,ssm,t>& v) {
             v.finish_atom();
         }
     };
@@ -143,30 +143,30 @@ namespace pdaaal {
     // Final parser class.
     class PAutomatonParser {
     public:
-        template <bool indirect = true, typename pda_t>
+        template <TraceInfoType trace_info_type = TraceInfoType::Single, typename pda_t>
         static auto parse_file(const std::string& file, pda_t& pda) {
             std::filesystem::path file_path(file);
             pegtl::file_input in(file_path);
-            return parse<indirect>(in, pda);
+            return parse<trace_info_type>(in, pda);
         }
-        template <bool indirect = true, typename pda_t>
+        template <TraceInfoType trace_info_type = TraceInfoType::Single, typename pda_t>
         static auto parse_string(const std::string& content, pda_t& pda) {
             pegtl::memory_input in(content, "");
-            return parse<indirect>(in, pda);
+            return parse<trace_info_type>(in, pda);
         }
 
     private:
-        template <bool indirect, typename Input, typename W>
-        static PAutomaton<W,indirect> parse(Input& in, TypedPDA<std::string,W,fut::type::vector, std::string>& pda) {
-            return parse<indirect, std::string>(in, pda, [](const std::string& s){ return s; });
+        template <TraceInfoType trace_info_type, typename Input, typename W>
+        static PAutomaton<W,trace_info_type> parse(Input& in, TypedPDA<std::string,W,fut::type::vector, std::string>& pda) {
+            return parse<trace_info_type, std::string>(in, pda, [](const std::string& s){ return s; });
         }
-        template <bool indirect, typename Input, typename W, bool ssm>
-        static PAutomaton<W,indirect> parse(Input& in, TypedPDA<std::string,W,fut::type::vector, size_t, ssm>& pda) {
-            return parse<indirect, size_t>(in, pda, [](const std::string& s) -> size_t { return std::stoul(s); });
+        template <TraceInfoType trace_info_type, typename Input, typename W, bool ssm>
+        static PAutomaton<W,trace_info_type> parse(Input& in, TypedPDA<std::string,W,fut::type::vector, size_t, ssm>& pda) {
+            return parse<trace_info_type, size_t>(in, pda, [](const std::string& s) -> size_t { return std::stoul(s); });
         }
-        template <bool indirect, typename state_t, typename Input, typename pda_t>
+        template <TraceInfoType trace_info_type, typename state_t, typename Input, typename pda_t>
         static auto parse(Input& in, pda_t& pda, const std::function<state_t(const std::string&)>& state_mapping) {
-            auto p_automaton_builder = make_PAutomatonBuilder<indirect>(pda, state_mapping);
+            auto p_automaton_builder = make_PAutomatonBuilder<trace_info_type>(pda, state_mapping);
             try {
                 pegtl::parse<p_automaton_file,p_automaton_build_action>(in, p_automaton_builder);
             } catch (const pegtl::parse_error& e) {

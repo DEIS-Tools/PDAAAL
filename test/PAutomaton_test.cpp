@@ -46,10 +46,10 @@ BOOST_AUTO_TEST_CASE(Dijkstra_Test_1)
     auto id3 = automaton.add_state(false, false);
     auto id4 = automaton.add_state(false, true);
 
-    automaton.add_edge(0, id1, 0, std::make_pair(nullptr, 1));
-    automaton.add_edge(0, id2, 0, std::make_pair(nullptr, 2));
-    automaton.add_edge(id1, id3, 0, std::make_pair(nullptr, 2));
-    automaton.add_edge(id3, id4, 0, std::make_pair(nullptr, 2));
+    automaton.add_edge(0, id1, 0, std::make_pair(trace_t(), 1));
+    automaton.add_edge(0, id2, 0, std::make_pair(trace_t(), 2));
+    automaton.add_edge(id1, id3, 0, std::make_pair(trace_t(), 2));
+    automaton.add_edge(id3, id4, 0, std::make_pair(trace_t(), 2));
 
     std::vector<char> test_stack{'A', 'A', 'A'};
     std::vector<size_t> correct_path{0,id1,id3,id4};
@@ -57,7 +57,7 @@ BOOST_AUTO_TEST_CASE(Dijkstra_Test_1)
     BOOST_CHECK_EQUAL(w, 5);
     BOOST_CHECK_EQUAL_COLLECTIONS(path.begin(), path.end(), correct_path.begin(), correct_path.end());
 
-    automaton.add_edge(id2, id3, 0, std::make_pair(nullptr, 2));
+    automaton.add_edge(id2, id3, 0, std::make_pair(trace_t(), 2));
 
     // A bug in the implementation of Dijkstra in PAutomaton caused the following to fail. It is now fixed.
     auto [path2, w2] = automaton.template accept_path<Trace_Type::Shortest>(0, pda.encode_pre(test_stack));

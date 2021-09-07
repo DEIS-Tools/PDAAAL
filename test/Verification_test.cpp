@@ -64,8 +64,43 @@ void print_automaton(const Automaton& automaton, const pda_t& pda, std::ostream&
         }
     );
 }
-template<typename label_t, typename state_t, typename W, bool ssm, bool indirect>
-auto get_edge(const PAutomaton<W,indirect>& automaton, const TypedPDA<label_t,W,fut::type::vector,state_t,ssm>& pda, const state_t& from, const label_t& label, const state_t& to) {
+template <typename pda_t>
+std::ostream& print_state(std::ostream& s, size_t state_id, const pda_t& pda) {
+    if (state_id < pda.states().size()) {
+        s << pda.get_state(state_id);
+    } else {
+        s << state_id;
+    }
+    return s;
+}
+template <typename pda_t>
+void print_conf_path(std::ostream& s, const AutomatonPath& automaton_path, const pda_t& pda) {
+    s << "< ";
+    print_state(s, automaton_path.front_state(), pda) << ", [";
+    bool first = true;
+    for (auto l : automaton_path.stack()) {
+        if (first) {
+            first  = false;
+        } else {
+            s << ", ";
+        }
+        s << pda.get_symbol(l);
+    }
+    s << "] >" << std::endl;
+}
+template <typename pda_t>
+void print_edges_path(std::ostream& s, const AutomatonPath& automaton_path, const pda_t& pda) {
+    auto [path, stack] = automaton_path.get_path_and_stack();
+    assert(path.size() == stack.size() + 1);
+    print_state(s, path[0], pda);
+    for (size_t i = 0; i < stack.size(); ++i) {
+        s << " --" << pda.get_symbol(stack[i]) << "-> ";
+        print_state(s, path[i+1], pda);
+    }
+    s << std::endl;
+}
+template<typename label_t, typename state_t, typename W, bool ssm, TraceInfoType trace_info_type>
+auto get_edge(const PAutomaton<W,trace_info_type>& automaton, const TypedPDA<label_t,W,fut::type::vector,state_t,ssm>& pda, const state_t& from, const label_t& label, const state_t& to) {
     BOOST_TEST(pda.exists_state(from).first);
     auto from_id = pda.exists_state(from).second;
     BOOST_TEST(pda.exists_label(label).first);
@@ -117,7 +152,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_test)
       }
     })");
     auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
-    auto p_automaton = PAutomatonParser::parse_string("< [q] , >", pda);
+    auto p_automaton = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [q] , >", pda);
 
     Solver::pre_star_fixed_point<Trace_Type::Shortest>(p_automaton);
 
@@ -148,7 +183,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_test)
       }
     })");
     auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
-    auto p_automaton = PAutomatonParser::parse_string("< [p] , >", pda);
+    auto p_automaton = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , >", pda);
 
     Solver::pre_star_fixed_point<Trace_Type::Shortest>(p_automaton);
 
@@ -171,8 +206,8 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_path_test)
       }
     })");
     auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
-    auto p_automaton_i = PAutomatonParser::parse_string("< [p] , .* >", pda);
-    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , >", pda);
+    auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , .* >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
 
     Solver::pre_star_fixed_point_accepts<Trace_Type::Shortest>(instance);
@@ -200,8 +235,8 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_path2_test)
       }
     })");
     auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
-    auto p_automaton_i = PAutomatonParser::parse_string("< [p] , .+ >", pda);
-    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , >", pda);
+    auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , .+ >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
 
     Solver::pre_star_fixed_point_accepts<Trace_Type::Shortest>(instance);
@@ -230,8 +265,8 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_not_accepting_test)
       }
     })");
     auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
-    auto p_automaton_i = PAutomatonParser::parse_string("< [q] , [Y] .+ >", pda);
-    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , >", pda);
+    auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [q] , [Y] .+ >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
 
     Solver::pre_star_fixed_point_accepts<Trace_Type::Shortest>(instance);
@@ -262,8 +297,8 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_finite_path_test)
       }
     })");
     auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
-    auto p_automaton_i = PAutomatonParser::parse_string("< [a] , [X] >", pda);
-    auto p_automaton_f = PAutomatonParser::parse_string("< [c] , >", pda);
+    auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [a] , [X] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [c] , >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
 
     Solver::pre_star_fixed_point_accepts<Trace_Type::Shortest>(instance);
@@ -385,8 +420,8 @@ BOOST_AUTO_TEST_CASE(Verification_negative_ring_push_test)
       }
     })");
     auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
-    auto p_automaton_i = PAutomatonParser::parse_string("< [p] , [X1] >", pda);
-    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , [X1] >", pda);
+    auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , [X1] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , [X1] >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
 
     auto result = Solver::pre_star_fixed_point_accepts<Trace_Type::Shortest>(instance);
@@ -420,8 +455,8 @@ BOOST_AUTO_TEST_CASE(Verification_negative_ring_swap_test)
       }
     })");
     auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
-    auto p_automaton_i = PAutomatonParser::parse_string("< [p] , [X1] >", pda);
-    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , >", pda);
+    auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , [X1] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
 
     auto result = Solver::pre_star_fixed_point_accepts<Trace_Type::Shortest>(instance);
@@ -455,8 +490,8 @@ BOOST_AUTO_TEST_CASE(Verification_longest_trace_test)
       }
     })");
     auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
-    auto p_automaton_i = PAutomatonParser::parse_string("< [p] , [X1] >", pda);
-    auto p_automaton_f = PAutomatonParser::parse_string("< [p] , >", pda);
+    auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , [X1] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
 
     auto result = Solver::pre_star_fixed_point_accepts<Trace_Type::Longest>(instance);
