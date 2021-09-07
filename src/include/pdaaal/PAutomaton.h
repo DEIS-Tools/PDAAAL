@@ -30,6 +30,7 @@
 #include <pdaaal/TypedPDA.h>
 #include <pdaaal/utils/fut_set.h>
 #include <pdaaal/NFA.h>
+#include <pdaaal/Weight.h>
 
 #include <memory>
 #include <functional>
@@ -235,6 +236,7 @@ namespace pdaaal {
             }
         }
 
+        template<Trace_Type trace_type = Trace_Type::None>
         void to_dot(std::ostream &out,
                     const std::function<void(std::ostream &, const uint32_t&)>& label_printer = [](auto &s, auto &l){ s << l; },
                     const std::function<void(std::ostream &, const size_t&)>& state_printer = [](auto &s, auto &id){ s << id; }) const {
@@ -265,12 +267,18 @@ namespace pdaaal {
                                 first = false;
                                 label_printer(out, l);
                                 bool special_weight = false;
-                                if (tw.second == std::numeric_limits<typename W::type>::max()) {
-                                    out << "(∞)";
+                                if (tw.second == solver_weight<W,trace_type>::max()) {
+                                    out << "(-)";
                                     special_weight = true;
                                 } else {
-                                    if constexpr(W::is_signed) {
-                                        if (tw.second == std::numeric_limits<typename W::type>::min()) {
+                                    if constexpr(trace_type == Trace_Type::Longest) {
+                                        if (tw.second == solver_weight<W,trace_type>::bottom()) {
+                                            out << "(∞)";
+                                            special_weight = true;
+                                        }
+                                    }
+                                    if constexpr(W::is_signed && (trace_type == Trace_Type::Shortest || trace_type == Trace_Type::ShortestFixedPoint)) {
+                                        if (tw.second == solver_weight<W,trace_type>::bottom()) {
                                             out << "(-∞)";
                                             special_weight = true;
                                         }

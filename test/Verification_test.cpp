@@ -51,9 +51,9 @@ void print_trace(const std::vector<typename pda_t::tracestate_t>& trace, const p
         s << "] >" << std::endl;
     }
 }
-template<typename Automaton, typename pda_t>
+template<Trace_Type trace_type = Trace_Type::Any, typename Automaton, typename pda_t>
 void print_automaton(const Automaton& automaton, const pda_t& pda, std::ostream& s = std::cout) {
-    automaton.to_dot(s,
+    automaton.template to_dot<trace_type>(s,
         [&pda](std::ostream& s, const uint32_t& label){ s << pda.get_symbol(label); },
         [&pda](std::ostream& s, const size_t& state_id){
             if (state_id < pda.states().size()) {
@@ -122,7 +122,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_test)
     Solver::pre_star_fixed_point<Trace_Type::Shortest>(p_automaton);
 
     std::stringstream s;
-    print_automaton(p_automaton, pda, s);
+    print_automaton<Trace_Type::Shortest>(p_automaton, pda, s);
     BOOST_TEST_MESSAGE(s.str());
 
     auto pXq = get_edge<std::string,std::string>(p_automaton, pda, "p", "X", "q");
@@ -153,7 +153,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_test)
     Solver::pre_star_fixed_point<Trace_Type::Shortest>(p_automaton);
 
     std::stringstream s;
-    print_automaton(p_automaton, pda, s);
+    print_automaton<Trace_Type::Shortest>(p_automaton, pda, s);
     BOOST_TEST_MESSAGE(s.str());
 
     auto pXp = get_edge<std::string,std::string>(p_automaton, pda, "p", "X", "p");
@@ -178,9 +178,9 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_path_test)
     Solver::pre_star_fixed_point_accepts<Trace_Type::Shortest>(instance);
 
     std::stringstream s;
-    print_automaton(instance.automaton(), pda, s);
+    print_automaton<Trace_Type::Shortest>(instance.automaton(), pda, s);
     s << std::endl;
-    print_automaton(instance.product_automaton(), pda, s);
+    print_automaton<Trace_Type::Shortest>(instance.product_automaton(), pda, s);
     BOOST_TEST_MESSAGE(s.str());
 
     auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
@@ -207,9 +207,9 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_path2_test)
     Solver::pre_star_fixed_point_accepts<Trace_Type::Shortest>(instance);
 
     std::stringstream s;
-    print_automaton(instance.automaton(), pda, s);
+    print_automaton<Trace_Type::Shortest>(instance.automaton(), pda, s);
     s << std::endl;
-    print_automaton(instance.product_automaton(), pda, s);
+    print_automaton<Trace_Type::Shortest>(instance.product_automaton(), pda, s);
     BOOST_TEST_MESSAGE(s.str());
 
     auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
@@ -237,7 +237,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_not_accepting_test)
     Solver::pre_star_fixed_point_accepts<Trace_Type::Shortest>(instance);
 
     std::stringstream s;
-    print_automaton(instance.product_automaton(), pda, s);
+    print_automaton<Trace_Type::Shortest>(instance.product_automaton(), pda, s);
     BOOST_TEST_MESSAGE(s.str());
 
     auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
@@ -269,7 +269,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_finite_path_test)
     Solver::pre_star_fixed_point_accepts<Trace_Type::Shortest>(instance);
 
     std::stringstream s;
-    print_automaton(instance.product_automaton(), pda, s);
+    print_automaton<Trace_Type::Shortest>(instance.product_automaton(), pda, s);
 
     auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
     BOOST_CHECK_EQUAL(w, -9);
@@ -393,7 +393,8 @@ BOOST_AUTO_TEST_CASE(Verification_negative_ring_push_test)
     BOOST_TEST(result);
 
     std::stringstream s;
-    print_automaton(instance.product_automaton(), pda, s);
+    print_automaton<Trace_Type::Shortest>(instance.product_automaton(), pda, s);
+    BOOST_TEST_MESSAGE(s.str());
 
     auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
     BOOST_CHECK_EQUAL(w, min_weight<int32_t>::bottom());
@@ -427,7 +428,8 @@ BOOST_AUTO_TEST_CASE(Verification_negative_ring_swap_test)
     BOOST_TEST(result);
 
     std::stringstream s;
-    print_automaton(instance.product_automaton(), pda, s);
+    print_automaton<Trace_Type::Shortest>(instance.product_automaton(), pda, s);
+    BOOST_TEST_MESSAGE(s.str());
 
     auto [path, stack, w] = instance.find_path<Trace_Type::ShortestFixedPoint>();
     BOOST_CHECK_EQUAL(w, min_weight<int32_t>::bottom());
@@ -461,7 +463,8 @@ BOOST_AUTO_TEST_CASE(Verification_longest_trace_test)
     BOOST_TEST(result);
 
     std::stringstream s;
-    print_automaton(instance.product_automaton(), pda, s);
+    print_automaton<Trace_Type::Longest>(instance.product_automaton(), pda, s);
+    BOOST_TEST_MESSAGE(s.str());
 
     auto [path, stack, w] = instance.find_path<Trace_Type::Longest>();
     BOOST_CHECK_EQUAL(w, max_weight<uint32_t>::bottom());
