@@ -50,6 +50,9 @@ namespace pdaaal {
         [[nodiscard]] bool empty() const {
             return _edges.empty();
         }
+        [[nodiscard]] size_t edges_size() const {
+            return _edges.size();
+        }
         [[nodiscard]] size_t front_state() const {
             return _edges.empty() ? _end : _edges.back().second;
         }
@@ -84,6 +87,17 @@ namespace pdaaal {
             path.push_back(_end);
             return std::make_pair(path, stack);
         }
+
+        friend bool operator==(const AutomatonPath& l, const AutomatonPath& r) {
+            return l._end == r._end && l._edges == r._edges;
+        }
+        friend bool operator!=(const AutomatonPath& l, const AutomatonPath& r) { return !(l == r); }
+
+        template <typename H>
+        friend H AbslHashValue(H h, const AutomatonPath& p) {
+            return H::combine(std::move(h), p._end, p._edges);
+        }
+
     };
 
 }
