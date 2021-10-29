@@ -77,6 +77,11 @@ namespace pdaaal {
             size_t _to = std::numeric_limits<size_t>::max();
             op_t _op = POP;
             label_t _op_label;
+
+            rule_t_() = default;
+            rule_t_(const TypedPDA& pda, size_t from, uint32_t pre, details::rule_t<WT> rule)
+            : _from(from), _pre(pda.get_symbol(pre)), _to(rule._to), _op(rule._operation),
+              _op_label(rule._operation == POP || rule._operation == NOOP ? label_t{} : pda.get_symbol(rule._op_label)) {};
         };
         template <typename WT>
         struct rule_t_<WT, std::enable_if_t<is_weighted<WT>>> {
@@ -86,6 +91,12 @@ namespace pdaaal {
             op_t _op = POP;
             label_t _op_label;
             typename WT::type _weight;
+
+            rule_t_() = default;
+            rule_t_(const TypedPDA& pda, size_t from, uint32_t pre, details::rule_t<WT> rule)
+            : _from(from), _pre(pda.get_symbol(pre)), _to(rule._to), _op(rule._operation),
+              _op_label(rule._operation == POP || rule._operation == NOOP ? label_t{} : pda.get_symbol(rule._op_label)),
+              _weight(rule._weight) {};
         };
     public:
         using rule_t = rule_t_<W>; // This rule type can be used by users of the library.
@@ -206,6 +217,26 @@ namespace pdaaal {
             nlohmann::json j;
             j["pda"] = *this;
             return j;
+        }
+
+        std::vector<rule_t> all_rules() const {
+            std::vector<rule_t> result;
+            size_t state_i = 0;
+            for (const auto& state : this->states()) {
+                for (const auto& [rule,labels] : state._rules) {
+                    if (labels.wildcard()) {
+                        for (uint32_t pre = 0; pre < number_of_labels(); ++pre) {
+                            result.emplace_back(*this, state_i, pre, rule);
+                        }
+                    } else {
+                        for (const auto& pre : labels.labels()) {
+                            result.emplace_back(*this, state_i, pre, rule);
+                        }
+                    }
+                }
+                ++state_i;
+            }
+            return result;
         }
 
     protected:
