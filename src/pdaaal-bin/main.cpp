@@ -28,7 +28,6 @@
 #include <boost/program_options.hpp>
 #include <iostream>
 
-#include <pdaaal/printing/PDAtoJSONPrinter.h>
 #include "parsing/Parsing.h"
 #include "Verifier.h"
 
@@ -83,11 +82,9 @@ int main(int argc, const char** argv) {
         std::cout << "Parsing duration: " << parsing.duration() << std::endl;
     }
     if (print_pda_json) {
-        auto j = json::object();
-        std::visit([&j](auto&& pda){
-            j["pda"] = pda;
+        std::visit([](auto&& pda){
+            std::cout << pda.to_json().dump() << std::endl;
         }, pda_variant);
-        std::cout << j.dump() << std::endl;
         return 0; // TODO: What else.?
     }
     std::visit([](auto&& pda){
