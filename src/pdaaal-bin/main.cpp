@@ -28,6 +28,7 @@
 #include <boost/program_options.hpp>
 #include <iostream>
 
+#include <pdaaal/printing/PDAtoJSONPrinter.h>
 #include "parsing/Parsing.h"
 #include "Verifier.h"
 
@@ -48,9 +49,11 @@ int main(int argc, const char** argv) {
 
     bool no_parser_warnings = false;
     bool silent = false;
+    bool print_pda_json = false;
     output.add_options()
             ("disable-parser-warnings,W", po::bool_switch(&no_parser_warnings), "Disable warnings from parser.")
             ("silent,s", po::bool_switch(&silent), "Disables non-essential output (implies -W).")
+            ("print-pda-json", po::bool_switch(&print_pda_json), "Print PDA in JSON format to terminal.")  // TODO: This is currently mostly a debug option. Make it useful!
             ;
     opts.add(parsing.options());
     opts.add(verifier.options());
@@ -78,6 +81,14 @@ int main(int argc, const char** argv) {
     auto pda_variant = parsing.parse(no_parser_warnings);
     if (!silent) {
         std::cout << "Parsing duration: " << parsing.duration() << std::endl;
+    }
+    if (print_pda_json) {
+        auto j = json::object();
+        std::visit([&j](auto&& pda){
+            j["pda"] = pda;
+        }, pda_variant);
+        std::cout << j.dump() << std::endl;
+        return 0; // TODO: What else.?
     }
     std::visit([](auto&& pda){
         std::cout << "States: " << pda.states().size() << ". Labels: " << pda.number_of_labels() << std::endl;

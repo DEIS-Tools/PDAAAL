@@ -186,6 +186,21 @@ namespace pdaaal {
             this->add_untyped_rule_impl(from, r, negated, pre);
         }
 
+        std::vector<label_t> get_labels(const labels_t& labels) const { // TODO: Support lazy iteration. Maybe with C++20 ranges..?
+            std::vector<label_t> result;
+            if (labels.wildcard()) {
+                result.reserve(_label_map.size());
+                for (size_t i = 0; i < _label_map.size(); ++i) {
+                    result.emplace_back(get_symbol(i));
+                }
+            } else {
+                for (auto label : labels.labels()) {
+                    result.emplace_back(get_symbol(label));
+                }
+            }
+            return result;
+        }
+
     protected:
         uint32_t find_labelid(op_t op, label_t label) const {
             if (op != POP && op != NOOP) {
