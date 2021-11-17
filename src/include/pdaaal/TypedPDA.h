@@ -58,6 +58,8 @@ namespace pdaaal {
 
     template<typename label_t, typename W = weight<void>, fut::type Container = fut::type::vector, typename state_t = size_t, bool skip_state_mapping = std::is_same_v<state_t,size_t>>
     class TypedPDA : public PDA<W, Container>, public std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
+    public:
+        using parent_t = PDA<W, Container>;
     protected:
         using impl_rule_t = typename PDA<W, Container>::rule_t; // This rule type is used internally.
         static_assert(!skip_state_mapping || std::is_same_v<state_t,size_t>, "When skip_state_mapping==true, you must use state_t=size_t");
@@ -93,7 +95,7 @@ namespace pdaaal {
     public:
         template<fut::type OtherContainer>
         explicit TypedPDA(TypedPDA<label_t,W,OtherContainer,state_t,skip_state_mapping>&& other_pda)
-        : PDA<W,Container>(std::move(static_cast<PDA<W,OtherContainer>&>(other_pda))),
+        : parent_t(std::move(static_cast<PDA<W,OtherContainer>&>(other_pda))),
           StateMapOrEmpty(std::move(static_cast<StateMapOrEmpty&>(other_pda))),
           _label_map(other_pda.move_label_map()) {}
 

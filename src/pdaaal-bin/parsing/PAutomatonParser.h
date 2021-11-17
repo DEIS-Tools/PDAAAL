@@ -67,7 +67,7 @@ namespace pdaaal {
     // The State object that gets passed around by the parser is a builder that constructs the PAutomaton.
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, bool indirect>
     class PAutomatonBuilder {
-        using automaton_t = TypedPAutomaton<label_t,W,fut::type::vector,state_t,skip_state_mapping,indirect>;
+        using automaton_t = TypedPAutomaton<label_t,W,state_t,skip_state_mapping,indirect>;
     public:
         explicit PAutomatonBuilder(TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
                                    const std::function<state_t(const std::string&)>& state_mapping)

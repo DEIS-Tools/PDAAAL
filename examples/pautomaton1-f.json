@@ -1,0 +1,1 @@
+{"final_p_automaton":{"states":{"3":{"edges":[{"label":"B","to":"4"}]},"4":{"edges":[{"label":"B","to":"5"}]},"5":{"accepting":true,"edges":[]},"One":{"edges":[],"initial":true},"Two":{"edges":[{"label":"B","to":"3"}],"initial":true},"Zero":{"edges":[],"initial":true}}}}
