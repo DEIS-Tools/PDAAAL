@@ -223,3 +223,81 @@ BOOST_AUTO_TEST_CASE(FailsPre)
     auto trace = Solver::get_trace(instance);
     BOOST_CHECK_EQUAL(trace.size(), 2);
 }
+
+BOOST_AUTO_TEST_CASE(FailsPre2)
+{
+    std::unordered_set<char> labels{'A'};
+    TypedPDA<char> pda(labels);
+    pda.add_rule(0, 0, POP, '*', 'A');
+
+    NFA<char> initial_nfa(std::unordered_set<char>{'A'});
+    initial_nfa.concat(NFA<char>(std::unordered_set<char>{'A'}));
+    std::vector<size_t> initial_states{0};
+    NFA<char> final_nfa(true);
+    std::vector<size_t> final_states{0};
+    SolverInstance<char,void,std::less<void>,add<void>> instance(std::move(pda), initial_nfa, initial_states, final_nfa, final_states);
+
+    bool result = Solver::pre_star_accepts(instance);
+    BOOST_CHECK(result);
+    auto trace = Solver::get_trace(instance);
+    BOOST_CHECK_EQUAL(trace.size(), 3);
+}
+
+BOOST_AUTO_TEST_CASE(FailsPre3)
+{
+    std::unordered_set<char> labels{'A'};
+    TypedPDA<char> pda(labels);
+    pda.add_rule(0, 0, POP, '*', 'A');
+
+    NFA<char> initial_nfa(std::unordered_set<char>{'A'});
+    initial_nfa.concat(NFA<char>(std::unordered_set<char>{'A'}));
+    initial_nfa.concat(NFA<char>(std::unordered_set<char>{'A'}));
+    std::vector<size_t> initial_states{0};
+    NFA<char> final_nfa(std::unordered_set<char>{'A'});
+    std::vector<size_t> final_states{0};
+    SolverInstance<char,void,std::less<void>,add<void>> instance(std::move(pda), initial_nfa, initial_states, final_nfa, final_states);
+
+    bool result = Solver::pre_star_accepts(instance);
+    BOOST_CHECK(result);
+    auto trace = Solver::get_trace(instance);
+    BOOST_CHECK_EQUAL(trace.size(), 3);
+}
+
+BOOST_AUTO_TEST_CASE(FailsPost2)
+{
+    std::unordered_set<char> labels{'A'};
+    TypedPDA<char> pda(labels);
+    pda.add_rule(0, 0, POP, '*', 'A');
+
+    NFA<char> initial_nfa(std::unordered_set<char>{'A'});
+    initial_nfa.concat(NFA<char>(std::unordered_set<char>{'A'}));
+    std::vector<size_t> initial_states{0};
+    NFA<char> final_nfa(true);
+    std::vector<size_t> final_states{0};
+    SolverInstance<char,void,std::less<void>,add<void>> instance(std::move(pda), initial_nfa, initial_states, final_nfa, final_states);
+
+    bool result = Solver::post_star_accepts(instance);
+    BOOST_CHECK(result);
+    auto trace = Solver::get_trace(instance);
+    BOOST_CHECK_EQUAL(trace.size(), 3);
+}
+
+BOOST_AUTO_TEST_CASE(DoesNotFailPost2)
+{
+    std::unordered_set<char> labels{'A'};
+    TypedPDA<char> pda(labels);
+    pda.add_rule(0, 0, POP, '*', 'A');
+
+    NFA<char> initial_nfa(std::unordered_set<char>{'A'});
+    initial_nfa.concat(NFA<char>(std::unordered_set<char>{'A'}));
+    initial_nfa.concat(NFA<char>(std::unordered_set<char>{'A'}));
+    std::vector<size_t> initial_states{0};
+    NFA<char> final_nfa(std::unordered_set<char>{'A'});
+    std::vector<size_t> final_states{0};
+    SolverInstance<char,void,std::less<void>,add<void>> instance(std::move(pda), initial_nfa, initial_states, final_nfa, final_states);
+
+    bool result = Solver::post_star_accepts(instance);
+    BOOST_CHECK(result);
+    auto trace = Solver::get_trace(instance);
+    BOOST_CHECK_EQUAL(trace.size(), 3);
+}
