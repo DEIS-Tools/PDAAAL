@@ -30,9 +30,9 @@
 
 namespace pdaaal {
 
-    void labels_t::merge(bool negated, const std::vector<uint32_t> &other, size_t all_labels) {
+    void labels_t::merge(bool wildcard, const std::vector<uint32_t>& other) {
         if (_wildcard) return;
-        if (negated && other.empty()) {
+        if (wildcard) {
             _wildcard = true;
             _labels.clear();
             return;
@@ -40,38 +40,11 @@ namespace pdaaal {
 
         assert(std::is_sorted(_labels.begin(), _labels.end()));
         assert(std::is_sorted(other.begin(), other.end()));
-        if (!negated) {
-            std::vector<uint32_t> temp_labels;
-            temp_labels.swap(_labels);
-            std::set_union(temp_labels.begin(), temp_labels.end(),
-                           other.begin(), other.end(),
-                           std::back_inserter(_labels));
-        } else {
-            std::vector<uint32_t> temp_labels;
-            temp_labels.swap(_labels);
-            _labels.reserve(std::min(all_labels, all_labels - other.size() + temp_labels.size())); // This is over-approximates size.
-            auto include_it = temp_labels.begin();
-            uint32_t current_num = 0;
-            for (uint32_t avoid_num : other) {
-                for (; current_num < avoid_num; ++current_num) {
-                    _labels.push_back(current_num);
-                }
-                while (include_it != std::end(temp_labels) && *include_it < current_num) ++include_it;
-                if (include_it != std::end(temp_labels) && *include_it == current_num) {
-                    _labels.push_back(current_num);
-                }
-                ++current_num;
-            }
-            for (; current_num < all_labels; ++current_num) {
-                _labels.push_back(current_num);
-            }
-            _labels.shrink_to_fit();
-        }
-
-        if (_labels.size() == all_labels) {
-            _wildcard = true;
-            _labels.clear();
-        }
+        std::vector<uint32_t> temp_labels;
+        temp_labels.swap(_labels);
+        std::set_union(temp_labels.begin(), temp_labels.end(),
+                       other.begin(), other.end(),
+                       std::back_inserter(_labels));
         assert(std::is_sorted(_labels.begin(), _labels.end()));
     }
 

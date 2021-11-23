@@ -47,6 +47,7 @@ namespace pdaaal {
         std::vector<uint32_t> _labels;
 
     public:
+        labels_t() = default;
 
         [[nodiscard]] bool wildcard() const {
             return _wildcard;
@@ -71,7 +72,7 @@ namespace pdaaal {
             _labels.clear();
         }
 
-        void merge(bool negated, const std::vector<uint32_t> &other, size_t all_labels);
+        void merge(bool wildcard, const std::vector<uint32_t>& other);
 
         bool intersect(const std::vector<uint32_t> &tos, size_t all_labels);
 
@@ -200,7 +201,7 @@ namespace pdaaal {
 
         struct state_t {
             fut::set<std::tuple<rule_t,labels_t>,Container> _rules;
-            std::vector<size_t> _pre_states;
+            fut::vector_set<size_t> _pre_states;
             explicit state_t(typename PDA<W,fut::type::hash>::state_t&& other_state)
                     : _rules(std::move(other_state._rules)), _pre_states(std::move(other_state._pre_states)) {}
             state_t() = default;
@@ -260,30 +261,20 @@ namespace pdaaal {
         void add_untyped_rule(Args&&... args) {
             add_untyped_rule_<W>(std::forward<Args>(args)...);
         }
-        void add_untyped_rule_impl(size_t from, rule_t r, bool negated, const std::vector<uint32_t>& pre) {
-            auto mm = std::max(from, r._to);
-            if (mm >= _states.size()) {
-                _states.resize(mm + 1);
-            }
-
-            auto [it,succeed] = _states[from]._rules.emplace(r, labels_t{});
-            it->second.merge(negated, pre, number_of_labels());
-
-            auto& prestates = _states[r._to]._pre_states;
-            auto lpre = std::lower_bound(prestates.begin(), prestates.end(), from);
-            if (lpre == std::end(prestates) || *lpre != from) {
-                prestates.insert(lpre, from);
-            }
+        void add_untyped_rule_impl(size_t from, rule_t r, bool wildcard, const std::vector<uint32_t>& pre_labels) {
+            add_state(std::max(from, r._to));
+            _states[from]._rules.emplace(r, labels_t()).first->second.merge(wildcard, pre_labels);
+            _states[r._to]._pre_states.emplace(from);
         }
 
     private:
         template <typename WT, typename = std::enable_if_t<!is_weighted<WT>>>
-        void add_untyped_rule_(size_t from, size_t to, op_t op, uint32_t label, bool negated, const std::vector<uint32_t>& pre) {
-            add_untyped_rule_impl(from, {to, op, label}, negated, pre);
+        void add_untyped_rule_(size_t from, size_t to, op_t op, uint32_t label, bool wildcard, const std::vector<uint32_t>& pre_labels) {
+            add_untyped_rule_impl(from, {to, op, label}, wildcard, pre_labels);
         }
         template <typename WT, typename = std::enable_if_t<is_weighted<WT>>>
-        void add_untyped_rule_(size_t from, size_t to, op_t op, uint32_t label, typename WT::type weight, bool negated, const std::vector<uint32_t>& pre) {
-            add_untyped_rule_impl(from, {to, op, weight, label}, negated, pre);
+        void add_untyped_rule_(size_t from, size_t to, op_t op, uint32_t label, typename WT::type weight, bool wildcard, const std::vector<uint32_t>& pre_labels) {
+            add_untyped_rule_impl(from, {to, op, weight, label}, wildcard, pre_labels);
         }
 
         std::vector<state_t> _states;

@@ -227,7 +227,7 @@ namespace pdaaal {
 
         size_t current_from_state = 0;
         std::vector<uint32_t> current_pre;
-        bool current_negated = false;
+        bool current_wildcard = false;
         typename PDA<W>::rule_t current_rule;
 
     public:
@@ -441,10 +441,10 @@ namespace pdaaal {
                     last_key = keys::from_label;
                     if (key == "*") {
                         current_pre = std::vector<uint32_t>{};
-                        current_negated = true;
+                        current_wildcard = true;
                     } else {
                         current_pre = std::vector<uint32_t>{build_pda.insert_label(key)};
-                        current_negated = false;
+                        current_wildcard = false;
                     }
                     break;
                 case context::context_type::rule:
@@ -504,7 +504,7 @@ namespace pdaaal {
                     }
                     break;
                 case context::context_type::rule:
-                    build_pda.add_rule_detail(current_from_state, current_rule, current_negated, current_pre);
+                    build_pda.add_rule_detail(current_from_state, current_rule, current_wildcard, current_pre);
                     break;
                 default:
                     break;
