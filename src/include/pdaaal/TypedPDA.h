@@ -79,6 +79,8 @@ namespace pdaaal {
             label_t _op_label;
 
             rule_t_() = default;
+            rule_t_(size_t from, label_t pre, size_t to, op_t op, label_t op_label)
+            : _from(from), _pre(pre), _to(to), _op(op), _op_label(op_label) {};
             rule_t_(const TypedPDA& pda, size_t from, uint32_t pre, details::rule_t<WT> rule)
             : _from(from), _pre(pda.get_symbol(pre)), _to(rule._to), _op(rule._operation),
               _op_label(rule._operation == POP || rule._operation == NOOP ? label_t{} : pda.get_symbol(rule._op_label)) {};
@@ -93,6 +95,8 @@ namespace pdaaal {
             typename WT::type _weight;
 
             rule_t_() = default;
+            rule_t_(size_t from, label_t pre, size_t to, op_t op, label_t op_label, typename WT::type weight = WT::zero())
+            : _from(from), _pre(pre), _to(to), _op(op), _op_label(op_label), _weight(weight) {};
             rule_t_(const TypedPDA& pda, size_t from, uint32_t pre, details::rule_t<WT> rule)
             : _from(from), _pre(pda.get_symbol(pre)), _to(rule._to), _op(rule._operation),
               _op_label(rule._operation == POP || rule._operation == NOOP ? label_t{} : pda.get_symbol(rule._op_label)),
