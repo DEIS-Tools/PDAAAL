@@ -46,7 +46,7 @@ namespace pdaaal {
     // Allow conditionally enabling state mapping. (E.g. string -> size_t map vs. just directly use size_t states.)
     template<typename state_t>
     struct state_mapping {
-        [[nodiscard]] state_t get_state(size_t id) const {
+        [[nodiscard]] virtual state_t get_state(size_t id) const {
             assert(id < _state_map.size());
             return _state_map.at(id);
         }
@@ -339,7 +339,7 @@ namespace pdaaal {
         for (const auto& state : pda.states()) {
             auto j_state = json::object();
             for (const auto& [rule, labels] : state._rules) {
-                for (const auto label : pda.get_labels(labels)) {
+                for (const auto& label : pda.get_labels(labels)) {
                     auto j_rule = json::object();
                     j_rule["to"] = rule._to;
                     details::pda_rule_to_json(j_state, j_rule, label, rule, pda);
