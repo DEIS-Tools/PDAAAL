@@ -1,17 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
 project(PDAAAL-bin VERSION ${PDAAAL_VERSION} LANGUAGES CXX)
 
-include(FetchContent)
-FetchContent_Declare(json
-    URL https://github.com/nlohmann/json/archive/refs/tags/v3.10.0.tar.gz
-    URL_HASH SHA512=1531780110260ea4cd8fbe79d860f1ea46fa8377d520669f938ddb5f8a4b11fe550fc7d2d978a281d5ddcc511447d160a2f68c06583672496c57c6672a4036a1
-)
-FetchContent_GetProperties(json)
-if(NOT json_POPULATED)
-    FetchContent_Populate(json)
-    add_subdirectory(${json_SOURCE_DIR} ${json_BINARY_DIR} EXCLUDE_FROM_ALL)
-endif()
-
 # Local definition of source files.
 set(PDAAAL_BIN_SOURCE_FILES
     main.cpp
@@ -55,7 +44,6 @@ target_sources(pdaaal-bin
 target_link_libraries(pdaaal-bin
         PRIVATE pdaaal
                 Boost::program_options
-                nlohmann_json::nlohmann_json
 )
 target_include_directories(pdaaal-bin PRIVATE ${CMAKE_CURRENT_BINARY_DIR}) # version.h is located here
 target_include_directories(pdaaal-bin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

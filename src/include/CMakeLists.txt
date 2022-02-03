@@ -66,10 +66,22 @@ if (PDAAAL_GetDependencies)
         FetchContent_Populate(abseil)
         add_subdirectory(${abseil_SOURCE_DIR} ${abseil_BINARY_DIR} EXCLUDE_FROM_ALL)
     endif()
+
+    FetchContent_Declare(nlohmann_json
+            URL https://github.com/nlohmann/json/archive/refs/tags/v3.10.0.tar.gz
+            URL_HASH SHA512=1531780110260ea4cd8fbe79d860f1ea46fa8377d520669f938ddb5f8a4b11fe550fc7d2d978a281d5ddcc511447d160a2f68c06583672496c57c6672a4036a1
+            )
+    FetchContent_GetProperties(nlohmann_json)
+    if(NOT nlohmann_json_POPULATED)
+        FetchContent_Populate(nlohmann_json)
+        set(JSON_Install ON)
+        add_subdirectory(${nlohmann_json_SOURCE_DIR} ${nlohmann_json_BINARY_DIR} EXCLUDE_FROM_ALL)
+    endif()
+
 endif (PDAAAL_GetDependencies)
 
 # Define library dependencies.
-target_link_libraries(pdaaal PUBLIC Boost::headers pegtl absl::hash)
+target_link_libraries(pdaaal PUBLIC Boost::headers pegtl absl::hash nlohmann_json::nlohmann_json)
 
 # Define which directories to install with the pdaaal library.
 install(DIRECTORY pdaaal/ pdaaal/parsing/ pdaaal/utils/

@@ -27,7 +27,7 @@
 #ifndef PDAAAL_SOLVERINSTANCE_H
 #define PDAAAL_SOLVERINSTANCE_H
 
-#include <pdaaal/PAutomaton.h>
+#include <pdaaal/TypedPAutomaton.h>
 #include <pdaaal/AbstractionPDA.h>
 #include <pdaaal/AbstractionPAutomaton.h>
 #include <pdaaal/PAutomatonProduct.h>
@@ -42,7 +42,7 @@ namespace pdaaal {
     class SolverInstance {
     public:
         using pda_t = TypedPDA<T,W,fut::type::vector,state_t,skip_state_mapping>;
-        using pautomaton_t = PAutomaton<W,trace_info_type>;
+        using pautomaton_t = TypedPAutomaton<T,W,state_t,skip_state_mapping, trace_info_type>;
         using product_t = PAutomatonProduct<pda_t, pautomaton_t, W, trace_info_type>;
         SolverInstance(pda_t&& pda,
                        const NFA<T>& initial_nfa, const std::vector<size_t>& initial_states,
@@ -81,7 +81,8 @@ namespace pdaaal {
                    const NFA<label_t>& final_nfa,   const std::vector<size_t>& final_states) -> SolverInstance<label_t,W,state_t,skip_state_mapping,trace_info_type>;
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
     SolverInstance(TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&& pda,
-                   PAutomaton<W,trace_info_type> initial, PAutomaton<W,trace_info_type> final) -> SolverInstance<label_t,W,state_t,skip_state_mapping,trace_info_type>;
+                   TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type> initial,
+                   TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type> final) -> SolverInstance<label_t,W,state_t,skip_state_mapping,trace_info_type>;
 
     template <typename T, typename W>
     class AbstractionSolverInstance {
