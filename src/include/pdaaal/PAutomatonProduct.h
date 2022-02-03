@@ -455,6 +455,12 @@ namespace pdaaal {
         std::vector<std::vector<std::pair<size_t,size_t>>> _id_fast_lookup_back; // maps final_state -> (initial_state, product_state)  Only used in dual_search
     };
 
+    template<typename label_t, typename W, typename state_t, bool skip_state_mapping>
+    PAutomatonProduct(const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
+                      const NFA<label_t>& initial_nfa, const std::vector<size_t>& initial_states,
+                      const NFA<label_t>& final_nfa, const std::vector<size_t>& final_states)
+      -> PAutomatonProduct<TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>,PAutomaton<W,true>,W>;
+
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, bool indirect>
     PAutomatonProduct(const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
                       PAutomaton<W,indirect> initial, PAutomaton<W,indirect> final) -> PAutomatonProduct<TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>,PAutomaton<W,indirect>,W>;

@@ -150,7 +150,7 @@ BOOST_AUTO_TEST_CASE(EarlyTerminationPreStar)
     BOOST_CHECK_EQUAL(trace.size(), 12);
 }
 
-BOOST_AUTO_TEST_CASE(DoesNotFailPost)
+BOOST_AUTO_TEST_CASE(Post_0AApop1A)
 {
     std::unordered_set<char> labels{'A'};
     TypedPDA<char> pda(labels);
@@ -161,7 +161,7 @@ BOOST_AUTO_TEST_CASE(DoesNotFailPost)
     std::vector<size_t> initial_states{0};
     NFA<char> final_nfa(std::unordered_set<char>{'A'});
     std::vector<size_t> final_states{1};
-    SolverInstance<char,void,std::less<void>,add<void>> instance(std::move(pda), initial_nfa, initial_states, final_nfa, final_states);
+    PAutomatonProduct instance(pda, initial_nfa, initial_states, final_nfa, final_states);
 
     bool result = Solver::post_star_accepts(instance);
     BOOST_CHECK(result);
@@ -169,7 +169,7 @@ BOOST_AUTO_TEST_CASE(DoesNotFailPost)
     BOOST_CHECK_EQUAL(trace.size(), 2);
 }
 
-BOOST_AUTO_TEST_CASE(FailsPost)
+BOOST_AUTO_TEST_CASE(POST_0Apop1)
 {
     std::unordered_set<char> labels{'A'};
     TypedPDA<char> pda(labels);
@@ -179,7 +179,7 @@ BOOST_AUTO_TEST_CASE(FailsPost)
     std::vector<size_t> initial_states{0};
     NFA<char> final_nfa(true);
     std::vector<size_t> final_states{1};
-    SolverInstance<char,void,std::less<void>,add<void>> instance(std::move(pda), initial_nfa, initial_states, final_nfa, final_states);
+    PAutomatonProduct instance(pda, initial_nfa, initial_states, final_nfa, final_states);
 
     bool result = Solver::post_star_accepts(instance);
     BOOST_CHECK(result);
@@ -187,7 +187,7 @@ BOOST_AUTO_TEST_CASE(FailsPost)
     BOOST_CHECK_EQUAL(trace.size(), 2);
 }
 
-BOOST_AUTO_TEST_CASE(DoesNotFailPre)
+BOOST_AUTO_TEST_CASE(Pre_0AApop1A)
 {
     std::unordered_set<char> labels{'A'};
     TypedPDA<char> pda(labels);
@@ -198,7 +198,7 @@ BOOST_AUTO_TEST_CASE(DoesNotFailPre)
     std::vector<size_t> initial_states{0};
     NFA<char> final_nfa(std::unordered_set<char>{'A'});
     std::vector<size_t> final_states{1};
-    SolverInstance<char,void,std::less<void>,add<void>> instance(std::move(pda), initial_nfa, initial_states, final_nfa, final_states);
+    PAutomatonProduct instance(pda, initial_nfa, initial_states, final_nfa, final_states);
 
     bool result = Solver::pre_star_accepts(instance);
     BOOST_CHECK(result);
@@ -206,7 +206,7 @@ BOOST_AUTO_TEST_CASE(DoesNotFailPre)
     BOOST_CHECK_EQUAL(trace.size(), 2);
 }
 
-BOOST_AUTO_TEST_CASE(FailsPre)
+BOOST_AUTO_TEST_CASE(Pre_0Apop1)
 {
     std::unordered_set<char> labels{'A'};
     TypedPDA<char> pda(labels);
@@ -216,7 +216,7 @@ BOOST_AUTO_TEST_CASE(FailsPre)
     std::vector<size_t> initial_states{0};
     NFA<char> final_nfa(true);
     std::vector<size_t> final_states{1};
-    SolverInstance<char,void,std::less<void>,add<void>> instance(std::move(pda), initial_nfa, initial_states, final_nfa, final_states);
+    PAutomatonProduct instance(pda, initial_nfa, initial_states, final_nfa, final_states);
 
     bool result = Solver::pre_star_accepts(instance);
     BOOST_CHECK(result);
@@ -224,7 +224,7 @@ BOOST_AUTO_TEST_CASE(FailsPre)
     BOOST_CHECK_EQUAL(trace.size(), 2);
 }
 
-BOOST_AUTO_TEST_CASE(FailsPre2)
+BOOST_AUTO_TEST_CASE(Pre_0AApop0)
 {
     std::unordered_set<char> labels{'A'};
     TypedPDA<char> pda(labels);
@@ -235,7 +235,7 @@ BOOST_AUTO_TEST_CASE(FailsPre2)
     std::vector<size_t> initial_states{0};
     NFA<char> final_nfa(true);
     std::vector<size_t> final_states{0};
-    SolverInstance<char,void,std::less<void>,add<void>> instance(std::move(pda), initial_nfa, initial_states, final_nfa, final_states);
+    PAutomatonProduct instance(pda, initial_nfa, initial_states, final_nfa, final_states);
 
     bool result = Solver::pre_star_accepts(instance);
     BOOST_CHECK(result);
@@ -243,7 +243,7 @@ BOOST_AUTO_TEST_CASE(FailsPre2)
     BOOST_CHECK_EQUAL(trace.size(), 3);
 }
 
-BOOST_AUTO_TEST_CASE(FailsPre3)
+BOOST_AUTO_TEST_CASE(Pre_0AApop0A)
 {
     std::unordered_set<char> labels{'A'};
     TypedPDA<char> pda(labels);
@@ -255,7 +255,7 @@ BOOST_AUTO_TEST_CASE(FailsPre3)
     std::vector<size_t> initial_states{0};
     NFA<char> final_nfa(std::unordered_set<char>{'A'});
     std::vector<size_t> final_states{0};
-    SolverInstance<char,void,std::less<void>,add<void>> instance(std::move(pda), initial_nfa, initial_states, final_nfa, final_states);
+    PAutomatonProduct instance(pda, initial_nfa, initial_states, final_nfa, final_states);
 
     bool result = Solver::pre_star_accepts(instance);
     BOOST_CHECK(result);
@@ -263,7 +263,7 @@ BOOST_AUTO_TEST_CASE(FailsPre3)
     BOOST_CHECK_EQUAL(trace.size(), 3);
 }
 
-BOOST_AUTO_TEST_CASE(FailsPost2)
+BOOST_AUTO_TEST_CASE(Post_0AApop0)
 {
     std::unordered_set<char> labels{'A'};
     TypedPDA<char> pda(labels);
@@ -274,7 +274,7 @@ BOOST_AUTO_TEST_CASE(FailsPost2)
     std::vector<size_t> initial_states{0};
     NFA<char> final_nfa(true);
     std::vector<size_t> final_states{0};
-    SolverInstance<char,void,std::less<void>,add<void>> instance(std::move(pda), initial_nfa, initial_states, final_nfa, final_states);
+    PAutomatonProduct instance(pda, initial_nfa, initial_states, final_nfa, final_states);
 
     bool result = Solver::post_star_accepts(instance);
     BOOST_CHECK(result);
@@ -282,7 +282,7 @@ BOOST_AUTO_TEST_CASE(FailsPost2)
     BOOST_CHECK_EQUAL(trace.size(), 3);
 }
 
-BOOST_AUTO_TEST_CASE(DoesNotFailPost2)
+BOOST_AUTO_TEST_CASE(Post_0AAApop0A)
 {
     std::unordered_set<char> labels{'A'};
     TypedPDA<char> pda(labels);
@@ -294,7 +294,7 @@ BOOST_AUTO_TEST_CASE(DoesNotFailPost2)
     std::vector<size_t> initial_states{0};
     NFA<char> final_nfa(std::unordered_set<char>{'A'});
     std::vector<size_t> final_states{0};
-    SolverInstance<char,void,std::less<void>,add<void>> instance(std::move(pda), initial_nfa, initial_states, final_nfa, final_states);
+    PAutomatonProduct instance(pda, initial_nfa, initial_states, final_nfa, final_states);
 
     bool result = Solver::post_star_accepts(instance);
     BOOST_CHECK(result);
