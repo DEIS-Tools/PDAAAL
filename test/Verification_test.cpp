@@ -469,3 +469,21 @@ BOOST_AUTO_TEST_CASE(Verification_longest_trace_test)
     auto [trace, weight] = Solver::get_trace<Trace_Type::Longest>(instance);
     BOOST_CHECK_EQUAL(w, weight);
 }
+
+BOOST_AUTO_TEST_CASE(Incremental_Parsing_vs_Wildcard_test)
+{
+    std::istringstream pda_stream(R"({
+        "pda":{
+            "states":{
+                "p0":{"A":{"pop":"","to":"p0"}}
+            }
+        }
+    })");
+    auto pda = PdaJSONParser::parse(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string("< [p0], [B] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string("< [p0], >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    auto result = Solver::post_star_accepts(instance);
+    BOOST_TEST(!result);
+}
