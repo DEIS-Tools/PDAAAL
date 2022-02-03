@@ -37,6 +37,9 @@
 #include <set>
 #include <cassert>
 #include <iostream>
+#include <sstream>
+
+#include <nlohmann/json.hpp>
 
 namespace pdaaal {
 
@@ -47,6 +50,9 @@ namespace pdaaal {
             assert(id < _state_map.size());
             return _state_map.at(id);
         }
+        [[nodiscard]] size_t state_map_size() const {
+            return _state_map.size();
+        }
     protected:
         utils::ptrie_set<state_t> _state_map;
     };
@@ -56,6 +62,8 @@ namespace pdaaal {
 
     template<typename label_t, typename W = weight<void>, fut::type Container = fut::type::vector, typename state_t = size_t, bool skip_state_mapping = std::is_same_v<state_t,size_t>>
     class TypedPDA : public PDA<W, Container>, public std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
+    public:
+        using parent_t = PDA<W, Container>;
     protected:
         using impl_rule_t = typename PDA<W, Container>::rule_t; // This rule type is used internally.
         static_assert(!skip_state_mapping || std::is_same_v<state_t,size_t>, "When skip_state_mapping==true, you must use state_t=size_t");
@@ -91,7 +99,7 @@ namespace pdaaal {
     public:
         template<fut::type OtherContainer>
         explicit TypedPDA(TypedPDA<label_t,W,OtherContainer,state_t,skip_state_mapping>&& other_pda)
-        : PDA<W,Container>(std::move(static_cast<PDA<W,OtherContainer>&>(other_pda))),
+        : parent_t(std::move(static_cast<PDA<W,OtherContainer>&>(other_pda))),
           StateMapOrEmpty(std::move(static_cast<StateMapOrEmpty&>(other_pda))),
           _label_map(other_pda.move_label_map()) {}
 
@@ -176,14 +184,37 @@ namespace pdaaal {
             return _label_map.insert(label).second;
         }
         size_t insert_state(const state_t& state) {
+            size_t id;
             if constexpr (skip_state_mapping) {
-                return state;
+                id = state;
             } else {
-                return this->_state_map.insert(state).second;
+                id = this->_state_map.insert(state).second;
             }
+            this->add_state(id);
+            return id;
         }
         void add_rule_detail(size_t from, typename PDA<W>::rule_t r, bool negated, const std::vector<uint32_t>& pre) {
             this->add_untyped_rule_impl(from, r, negated, pre);
+        }
+
+        std::vector<label_t> get_labels(const labels_t& labels) const { // TODO: Support lazy iteration. Maybe with C++20 ranges..?
+            std::vector<label_t> result;
+            if (labels.wildcard()) {
+                result.reserve(_label_map.size());
+                for (size_t i = 0; i < _label_map.size(); ++i) {
+                    result.emplace_back(get_symbol(i));
+                }
+            } else {
+                for (auto label : labels.labels()) {
+                    result.emplace_back(get_symbol(label));
+                }
+            }
+            return result;
+        }
+        [[nodiscard]] nlohmann::json to_json() const {
+            nlohmann::json j;
+            j["pda"] = *this;
+            return j;
         }
 
     protected:
@@ -267,6 +298,102 @@ namespace pdaaal {
         utils::ptrie_set<label_t> _label_map;
 
     };
-}
-#endif /* TPDA_H */
+    using json = nlohmann::json;
+    namespace details {
+        template<typename label_t>
+        std::string label_to_string(const label_t& label) {
+            if constexpr (std::is_same_v<label_t, std::string>) {
+                return label;
+            } else {
+                std::stringstream ss;
+                ss << label;
+                return ss.str();
+            }
+        }
 
+        template<typename label_t, typename W, fut::type Container, typename state_t, bool ssm>
+        void pda_rule_to_json(json& j_state, json& j_rule, const label_t& pre_label,
+                              const typename PDA<W, Container>::rule_t& rule,
+                              const TypedPDA<label_t, W, Container, state_t, ssm>& pda) {
+            auto label_s = label_to_string(pre_label);
+            switch (rule._operation) {
+                case POP:
+                    j_rule["pop"] = "";
+                    break;
+                case SWAP:
+                    j_rule["swap"] = label_to_string(pda.get_symbol(rule._op_label));
+                    break;
+                case NOOP:
+                    j_rule["swap"] = label_s;
+                    break;
+                case PUSH:
+                    j_rule["push"] = label_to_string(pda.get_symbol(rule._op_label));
+                    break;
+                default:
+                    assert(false);
+            }
+            if constexpr (W::is_weight) {
+                j_rule["weight"] = rule._weight;
+            }
+            if (j_state.contains(label_s)) {
+                if (!j_state[label_s].is_array()) {
+                    auto temp_rule = j_state[label_s];
+                    j_state[label_s] = json::array();
+                    j_state[label_s].emplace_back(temp_rule);
+                }
+                j_state[label_s].emplace_back(j_rule);
+            } else {
+                j_state[label_s] = j_rule;
+            }
+        }
+    }
+    template<typename label_t, typename W, fut::type Container>
+    void to_json(json& j, const TypedPDA<label_t,W,Container,size_t,true>& pda) {
+        j = json::object();
+        auto j_states = json::array();
+        for (const auto& state : pda.states()) {
+            auto j_state = json::object();
+            for (const auto& [rule, labels] : state._rules) {
+                for (const auto label : pda.get_labels(labels)) {
+                    auto j_rule = json::object();
+                    j_rule["to"] = rule._to;
+                    details::pda_rule_to_json(j_state, j_rule, label, rule, pda);
+                }
+            }
+            j_states.emplace_back(j_state);
+        }
+        j["states"] = j_states;
+    }
+    template<typename label_t, typename W, fut::type Container, typename state_t>
+    void to_json(json& j, const TypedPDA<label_t,W,Container,state_t,false>& pda) {
+        j = json::object();
+        auto j_states = json::object();
+        size_t state_i = 0;
+        for (const auto& state : pda.states()) {
+            auto j_state = json::object();
+            for (const auto& [rule, labels] : state._rules) {
+                for (const auto& label : pda.get_labels(labels)) {
+                    auto j_rule = json::object();
+                    std::stringstream ss;
+                    ss << pda.get_state(rule._to);
+                    j_rule["to"] = ss.str();
+                    details::pda_rule_to_json(j_state, j_rule, label, rule, pda);
+                }
+            }
+            std::stringstream ss;
+            ss << pda.get_state(state_i);
+            j_states[ss.str()] = j_state;
+            ++state_i;
+        }
+        while (state_i < pda.state_map_size()) {
+            std::stringstream ss;
+            ss << pda.get_state(state_i);
+            j_states[ss.str()] = json::object();
+            ++state_i;
+        }
+        j["states"] = j_states;
+    }
+
+}
+
+#endif /* TPDA_H */

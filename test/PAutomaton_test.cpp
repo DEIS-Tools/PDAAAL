@@ -165,6 +165,28 @@ BOOST_AUTO_TEST_CASE(WeightedPreStar)
     BOOST_CHECK_EQUAL(automaton.accepts(2, pda.encode_pre(test_stack_unreachable)), false);
 }
 
+BOOST_AUTO_TEST_CASE(WeightedPostStar4EarlyTermination)
+{
+    std::unordered_set<char> labels{'A'};
+    TypedPDA<char, weight<int>> pda(labels);
+
+    pda.add_rule(0, 3, PUSH, 'A', 'A', 4);
+    pda.add_rule(0, 1, PUSH , 'A', 'A', 1);
+    pda.add_rule(3, 1, PUSH , 'A', 'A', 8);
+    pda.add_rule(1, 2, POP , 'A', 'A', 2);
+    pda.add_rule(2, 4, POP , 'A', 'A', 16);
+
+    std::vector<char> init_stack{'A'};
+    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+
+    std::vector<char> test_stack_reachable{'A'};
+    BOOST_CHECK_EQUAL(Solver::post_star_accepts<Trace_Type::Shortest>(automaton, 4, pda.encode_pre(test_stack_reachable)), true);
+
+    auto result4A = automaton.accept_path<Trace_Type::Shortest>(4, pda.encode_pre(test_stack_reachable));
+    auto distance4A = result4A.second;
+    BOOST_CHECK_EQUAL(distance4A, 30);          //Example Derived on whiteboard
+}
+
 BOOST_AUTO_TEST_CASE(WeightedPostStar)
 {
     // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
@@ -278,28 +300,6 @@ BOOST_AUTO_TEST_CASE(WeightedPostStarResult)
 
     BOOST_CHECK_EQUAL(distance4A, 30);          //Example Derived on whiteboard
     BOOST_CHECK_EQUAL(distance2AA, 14);         //Example Derived on whiteboard
-}
-
-BOOST_AUTO_TEST_CASE(WeightedPostStar4EarlyTermination)
-{
-    std::unordered_set<char> labels{'A'};
-    TypedPDA<char, weight<int>> pda(labels);
-
-    pda.add_rule(0, 3, PUSH, 'A', 'A', 4);
-    pda.add_rule(0, 1, PUSH , 'A', 'A', 1);
-    pda.add_rule(3, 1, PUSH , 'A', 'A', 8);
-    pda.add_rule(1, 2, POP , 'A', 'A', 2);
-    pda.add_rule(2, 4, POP , 'A', 'A', 16);
-
-    std::vector<char> init_stack{'A'};
-    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
-
-    std::vector<char> test_stack_reachable{'A'};
-    BOOST_CHECK_EQUAL(Solver::post_star_accepts<Trace_Type::Shortest>(automaton, 4, pda.encode_pre(test_stack_reachable)), true);
-
-    auto result4A = automaton.accept_path<Trace_Type::Shortest>(4, pda.encode_pre(test_stack_reachable));
-    auto distance4A = result4A.second;
-    BOOST_CHECK_EQUAL(distance4A, 30);          //Example Derived on whiteboard
 }
 
 TypedPDA<int,weight<int>> create_syntactic_network_broad(int network_size = 2) {

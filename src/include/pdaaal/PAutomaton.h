@@ -638,7 +638,6 @@ namespace pdaaal {
         const PDA<W>& _pda;
     };
 
-
 }
 
 #endif //PDAAAL_PAUTOMATON_H

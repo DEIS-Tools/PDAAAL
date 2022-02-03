@@ -28,7 +28,7 @@
 #define PDAAAL_PAUTOMATAREGEXPARSER_H
 
 #include <pdaaal/parsing/NfaParserGrammar.h>
-#include <pdaaal/PAutomaton.h>
+#include <pdaaal/TypedPAutomaton.h>
 #include <tao/pegtl/contrib/unescape.hpp>
 
 namespace pdaaal {
@@ -67,12 +67,13 @@ namespace pdaaal {
     // The State object that gets passed around by the parser is a builder that constructs the PAutomaton.
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, bool indirect>
     class PAutomatonBuilder {
+        using automaton_t = TypedPAutomaton<label_t,W,state_t,skip_state_mapping,indirect>;
     public:
         explicit PAutomatonBuilder(TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
                                    const std::function<state_t(const std::string&)>& state_mapping)
         : _pda(pda), _state_mapping(state_mapping),
           _label_mapping([&pda](const std::string& label) -> uint32_t { return pda.insert_label(label); }) {};
-        PAutomaton<W,indirect> get_p_automaton() {
+        automaton_t get_p_automaton() {
             return _current_p_automaton.value();
         }
         bool add_state(const std::string& state_name) {
@@ -95,7 +96,7 @@ namespace pdaaal {
         void finish_atom() {
             std::sort(_states.begin(), _states.end()); // Sort and remove duplicates. TODO: Consider using unordered_set instead...
             _states.erase(std::unique(_states.begin(), _states.end()), _states.end());
-            PAutomaton<W,indirect> new_p_automaton(_pda, _current_nfa, _states);
+            automaton_t new_p_automaton(_pda, _current_nfa, _states);
             if (_current_p_automaton) {
                 _current_p_automaton.value().or_extend(std::move(new_p_automaton));
             } else {
@@ -106,7 +107,7 @@ namespace pdaaal {
     private:
         std::vector<size_t> _states;
         NFA<uint32_t> _current_nfa;
-        std::optional<PAutomaton<W,indirect>> _current_p_automaton;
+        std::optional<automaton_t> _current_p_automaton;
 
         const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& _pda;
         const std::function<state_t(const std::string&)>& _state_mapping;
@@ -157,11 +158,11 @@ namespace pdaaal {
 
     private:
         template <bool indirect, typename Input, typename W>
-        static PAutomaton<W,indirect> parse(Input& in, TypedPDA<std::string,W,fut::type::vector, std::string>& pda) {
+        static auto parse(Input& in, TypedPDA<std::string,W,fut::type::vector, std::string>& pda) {
             return parse<indirect, std::string>(in, pda, [](const std::string& s){ return s; });
         }
         template <bool indirect, typename Input, typename W, bool ssm>
-        static PAutomaton<W,indirect> parse(Input& in, TypedPDA<std::string,W,fut::type::vector, size_t, ssm>& pda) {
+        static auto parse(Input& in, TypedPDA<std::string,W,fut::type::vector, size_t, ssm>& pda) {
             return parse<indirect, size_t>(in, pda, [](const std::string& s) -> size_t { return std::stoul(s); });
         }
         template <bool indirect, typename state_t, typename Input, typename pda_t>

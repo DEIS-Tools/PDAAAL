@@ -79,6 +79,7 @@ namespace pdaaal {
                     ("trace,t", po::value<Trace_Type>(&trace_type)->default_value(Trace_Type::None), "Trace type. 0=no trace, 1=any trace, 2=shortest trace, 3=longest trace, 4=fixed-point shortest trace")
                     ("initial-automaton,i", po::value<std::string>(&initial_pa_file), "Initial PAutomaton file input.")
                     ("final-automaton,f", po::value<std::string>(&final_pa_file), "Final PAutomaton file input.")
+                    ("json-automata", po::bool_switch(&json_automata), "Parse Pautomata files using JSON format.")
                     ;
         }
         [[nodiscard]] const po::options_description& options() const { return verification_options; }
@@ -86,8 +87,12 @@ namespace pdaaal {
         template <typename PDA_T>
         void verify(PDA_T& pda) {
             using pda_t = std20::remove_cvref_t<PDA_T>;
-            auto initial_p_automaton = PAutomatonParser::parse_file(initial_pa_file, pda);
-            auto final_p_automaton = PAutomatonParser::parse_file(final_pa_file, pda);
+            auto initial_p_automaton = json_automata ?
+                    PAutomatonJsonParser::parse(initial_pa_file, pda, "P-automaton") :
+                    PAutomatonParser::parse_file(initial_pa_file, pda);
+            auto final_p_automaton = json_automata ?
+                     PAutomatonJsonParser::parse(final_pa_file, pda, "P-automaton") :
+                     PAutomatonParser::parse_file(final_pa_file, pda);
             PAutomatonProduct instance(pda, std::move(initial_p_automaton), std::move(final_p_automaton));
 
             bool result = false;
@@ -234,6 +239,7 @@ namespace pdaaal {
         size_t engine = 0;
         Trace_Type trace_type = Trace_Type::None;
         std::string initial_pa_file, final_pa_file;
+        bool json_automata = false;
         //bool print_trace = false;
     };
 }
