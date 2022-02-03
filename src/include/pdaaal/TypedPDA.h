@@ -46,7 +46,7 @@ namespace pdaaal {
     // Allow conditionally enabling state mapping. (E.g. string -> size_t map vs. just directly use size_t states.)
     template<typename state_t>
     struct state_mapping {
-        [[nodiscard]] state_t get_state(size_t id) const {
+        [[nodiscard]] virtual state_t get_state(size_t id) const {
             assert(id < _state_map.size());
             return _state_map.at(id);
         }
@@ -77,6 +77,13 @@ namespace pdaaal {
             size_t _to = std::numeric_limits<size_t>::max();
             op_t _op = POP;
             label_t _op_label;
+
+            rule_t_() = default;
+            rule_t_(size_t from, label_t pre, size_t to, op_t op, label_t op_label)
+            : _from(from), _pre(pre), _to(to), _op(op), _op_label(op_label) {};
+            rule_t_(const TypedPDA& pda, size_t from, uint32_t pre, details::rule_t<WT> rule)
+            : _from(from), _pre(pda.get_symbol(pre)), _to(rule._to), _op(rule._operation),
+              _op_label(rule._operation == POP || rule._operation == NOOP ? label_t{} : pda.get_symbol(rule._op_label)) {};
         };
         template <typename WT>
         struct rule_t_<WT, std::enable_if_t<is_weighted<WT>>> {
@@ -86,6 +93,14 @@ namespace pdaaal {
             op_t _op = POP;
             label_t _op_label;
             typename WT::type _weight;
+
+            rule_t_() = default;
+            rule_t_(size_t from, label_t pre, size_t to, op_t op, label_t op_label, typename WT::type weight = WT::zero())
+            : _from(from), _pre(pre), _to(to), _op(op), _op_label(op_label), _weight(weight) {};
+            rule_t_(const TypedPDA& pda, size_t from, uint32_t pre, details::rule_t<WT> rule)
+            : _from(from), _pre(pda.get_symbol(pre)), _to(rule._to), _op(rule._operation),
+              _op_label(rule._operation == POP || rule._operation == NOOP ? label_t{} : pda.get_symbol(rule._op_label)),
+              _weight(rule._weight) {};
         };
     public:
         using rule_t = rule_t_<W>; // This rule type can be used by users of the library.
@@ -128,11 +143,6 @@ namespace pdaaal {
             return _label_map.at(id);
         }
 
-        template<typename... Args>
-        void add_rules(Args &&... args) {
-            add_rules_<W>(std::forward<Args>(args)...);
-        }
-
         void add_rule(const rule_t& r) {
             if constexpr (is_weighted<W>) {
                 add_rule(r._from, r._to, r._op, r._op_label, r._pre, r._weight);
@@ -159,11 +169,7 @@ namespace pdaaal {
             for (size_t i = 0; i < pre.size(); ++i) {
                 auto &p = pre[i];
                 auto res = _label_map.exists(p);
-                if (!res.first) {
-                    //std::cerr << (int) p.type() << ", " << (int) p.mask() << ", " << (int) p.value() << std::endl;
-                    //std::cerr << "SIZE " << _label_map.size() << std::endl;
-                    assert(false);
-                }
+                assert(res.first);
                 tpre[i] = res.second;
             }
             return tpre;
@@ -193,8 +199,8 @@ namespace pdaaal {
             this->add_state(id);
             return id;
         }
-        void add_rule_detail(size_t from, typename PDA<W>::rule_t r, bool negated, const std::vector<uint32_t>& pre) {
-            this->add_untyped_rule_impl(from, r, negated, pre);
+        void add_rule_detail(size_t from, typename PDA<W>::rule_t r, bool wildcard, const std::vector<uint32_t>& pre_labels) {
+            this->add_untyped_rule_impl(from, r, wildcard, pre_labels);
         }
 
         std::vector<label_t> get_labels(const labels_t& labels) const { // TODO: Support lazy iteration. Maybe with C++20 ranges..?
@@ -217,6 +223,26 @@ namespace pdaaal {
             return j;
         }
 
+        std::vector<rule_t> all_rules() const {
+            std::vector<rule_t> result;
+            size_t state_i = 0;
+            for (const auto& state : this->states()) {
+                for (const auto& [rule,labels] : state._rules) {
+                    if (labels.wildcard()) {
+                        for (uint32_t pre = 0; pre < number_of_labels(); ++pre) {
+                            result.emplace_back(*this, state_i, pre, rule);
+                        }
+                    } else {
+                        for (const auto& pre : labels.labels()) {
+                            result.emplace_back(*this, state_i, pre, rule);
+                        }
+                    }
+                }
+                ++state_i;
+            }
+            return result;
+        }
+
     protected:
         uint32_t find_labelid(op_t op, label_t label) const {
             if (op != POP && op != NOOP) {
@@ -230,69 +256,28 @@ namespace pdaaal {
             return std::numeric_limits<uint32_t>::max();
         }
 
-        void add_rules_impl(size_t from, impl_rule_t rule, bool negated, const std::vector<label_t> &labels, bool negated_pre, const std::vector<label_t> &pre) {
-            auto tpre = encode_pre(pre);
-            if (negated) {
-                size_t last = 0;
-                for (auto &l : labels) {
-                    auto res = _label_map.exists(l);
-                    assert(res.first);
-                    for (; last < res.second; ++last) {
-                        rule._op_label = last;
-                        this->add_untyped_rule_impl(from, rule, negated_pre, tpre);
-                    }
-                    ++last;
-                }
-                for (; last < _label_map.size(); ++last) {
-                    rule._op_label = last;
-                    this->add_untyped_rule_impl(from, rule, negated_pre, tpre);
-                }
-            } else {
-                for (auto &s : labels) {
-                    auto lid = find_labelid(rule._operation, s);
-                    rule._op_label = lid;
-                    this->add_untyped_rule_impl(from, rule, negated_pre, tpre);
-                }
-            }
-        }
-
     private:
+
         template<typename WT, typename = std::enable_if_t<!is_weighted<WT>>>
-        void add_rules_(size_t from, size_t to, op_t op, bool negated, const std::vector<label_t> &labels, bool negated_pre,
-                        const std::vector<label_t> &pre) {
-            add_rules_impl(from, {to, op}, negated, labels, negated_pre, pre);
+        void add_rule_(size_t from, size_t to, op_t op, label_t op_label, bool wildcard, const std::vector<label_t>& pre_labels) {
+            this->add_untyped_rule_impl(from, {to, op, find_labelid(op, op_label)}, wildcard, encode_pre(pre_labels));
         }
 
         template<typename WT, typename = std::enable_if_t<is_weighted<WT>>>
-        void add_rules_(size_t from, size_t to, op_t op, bool negated, const std::vector<label_t> &labels, bool negated_pre,
-                        const std::vector<label_t> &pre, typename WT::type weight = WT::zero()) {
-            add_rules_impl(from, {to, op, weight}, negated, labels, negated_pre, pre);
+        void add_rule_(size_t from, size_t to, op_t op, label_t op_label, bool wildcard, const std::vector<label_t>& pre_labels, typename WT::type weight = WT::zero()) {
+            this->add_untyped_rule_impl(from, {to, op, weight, find_labelid(op, op_label)}, wildcard, encode_pre(pre_labels));
         }
 
         template<typename WT, typename = std::enable_if_t<!is_weighted<WT>>>
-        void add_rule_(size_t from, size_t to, op_t op, label_t label, bool negated, const std::vector<label_t> &pre) {
-            auto lid = find_labelid(op, label);
-            auto tpre = encode_pre(pre);
-            this->add_untyped_rule(from, to, op, lid, negated, tpre);
-        }
-
-        template<typename WT, typename = std::enable_if_t<is_weighted<WT>>>
-        void add_rule_(size_t from, size_t to, op_t op, label_t label, bool negated, const std::vector<label_t> &pre, typename WT::type weight = WT::zero()) {
-            auto lid = find_labelid(op, label);
-            auto tpre = encode_pre(pre);
-            this->add_untyped_rule(from, to, op, lid, weight, negated, tpre);
-        }
-
-        template<typename WT, typename = std::enable_if_t<!is_weighted<WT>>>
-        void add_rule_(size_t from, size_t to, op_t op, label_t label, label_t pre) {
+        void add_rule_(size_t from, size_t to, op_t op, label_t op_label, label_t pre) {
             std::vector<label_t> _pre{pre};
-            add_rule(from, to, op, label, false, _pre);
+            add_rule(from, to, op, op_label, false, _pre);
         }
 
         template<typename WT, typename = std::enable_if_t<is_weighted<WT>>>
-        void add_rule_(size_t from, size_t to, op_t op, label_t label, label_t pre, typename WT::type weight = WT::zero()) {
+        void add_rule_(size_t from, size_t to, op_t op, label_t op_label, label_t pre, typename WT::type weight = WT::zero()) {
             std::vector<label_t> _pre{pre};
-            add_rule(from, to, op, label, false, _pre, weight);
+            add_rule(from, to, op, op_label, false, _pre, weight);
         }
 
         utils::ptrie_set<label_t> _label_map;
@@ -354,7 +339,7 @@ namespace pdaaal {
         for (const auto& state : pda.states()) {
             auto j_state = json::object();
             for (const auto& [rule, labels] : state._rules) {
-                for (const auto label : pda.get_labels(labels)) {
+                for (const auto& label : pda.get_labels(labels)) {
                     auto j_rule = json::object();
                     j_rule["to"] = rule._to;
                     details::pda_rule_to_json(j_state, j_rule, label, rule, pda);

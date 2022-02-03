@@ -119,10 +119,10 @@ namespace pdaaal {
                 if (res.second) { // New edge is not already in edges (rel U workset).
                     _workset.emplace(from, label, to);
                     if (trace != nullptr) { // Don't add existing edges
+                        _automaton.add_edge(from, to, label, trace_ptr_from<W>(trace));
                         if constexpr (ET) {
                             _found = _found || _early_termination(from, label, to, trace_ptr_from<W>(trace));
                         }
-                        _automaton.add_edge(from, to, label, trace_ptr_from<W>(trace));
                     }
                 }
             };
