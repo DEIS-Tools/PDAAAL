@@ -37,6 +37,7 @@
 #include <set>
 #include <cassert>
 #include <iostream>
+#include <sstream>
 
 #include <nlohmann/json.hpp>
 
@@ -48,6 +49,9 @@ namespace pdaaal {
         [[nodiscard]] state_t get_state(size_t id) const {
             assert(id < _state_map.size());
             return _state_map.at(id);
+        }
+        [[nodiscard]] size_t state_map_size() const {
+            return _state_map.size();
         }
     protected:
         utils::ptrie_set<state_t> _state_map;
@@ -180,11 +184,14 @@ namespace pdaaal {
             return _label_map.insert(label).second;
         }
         size_t insert_state(const state_t& state) {
+            size_t id;
             if constexpr (skip_state_mapping) {
-                return state;
+                id = state;
             } else {
-                return this->_state_map.insert(state).second;
+                id = this->_state_map.insert(state).second;
             }
+            this->add_state(id);
+            return id;
         }
         void add_rule_detail(size_t from, typename PDA<W>::rule_t r, bool negated, const std::vector<uint32_t>& pre) {
             this->add_untyped_rule_impl(from, r, negated, pre);
@@ -365,7 +372,7 @@ namespace pdaaal {
         for (const auto& state : pda.states()) {
             auto j_state = json::object();
             for (const auto& [rule, labels] : state._rules) {
-                for (const auto label : pda.get_labels(labels)) {
+                for (const auto& label : pda.get_labels(labels)) {
                     auto j_rule = json::object();
                     std::stringstream ss;
                     ss << pda.get_state(rule._to);
@@ -376,6 +383,12 @@ namespace pdaaal {
             std::stringstream ss;
             ss << pda.get_state(state_i);
             j_states[ss.str()] = j_state;
+            ++state_i;
+        }
+        while (state_i < pda.state_map_size()) {
+            std::stringstream ss;
+            ss << pda.get_state(state_i);
+            j_states[ss.str()] = json::object();
             ++state_i;
         }
         j["states"] = j_states;

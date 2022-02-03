@@ -27,6 +27,8 @@
 #ifndef PDAAAL_TYPEDPAUTOMATON_H
 #define PDAAAL_TYPEDPAUTOMATON_H
 
+#include <iostream>
+#include <fstream>
 #include <pdaaal/PAutomaton.h>
 #include <pdaaal/TypedPDA.h>
 
@@ -96,6 +98,13 @@ namespace pdaaal {
     private:
         const typed_pda_t& _typed_pda;
     };
+    // CTAD guides
+    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, bool indirect = true>
+    TypedPAutomaton(const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const NFA<label_t>&, const std::vector<size_t>&) -> TypedPAutomaton<label_t,W,state_t,skip_state_mapping,indirect>;
+    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, bool indirect = true>
+    TypedPAutomaton(const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const NFA<uint32_t>&, const std::vector<size_t>&) -> TypedPAutomaton<label_t,W,state_t,skip_state_mapping,indirect>;
+    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, bool indirect = true>
+    TypedPAutomaton(const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const std::vector<size_t>&, bool special_accepting = true) -> TypedPAutomaton<label_t,W,state_t,skip_state_mapping,indirect>;
 
     class PAutomatonJsonParser {
     public:
@@ -177,7 +186,14 @@ namespace pdaaal {
             iterate_states([&state_to_id,&automaton,&state_mapping,&pda](const state_t& state, const json& j_state){
                 size_t from = state_to_id(state);
                 for (const auto& edge : j_state["edges"]) {
-                    size_t to = state_to_id(state_mapping(edge["to"].get<std::string>()));
+                    size_t to;
+                    if constexpr (skip_state_mapping) {
+                        assert(edge["to"].is_number_unsigned());
+                        to = state_to_id(edge["to"].get<size_t>());
+                    } else {
+                        assert(edge["to"].is_string());
+                        to = state_to_id(state_mapping(edge["to"].get<std::string>()));
+                    }
                     auto label_string = edge["label"].get<std::string>();
                     if (label_string.empty()) {
                         automaton.add_epsilon_edge(from,to);

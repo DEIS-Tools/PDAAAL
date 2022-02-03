@@ -88,10 +88,10 @@ namespace pdaaal {
         void verify(PDA_T& pda) {
             using pda_t = std20::remove_cvref_t<PDA_T>;
             auto initial_p_automaton = json_automata ?
-                    PAutomatonJsonParser::parse(initial_pa_file, pda, "initial_p_automaton") :
+                    PAutomatonJsonParser::parse(initial_pa_file, pda, "P-automaton") :
                     PAutomatonParser::parse_file(initial_pa_file, pda);
             auto final_p_automaton = json_automata ?
-                     PAutomatonJsonParser::parse(final_pa_file, pda, "final_p_automaton") :
+                     PAutomatonJsonParser::parse(final_pa_file, pda, "P-automaton") :
                      PAutomatonParser::parse_file(final_pa_file, pda);
             PAutomatonProduct instance(pda, std::move(initial_p_automaton), std::move(final_p_automaton));
 

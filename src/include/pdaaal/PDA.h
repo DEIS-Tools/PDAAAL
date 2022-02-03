@@ -248,6 +248,12 @@ namespace pdaaal {
         }
 
     protected:
+        // Derived classes may want to add empty states.
+        void add_state(size_t s) {
+            if (s >= _states.size()) {
+                _states.resize(s + 1);
+            }
+        }
 
         // Handle both weighted and unweighted rules appropriately.
         template <typename... Args>
