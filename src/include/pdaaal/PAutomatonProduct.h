@@ -111,29 +111,28 @@ namespace pdaaal {
         template<Trace_Type trace_type = Trace_Type::Any, bool abstraction = false>
         [[nodiscard]] typename std::conditional_t<
             (trace_type == Trace_Type::Shortest || trace_type == Trace_Type::Longest || trace_type == Trace_Type::ShortestFixedPoint) && is_weighted<W>,
-        std::tuple<std::vector<path_state<abstraction>>, std::vector<uint32_t>, typename W::type>,
-        std::tuple<std::vector<path_state<abstraction>>, std::vector<uint32_t>>>
+        std::tuple<std::optional<AutomatonPath<abstraction>>, typename W::type>,
+        std::optional<AutomatonPath<abstraction>>>
         find_path() const {
             if constexpr ((trace_type == Trace_Type::Longest || trace_type == Trace_Type::ShortestFixedPoint) && W::is_weight) {
                 PAutomatonFixedPoint<W,trace_type> fixed_point(_product);
                 fixed_point.run();
                 if (fixed_point.not_accepting()) {
-                    return {std::vector<size_t>(), std::vector<uint32_t>(), solver_weight<W,trace_type>::max()};
+                    return {std::nullopt, solver_weight<W,trace_type>::max()};
                 }
                 if (fixed_point.is_infinite()) {
-                    return {std::vector<size_t>(), std::vector<uint32_t>(), solver_weight<W,trace_type>::bottom()}; // TODO: Can we provide more info than this??
+                    return {std::nullopt, solver_weight<W,trace_type>::bottom()}; // TODO: Can we provide more info than this??
                 }
-                return fixed_point.get_path([this](size_t state) -> size_t { return get_original_ids(state).first; });
+                return {fixed_point.get_path([this](size_t state) -> size_t { return get_original_ids(state).first; }), fixed_point.get_weight()};
             } else if constexpr (trace_type == Trace_Type::Shortest && is_weighted<W>) { // TODO: Consider unweighted shortest path.
                 // Dijkstra.
                 struct queue_elem {
                     typename W::type weight;
                     size_t state;
                     uint32_t label;
-                    size_t stack_index;
                     const queue_elem *back_pointer;
-                    queue_elem(typename W::type weight, size_t state, uint32_t label, size_t stack_index, const queue_elem *back_pointer = nullptr)
-                            : weight(weight), state(state), label(label), stack_index(stack_index), back_pointer(back_pointer) {};
+                    queue_elem(typename W::type weight, size_t state, uint32_t label, const queue_elem *back_pointer = nullptr)
+                            : weight(weight), state(state), label(label), back_pointer(back_pointer) {};
 
                     bool operator<(const queue_elem& other) const {
                         return std::tie(state, label) < std::tie(other.state, other.label); // TODO: Is this correct? Should it not just be state?? and better then make 'visited' std::unordered_map<size_t, typename W::type>.
@@ -154,27 +153,21 @@ namespace pdaaal {
                 std::vector<queue_elem> visited;
                 std::vector<std::unique_ptr<queue_elem>> pointers;
                 for (size_t i = 0; i < _pda_size; ++i) { // Iterate over _product._initial ([i]->_id)
-                    search_queue.emplace(W::zero(), i, std::numeric_limits<uint32_t>::max(), 0); // No label going into initial state.
+                    search_queue.emplace(W::zero(), i, std::numeric_limits<uint32_t>::max()); // No label going into initial state.
                 }
                 while(!search_queue.empty()) {
                     auto current = search_queue.top();
                     search_queue.pop();
 
                     if (_product.states()[current.state]->_accepting) {
-                        std::vector<path_state<abstraction>> path(current.stack_index + 1);
-                        std::vector<uint32_t> label_stack(current.stack_index);
+                        AutomatonPath<abstraction> automaton_path(get_original<abstraction>(current.state));
                         const queue_elem* p = &current;
-                        while (p->stack_index > 0) {
-                            path[p->stack_index] = get_original_ids(p->state).first;
-                            label_stack[p->stack_index - 1] = p->label;
+                        while (p->back_pointer != nullptr) {
+                            auto label = p->label;
                             p = p->back_pointer;
+                            automaton_path.emplace(get_original<abstraction>(p->state), label);
                         }
-                        if constexpr (abstraction) {
-                            path[p->stack_index] = get_original_ids(p->state).to_pair();
-                        } else {
-                            path[p->stack_index] = get_original_ids(p->state).first;
-                        }
-                        return std::make_tuple(path, label_stack, current.weight);
+                        return std::make_tuple(automaton_path, current.weight);
                     }
 
                     auto lb = std::lower_bound(visited.begin(), visited.end(), current);
@@ -193,11 +186,11 @@ namespace pdaaal {
                     for (const auto& [to,labels] : _product.states()[current.state]->_edges) {
                         if (!labels.empty()) {
                             auto label = std::min_element(labels.begin(), labels.end(), [](const auto& a, const auto& b){ return solver_weight<W,trace_type>::less(a.second.second, b.second.second); });
-                            search_queue.emplace(solver_weight<W,trace_type>::add(current.weight, label->second.second), to, label->first, current.stack_index + 1, pointer);
+                            search_queue.emplace(solver_weight<W,trace_type>::add(current.weight, label->second.second), to, label->first, pointer);
                         }
                     }
                 }
-                return std::make_tuple(std::vector<path_state<abstraction>>(), std::vector<uint32_t>(), solver_weight<W,trace_type>::max());
+                return std::make_tuple(std::nullopt, solver_weight<W,trace_type>::max());
             } else {
                 // DFS search.
                 std::vector<path_state<abstraction>> path;
@@ -208,11 +201,10 @@ namespace pdaaal {
                 for (size_t i = 0; i < _pda_size; ++i) {
                     if (_product.states()[i]->_accepting) { // Initial accepting state
                         if constexpr (abstraction) {
-                            path.emplace_back(i,i);
+                            return AutomatonPath<abstraction>(std::make_pair(i,i));
                         } else {
-                            path.push_back(i);
+                            return AutomatonPath<abstraction>(i);
                         }
-                        return std::make_tuple(path, label_stack);
                     }
                     waiting.emplace_back(i, 0, std::numeric_limits<uint32_t>::max()); // Add all initial states in _product.
                 }
@@ -223,11 +215,7 @@ namespace pdaaal {
                     waiting.pop_back();
                     path.resize(stack_index + 2);
                     label_stack.resize(stack_index + 1);
-                    if constexpr (abstraction) {
-                        path[stack_index] = get_original_ids(current).to_pair();
-                    } else {
-                        path[stack_index] = get_original_ids(current).first;
-                    }
+                    path[stack_index] = get_original<abstraction>(current);
                     if (stack_index > 0) {
                         label_stack[stack_index - 1] = last_label;
                     }
@@ -235,19 +223,15 @@ namespace pdaaal {
                         if (!labels.empty() && seen.emplace(to).second) {
                             uint32_t label = labels[0].first;
                             if (_product.states()[to]->_accepting) {
-                                if constexpr (abstraction) {
-                                    path[stack_index + 1] = get_original_ids(to).to_pair();
-                                } else {
-                                    path[stack_index + 1] = get_original_ids(to).first;
-                                }
+                                path[stack_index + 1] = get_original<abstraction>(to);
                                 label_stack[stack_index] = label;
-                                return std::make_tuple(path, label_stack);
+                                return AutomatonPath<abstraction>(path, label_stack); // No nice way of creating this on the fly, so we do it in the end.
                             }
                             waiting.emplace_back(to, stack_index + 1, label);
                         }
                     }
                 }
-                return std::make_tuple(std::vector<path_state<abstraction>>(), std::vector<uint32_t>());
+                return std::nullopt;
             }
         }
 
@@ -382,6 +366,15 @@ namespace pdaaal {
             _id_map.unpack(id - _pda_size, &res);
             return res;
         }
+        template <bool state_pair>
+        auto get_original(size_t id) const {
+            if constexpr (state_pair) {
+                return get_original_ids(id).to_pair();
+            } else {
+                return get_original_ids(id).first;
+            }
+        }
+
         template<bool needs_back_lookup = false>
         std::pair<bool,size_t> get_product_state(std::pair<const state_t*, const state_t*> pair) {
             return get_product_state<needs_back_lookup>(pair.first, pair.second);

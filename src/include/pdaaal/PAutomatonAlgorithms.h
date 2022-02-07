@@ -66,6 +66,7 @@ namespace pdaaal {
                 _states[i].weight = W::zero();
                 _states[i].in_queue = true;
                 _states[i].first_predecessor = no_state;
+                _states[i].predecessor = no_state;
             }
         }
 
@@ -148,7 +149,7 @@ namespace pdaaal {
             return get_path([](size_t s){ return s; });
         }
         template<typename MapFn>
-        [[nodiscard]] AutomatonPath get_path(MapFn&& state_map) const {
+        [[nodiscard]] AutomatonPath<> get_path(MapFn&& state_map) const {
             static_assert(std::is_convertible_v<MapFn,std::function<size_t(size_t)>>);
             AutomatonPath path(state_map(_min_accepting_state));
             size_t state = _min_accepting_state;
@@ -166,7 +167,7 @@ namespace pdaaal {
             const std::vector<state_info>& _states; // Note: This is ref to _states in PAutomatonFixedPoint. Beware of lifetime.
             size_t _current_state;
             MapFn _state_map;
-            AutomatonPath _path;
+            AutomatonPath<> _path;
 
         public:
             AutomatonTraceBack(const PAutomatonFixedPoint<W,trace_type>& fp, MapFn&& state_map)
@@ -193,7 +194,7 @@ namespace pdaaal {
             [[nodiscard]] size_t current_state() const {
                 return _current_state;
             }
-            [[nodiscard]] AutomatonPath get_path() const {
+            [[nodiscard]] AutomatonPath<> get_path() const {
                 return _path;
             }
         };
@@ -219,7 +220,7 @@ namespace pdaaal {
         //
         template <bool memory_less>
         void run(TB&& trace_back) {
-            std::unordered_set<state_type> seen;
+            std::unordered_set<state_type, absl::Hash<state_type>> seen;
             seen.emplace(trace_back.current_state());
 
             std::vector<trace_elem_type> trace1;

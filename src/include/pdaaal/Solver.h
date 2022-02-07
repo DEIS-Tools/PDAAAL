@@ -805,11 +805,11 @@ namespace pdaaal {
             using trace_info = TraceInfo<trace_info_type>;
             using trace_info_t = TraceInfo_t<trace_info_type>;
         public:
-            TraceBack(const p_automaton_t& automaton, AutomatonPath&& path)
+            TraceBack(const p_automaton_t& automaton, AutomatonPath<>&& path)
             : _automaton(automaton), _path(std::move(path)) { };
         private:
             const p_automaton_t& _automaton;
-            AutomatonPath _path;
+            AutomatonPath<> _path;
             bool _post = false;
 
             template <bool avoid_loop>
@@ -831,7 +831,7 @@ namespace pdaaal {
 
         public:
             [[nodiscard]] bool post() const { return _post; }
-            [[nodiscard]] const AutomatonPath& path() const { return _path; }
+            [[nodiscard]] const AutomatonPath<>& path() const { return _path; }
             template <bool avoid_loop = false>
             std::optional<rule_t> next() {
                 while(true) { // In case of post_epsilon_trace, keep going until a rule is found or we are done.
@@ -1028,23 +1028,23 @@ namespace pdaaal {
         static auto get_trace(const PAutomatonProduct<pda_t,automaton_t,W,trace_info_type>& instance) {
             static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
             if constexpr (trace_type == Trace_Type::Shortest || trace_type == Trace_Type::Longest || trace_type == Trace_Type::ShortestFixedPoint) {
-                auto [path, stack, weight] = instance.template find_path<trace_type>();
-                return std::make_pair(_get_trace(instance.pda(), instance.automaton(), path, stack), weight);
+                auto [automaton_path, weight] = instance.template find_path<trace_type>();
+                return std::make_pair(_get_trace(instance.pda(), instance.automaton(), automaton_path), weight);
             } else {
-                auto [path, stack] = instance.template find_path<trace_type>();
-                return _get_trace(instance.pda(), instance.automaton(), path, stack);
+                auto automaton_path = instance.template find_path<trace_type>();
+                return _get_trace(instance.pda(), instance.automaton(), automaton_path);
             }
         }
         template <typename pda_t, typename automaton_t, typename W>
         static auto get_trace_dual_search(const PAutomatonProduct<pda_t,automaton_t,W>& instance) {
-            auto [paths, stack] = instance.template find_path<Trace_Type::Any, true>();
-            std::vector<size_t> i_path, f_path;
-            for (const auto& [i_state, f_state] : paths) {
-                i_path.emplace_back(i_state);
-                f_path.emplace_back(f_state);
+            auto paths = instance.template find_path<Trace_Type::Any, true>();
+            using return_type = decltype(_get_trace(instance.pda(), instance.initial_automaton(), std::declval<AutomatonPath<>>()));
+            if (!paths.has_value()) {
+                return return_type{};
             }
-            auto trace1 = _get_trace(instance.pda(), instance.initial_automaton(), i_path, stack);
-            auto trace2 = _get_trace(instance.pda(), instance.final_automaton(), f_path, stack);
+            auto [i_path, f_path] = paths.value().split();
+            auto trace1 = _get_trace(instance.pda(), instance.initial_automaton(), i_path);
+            auto trace2 = _get_trace(instance.pda(), instance.final_automaton(), f_path);
             assert(trace1.back()._pdastate == trace2.front()._pdastate);
             assert(trace1.back()._stack.size() == trace2.front()._stack.size()); // Should also check == for contents of stack, but T might not implement ==.
             trace1.insert(trace1.end(), trace2.begin() + 1, trace2.end());
@@ -1054,14 +1054,14 @@ namespace pdaaal {
         static auto get_rule_trace_and_paths(const PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
             if constexpr (trace_type == Trace_Type::Shortest) {
-                auto[paths, stack, weight] = instance.template find_path<trace_type, true>();
-                return std::make_pair(_get_rule_trace_and_paths(instance.automaton(), paths, stack), weight);
+                auto[paths, weight] = instance.template find_path<trace_type, true>();
+                return std::make_pair(_get_rule_trace_and_paths(instance.automaton(), paths), weight);
             } else if constexpr(use_dual) {
-                auto[paths, stack] = instance.template find_path<trace_type, true>();
-                return _get_rule_trace_and_paths(instance.initial_automaton(), instance.final_automaton(), paths, stack);
+                auto paths = instance.template find_path<trace_type, true>();
+                return _get_rule_trace_and_paths(instance.initial_automaton(), instance.final_automaton(), paths);
             } else {
-                auto[paths, stack] = instance.template find_path<trace_type, true>();
-                return _get_rule_trace_and_paths(instance.automaton(), paths, stack);
+                auto paths = instance.template find_path<trace_type, true>();
+                return _get_rule_trace_and_paths(instance.automaton(), paths);
             }
         }
 
@@ -1071,10 +1071,10 @@ namespace pdaaal {
             auto stack_native = pda.encode_pre(stack);
             if constexpr (trace_type == Trace_Type::Shortest) {
                 auto [path, weight] = automaton.template accept_path<trace_type>(state, stack_native);
-                return std::make_pair(_get_trace(pda, automaton, path, stack_native), weight);
+                return std::make_pair(_get_trace(pda, automaton, AutomatonPath(path, stack_native)), weight);
             } else {
                 auto path = automaton.template accept_path<trace_type>(state, stack_native);
-                return _get_trace(pda, automaton, path, stack_native);
+                return _get_trace(pda, automaton, AutomatonPath(path, stack_native));
             }
         }
         template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename = std::enable_if_t<!std::is_same_v<T,uint32_t>>>
@@ -1082,10 +1082,10 @@ namespace pdaaal {
             static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
             if constexpr (trace_type == Trace_Type::Shortest) {
                 auto [path, weight] = automaton.template accept_path<trace_type>(state, stack_native);
-                return std::make_pair(_get_trace(pda, automaton, path, stack_native),weight);
+                return std::make_pair(_get_trace(pda, automaton, AutomatonPath(path, stack_native)), weight);
             } else {
                 auto path = automaton.template accept_path<trace_type>(state, stack_native);
-                return _get_trace(pda, automaton, path, stack_native);
+                return _get_trace(pda, automaton, AutomatonPath(path, stack_native));
             }
         }
 
@@ -1118,15 +1118,15 @@ namespace pdaaal {
         template <typename T, typename W, typename S, bool ssm, TraceInfoType trace_info_type>
         static std::vector<typename TypedPDA<T,W,fut::type::vector,S,ssm>::tracestate_t>
         _get_trace(const TypedPDA<T,W,fut::type::vector,S,ssm> &pda, const PAutomaton<W,trace_info_type>& automaton,
-                   const std::vector<size_t>& path, const std::vector<uint32_t>& stack) {
+                   std::optional<AutomatonPath<>> path) {
             using tracestate_t = typename TypedPDA<T,W,fut::type::vector,S,ssm>::tracestate_t;
 
-            if (path.empty()) {
+            if (!path.has_value()) {
                 return std::vector<tracestate_t>();
             }
-            AutomatonPath automaton_path(path, stack);
+            auto automaton_path = path.value();
 
-            auto decode_edges = [&pda](const AutomatonPath& path) -> tracestate_t {
+            auto decode_edges = [&pda](const AutomatonPath<>& path) -> tracestate_t {
                 tracestate_t result{path.front_state(), std::vector<T>()};
                 auto num_labels = pda.number_of_labels();
                 for (auto label : path.stack()) {
@@ -1159,31 +1159,16 @@ namespace pdaaal {
                 std::vector<size_t>, // Path in initial PAutomaton (accepting initial stack)
                 std::vector<size_t>  // Path in final PAutomaton (accepting final stack) (independent of whether pre* or post* was used)
                 > _get_rule_trace_and_paths(const PAutomaton<W,trace_info_type>& automaton, // The PAutomaton that has been build up (either A_pre* or A_post*)
-                                           const std::vector<std::pair<size_t,size_t>>& paths, // The paths as retrieved from the product automaton. First number is the state in @automaton (A_pre* or A_post*), second number is state in goal automaton.
-                                           const std::vector<uint32_t>& stack) {
+                                            const std::optional<AutomatonPath<true>>& paths) {
             using rule_t = user_rule_t<W>;
 
-            if (paths.empty()) {
+            if (!paths.has_value()) {
                 return std::make_tuple(std::numeric_limits<size_t>::max(), std::vector<rule_t>(), std::vector<uint32_t>(), std::vector<uint32_t>(), std::vector<size_t>(), std::vector<size_t>());
             }
-            assert(stack.size() + 1 == paths.size());
+            // The paths was retrieved from the product automaton. First number is the state in @automaton (A_pre* or A_post*), second number is state in goal automaton.
+            auto [automaton_path, goal] = paths.value().split();
             // Get path in goal automaton (returned in the end).
-            std::vector<size_t> goal_path;
-            std::vector<uint32_t> goal_stack;
-            goal_path.reserve(paths.size());
-            goal_stack.reserve(stack.size());
-            for (size_t i = 0; i < stack.size(); ++i) {
-                if (stack[i] != std::numeric_limits<uint32_t>::max()) {
-                    goal_stack.push_back(stack[i]);
-                    goal_path.push_back(paths[i].second);
-                }
-            }
-            goal_path.push_back(paths.back().second);
-            // Build up stack of edges in the PAutomaton. Each PDA rule corresponds to changing some of the top edges.
-            AutomatonPath automaton_path(paths.back().first);
-            for (size_t i = stack.size(); i > 0; --i) {
-                automaton_path.emplace(paths[i - 1].first, stack[i - 1]);
-            }
+            auto [goal_path, goal_stack] = goal.get_path_and_stack();
 
             details::TraceBack tb(automaton, std::move(automaton_path));
             std::vector<rule_t> trace;
@@ -1198,7 +1183,7 @@ namespace pdaaal {
                 std::reverse(trace.begin(), trace.end());
                 return std::make_tuple(trace[0].from(), trace, start_stack, goal_stack, start_path, goal_path);
             } else { // pre* was used
-                return std::make_tuple(paths[0].first, trace, goal_stack, start_stack, goal_path, start_path);
+                return std::make_tuple(paths.value().front_state().first, trace, goal_stack, start_stack, goal_path, start_path);
             }
         }
 
@@ -1210,26 +1195,18 @@ namespace pdaaal {
         std::vector<uint32_t>, // Final stack
         std::vector<size_t>, // Path in initial PAutomaton (accepting initial stack)
         std::vector<size_t>  // Path in final PAutomaton (accepting final stack) (independent of whether pre* or post* was used)
-        > _get_rule_trace_and_paths(const PAutomaton<W,trace_info_type1>& initial_automaton, const PAutomaton<W,trace_info_type2>& final_automaton,
-                                    const std::vector<std::pair<size_t,size_t>>& paths, // The paths as retrieved from the product automaton. First number is the state in initial_automaton, second number is state in final_automaton.
-                                    const std::vector<uint32_t>& stack) {
+        > _get_rule_trace_and_paths(const PAutomaton<W,trace_info_type1>& initial_automaton,
+                                    const PAutomaton<W,trace_info_type2>& final_automaton,
+                                    const std::optional<AutomatonPath<true>>& paths) {
             using rule_t = user_rule_t<W>;
 
-            if (paths.empty()) {
+            if (!paths.has_value()) {
                 return std::make_tuple(std::numeric_limits<size_t>::max(), std::vector<rule_t>(), std::vector<uint32_t>(), std::vector<uint32_t>(), std::vector<size_t>(), std::vector<size_t>());
             }
-            assert(stack.size() + 1 == paths.size());
-            // Build up stack of edges in the PAutomaton. Each PDA rule corresponds to changing some of the top edges.
-            AutomatonPath initial_automaton_path(paths.back().first);
-            for (size_t i = stack.size(); i > 0; --i) {
-                initial_automaton_path.emplace(paths[i - 1].first, stack[i - 1]);
-            }
-            auto [trace, initial_stack, initial_path] = _get_trace_stack_path(initial_automaton, std::move(initial_automaton_path));
+            // The paths was retrieved from the product automaton. First number is the state in initial_automaton, second number is state in final_automaton.
+            auto [initial_automaton_path, final_automaton_path] = paths.value().split();
 
-            AutomatonPath final_automaton_path(paths.back().second);
-            for (size_t i = stack.size(); i > 0; --i) {
-                final_automaton_path.emplace(paths[i - 1].second, stack[i - 1]);
-            }
+            auto [trace, initial_stack, initial_path] = _get_trace_stack_path(initial_automaton, std::move(initial_automaton_path));
             auto [trace2, final_stack, final_path] = _get_trace_stack_path(final_automaton, std::move(final_automaton_path));
             // Concat traces
             trace.insert(trace.end(), trace2.begin(), trace2.end());
@@ -1238,7 +1215,7 @@ namespace pdaaal {
 
         template <typename W, TraceInfoType trace_info_type>
         static std::tuple<std::vector<user_rule_t<W>>, std::vector<uint32_t>, std::vector<size_t>>
-        _get_trace_stack_path(const PAutomaton<W,trace_info_type>& automaton, AutomatonPath&& automaton_path) {
+        _get_trace_stack_path(const PAutomaton<W,trace_info_type>& automaton, AutomatonPath<>&& automaton_path) {
             std::vector<user_rule_t<W>> trace;
             details::TraceBack tb(automaton, std::move(automaton_path));
             while(auto rule = tb.next()) {
