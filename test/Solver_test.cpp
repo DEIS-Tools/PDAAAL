@@ -36,7 +36,7 @@ BOOST_AUTO_TEST_CASE(SolverTest1)
     // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
     // However r_2 requires a swap and a push, which is done through auxiliary state 3.
     std::unordered_set<char> labels{'A', 'B', 'C'};
-    TypedPDA<char, std::array<double, 3>> pda(labels);
+    TypedPDA<char, weight<std::array<double, 3>>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
     pda.add_rule(0, 1, PUSH, 'B', 'A', w);
     pda.add_rule(0, 0, POP , '*', 'B', w);
@@ -59,7 +59,7 @@ BOOST_AUTO_TEST_CASE(SolverTest2)
     // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
     // However r_2 requires a swap and a push, which is done through auxiliary state 3.
     std::unordered_set<uint32_t> labels{2,3,4};
-    TypedPDA<uint32_t, std::array<double, 3>> pda(labels);
+    TypedPDA<uint32_t, weight<std::array<double, 3>>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
     pda.add_rule(0, 1, PUSH, 3, 2, w);
     pda.add_rule(0, 0, POP , '*', 3, w);
@@ -82,7 +82,7 @@ BOOST_AUTO_TEST_CASE(SolverTest3)
     // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
     // However r_2 requires a swap and a push, which is done through auxiliary state 3.
     std::unordered_set<char> labels{'A', 'B', 'C'};
-    TypedPDA<char, std::array<double, 3>> pda(labels);
+    TypedPDA<char, weight<std::array<double, 3>>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
     pda.add_rule(0, 1, PUSH, 'B', 'A', w);
     pda.add_rule(0, 0, POP , '*', 'B', w);
@@ -106,7 +106,7 @@ BOOST_AUTO_TEST_CASE(EarlyTerminationPostStar)
     // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
     // However r_2 requires a swap and a push, which is done through auxiliary state 3.
     std::unordered_set<char> labels{'A', 'B', 'C'};
-    TypedPDA<char, std::array<double, 3>> pda(labels);
+    TypedPDA<char, weight<std::array<double, 3>>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
     pda.add_rule(0, 1, PUSH, 'B', 'A', w);
     pda.add_rule(0, 0, POP , '*', 'B', w);
@@ -131,7 +131,7 @@ BOOST_AUTO_TEST_CASE(EarlyTerminationPreStar)
     // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
     // However r_2 requires a swap and a push, which is done through auxiliary state 3.
     std::unordered_set<char> labels{'A', 'B', 'C'};
-    TypedPDA<char, std::array<double, 3>> pda(labels);
+    TypedPDA<char, weight<std::array<double, 3>>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
     pda.add_rule(0, 1, PUSH, 'B', 'A', w);
     pda.add_rule(0, 0, POP , '*', 'B', w);
@@ -148,4 +148,156 @@ BOOST_AUTO_TEST_CASE(EarlyTerminationPreStar)
 
     auto trace = Solver::get_trace(pda, automaton, 0, test_stack_reachable);
     BOOST_CHECK_EQUAL(trace.size(), 12);
+}
+
+BOOST_AUTO_TEST_CASE(Post_0AApop1A)
+{
+    std::unordered_set<char> labels{'A'};
+    TypedPDA<char> pda(labels);
+    pda.add_rule(0, 1, POP, '*', 'A');
+
+    NFA<char> initial_nfa(std::unordered_set<char>{'A'});
+    initial_nfa.concat(NFA<char>(std::unordered_set<char>{'A'}));
+    std::vector<size_t> initial_states{0};
+    NFA<char> final_nfa(std::unordered_set<char>{'A'});
+    std::vector<size_t> final_states{1};
+    PAutomatonProduct instance(pda, initial_nfa, initial_states, final_nfa, final_states);
+
+    bool result = Solver::post_star_accepts(instance);
+    BOOST_CHECK(result);
+    auto trace = Solver::get_trace(instance);
+    BOOST_CHECK_EQUAL(trace.size(), 2);
+}
+
+BOOST_AUTO_TEST_CASE(POST_0Apop1)
+{
+    std::unordered_set<char> labels{'A'};
+    TypedPDA<char> pda(labels);
+    pda.add_rule(0, 1, POP, '*', 'A');
+
+    NFA<char> initial_nfa(std::unordered_set<char>{'A'});
+    std::vector<size_t> initial_states{0};
+    NFA<char> final_nfa(true);
+    std::vector<size_t> final_states{1};
+    PAutomatonProduct instance(pda, initial_nfa, initial_states, final_nfa, final_states);
+
+    bool result = Solver::post_star_accepts(instance);
+    BOOST_CHECK(result);
+    auto trace = Solver::get_trace(instance);
+    BOOST_CHECK_EQUAL(trace.size(), 2);
+}
+
+BOOST_AUTO_TEST_CASE(Pre_0AApop1A)
+{
+    std::unordered_set<char> labels{'A'};
+    TypedPDA<char> pda(labels);
+    pda.add_rule(0, 1, POP, '*', 'A');
+
+    NFA<char> initial_nfa(std::unordered_set<char>{'A'});
+    initial_nfa.concat(NFA<char>(std::unordered_set<char>{'A'}));
+    std::vector<size_t> initial_states{0};
+    NFA<char> final_nfa(std::unordered_set<char>{'A'});
+    std::vector<size_t> final_states{1};
+    PAutomatonProduct instance(pda, initial_nfa, initial_states, final_nfa, final_states);
+
+    bool result = Solver::pre_star_accepts(instance);
+    BOOST_CHECK(result);
+    auto trace = Solver::get_trace(instance);
+    BOOST_CHECK_EQUAL(trace.size(), 2);
+}
+
+BOOST_AUTO_TEST_CASE(Pre_0Apop1)
+{
+    std::unordered_set<char> labels{'A'};
+    TypedPDA<char> pda(labels);
+    pda.add_rule(0, 1, POP, '*', 'A');
+
+    NFA<char> initial_nfa(std::unordered_set<char>{'A'});
+    std::vector<size_t> initial_states{0};
+    NFA<char> final_nfa(true);
+    std::vector<size_t> final_states{1};
+    PAutomatonProduct instance(pda, initial_nfa, initial_states, final_nfa, final_states);
+
+    bool result = Solver::pre_star_accepts(instance);
+    BOOST_CHECK(result);
+    auto trace = Solver::get_trace(instance);
+    BOOST_CHECK_EQUAL(trace.size(), 2);
+}
+
+BOOST_AUTO_TEST_CASE(Pre_0AApop0)
+{
+    std::unordered_set<char> labels{'A'};
+    TypedPDA<char> pda(labels);
+    pda.add_rule(0, 0, POP, '*', 'A');
+
+    NFA<char> initial_nfa(std::unordered_set<char>{'A'});
+    initial_nfa.concat(NFA<char>(std::unordered_set<char>{'A'}));
+    std::vector<size_t> initial_states{0};
+    NFA<char> final_nfa(true);
+    std::vector<size_t> final_states{0};
+    PAutomatonProduct instance(pda, initial_nfa, initial_states, final_nfa, final_states);
+
+    bool result = Solver::pre_star_accepts(instance);
+    BOOST_CHECK(result);
+    auto trace = Solver::get_trace(instance);
+    BOOST_CHECK_EQUAL(trace.size(), 3);
+}
+
+BOOST_AUTO_TEST_CASE(Pre_0AApop0A)
+{
+    std::unordered_set<char> labels{'A'};
+    TypedPDA<char> pda(labels);
+    pda.add_rule(0, 0, POP, '*', 'A');
+
+    NFA<char> initial_nfa(std::unordered_set<char>{'A'});
+    initial_nfa.concat(NFA<char>(std::unordered_set<char>{'A'}));
+    initial_nfa.concat(NFA<char>(std::unordered_set<char>{'A'}));
+    std::vector<size_t> initial_states{0};
+    NFA<char> final_nfa(std::unordered_set<char>{'A'});
+    std::vector<size_t> final_states{0};
+    PAutomatonProduct instance(pda, initial_nfa, initial_states, final_nfa, final_states);
+
+    bool result = Solver::pre_star_accepts(instance);
+    BOOST_CHECK(result);
+    auto trace = Solver::get_trace(instance);
+    BOOST_CHECK_EQUAL(trace.size(), 3);
+}
+
+BOOST_AUTO_TEST_CASE(Post_0AApop0)
+{
+    std::unordered_set<char> labels{'A'};
+    TypedPDA<char> pda(labels);
+    pda.add_rule(0, 0, POP, '*', 'A');
+
+    NFA<char> initial_nfa(std::unordered_set<char>{'A'});
+    initial_nfa.concat(NFA<char>(std::unordered_set<char>{'A'}));
+    std::vector<size_t> initial_states{0};
+    NFA<char> final_nfa(true);
+    std::vector<size_t> final_states{0};
+    PAutomatonProduct instance(pda, initial_nfa, initial_states, final_nfa, final_states);
+
+    bool result = Solver::post_star_accepts(instance);
+    BOOST_CHECK(result);
+    auto trace = Solver::get_trace(instance);
+    BOOST_CHECK_EQUAL(trace.size(), 3);
+}
+
+BOOST_AUTO_TEST_CASE(Post_0AAApop0A)
+{
+    std::unordered_set<char> labels{'A'};
+    TypedPDA<char> pda(labels);
+    pda.add_rule(0, 0, POP, '*', 'A');
+
+    NFA<char> initial_nfa(std::unordered_set<char>{'A'});
+    initial_nfa.concat(NFA<char>(std::unordered_set<char>{'A'}));
+    initial_nfa.concat(NFA<char>(std::unordered_set<char>{'A'}));
+    std::vector<size_t> initial_states{0};
+    NFA<char> final_nfa(std::unordered_set<char>{'A'});
+    std::vector<size_t> final_states{0};
+    PAutomatonProduct instance(pda, initial_nfa, initial_states, final_nfa, final_states);
+
+    bool result = Solver::post_star_accepts(instance);
+    BOOST_CHECK(result);
+    auto trace = Solver::get_trace(instance);
+    BOOST_CHECK_EQUAL(trace.size(), 3);
 }

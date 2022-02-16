@@ -34,8 +34,8 @@
 
 using namespace pdaaal;
 
-template <typename T>
-void print_trace(std::vector<typename TypedPDA<T>::tracestate_t> trace, std::ostream& s = std::cout) {
+template <typename tracestate_t>
+void print_trace(const std::vector<tracestate_t>& trace, std::ostream& s = std::cout) {
     for (const auto& conf : trace) {
         s << conf._pdastate << ";[";
         for (size_t i = 0; i < conf._stack.size(); ++i) {
@@ -83,14 +83,14 @@ A,B
 
     auto instance = factory.compile(initial, final);
 
-    bool result = Solver::post_star_accepts(instance);
+    bool result = Solver::post_star_accepts(*instance);
     BOOST_CHECK(result);
 
-    auto trace = Solver::get_trace(instance);
+    auto trace = Solver::get_trace(*instance);
     BOOST_CHECK_GE(trace.size(), 4);
     BOOST_CHECK_LE(trace.size(), 5);
 
-    print_trace<std::string>(trace);
+    print_trace<decltype(trace)::value_type>(trace);
 }
 
 BOOST_AUTO_TEST_CASE(NewPDAFactory_Weighted_Test)
@@ -109,7 +109,7 @@ A,B
 1 B -> 2 +B | 1
 2 B -> 0 - | 1
 )");
-    auto factory = ParsingPDAFactory<unsigned int>::create(i_stream);
+    auto factory = ParsingPDAFactory<weight<unsigned int>>::create(i_stream);
 
     // initial stack: [A,B]
     NFA<std::string> initial(std::unordered_set<std::string>{"A"});
@@ -120,14 +120,14 @@ A,B
 
     auto instance = factory.compile(initial, final);
 
-    bool result = Solver::post_star_accepts<Trace_Type::Shortest>(instance);
+    bool result = Solver::post_star_accepts<Trace_Type::Shortest>(*instance);
     BOOST_CHECK(result);
 
-    auto [trace, weight] = Solver::get_trace<Trace_Type::Shortest>(instance);
+    auto [trace, weight] = Solver::get_trace<Trace_Type::Shortest>(*instance);
     BOOST_CHECK_EQUAL(weight, 4);
     BOOST_CHECK_EQUAL(trace.size(), 5);
 
-    print_trace<std::string>(trace);
+    print_trace<decltype(trace)::value_type>(trace);
 }
 
 
@@ -169,10 +169,10 @@ A,B,C
 
     auto instance = factory.compile(initial, final);
 
-    bool result = Solver::post_star_accepts(instance);
+    bool result = Solver::post_star_accepts(*instance);
     BOOST_CHECK(result);
 
-    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), instance, initial, final);
+    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), *instance, initial, final);
     auto res = reconstruction.reconstruct_trace();
     BOOST_CHECK(res.index() == 0);
 
@@ -181,7 +181,7 @@ A,B,C
     BOOST_CHECK_LE(trace.size(), 5);
     BOOST_CHECK(std::all_of(trace.begin(), trace.end(), [](const auto& trace_state){ return trace_state._stack.back() == "C"; }));
 
-    print_trace<std::string>(trace);
+    print_trace<decltype(trace)::value_type>(trace);
 }
 
 
@@ -221,13 +221,13 @@ A,B,C
 
     auto instance = factory.compile(initial, final);
 
-    bool result = Solver::post_star_accepts(instance);
+    bool result = Solver::post_star_accepts(*instance);
     BOOST_CHECK(result);
-    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), instance, initial, final);
+    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), *instance, initial, final);
     auto res = reconstruction.reconstruct_trace();
     BOOST_CHECK(res.index() == 0);
     auto trace = std::get<0>(res);
-    print_trace<std::string>(trace);
+    print_trace<decltype(trace)::value_type>(trace);
 }
 
 
@@ -252,8 +252,8 @@ A,B,C
 # SWAP rules use LABEL
 )");
     auto factory = ParsingCegarPdaFactory<>::create(i_stream,
-                                                    [](const auto& label){ return 0; }, // All labels map to 0.
-                                                    [](const auto& s){ return 0; }); // All states map to 0.
+                                                    [](const auto&){ return 0; }, // All labels map to 0.
+                                                    [](const auto&){ return 0; }); // All states map to 0.
 
     // initial stack: [A,B,C]
     NFA<std::string> initial(std::unordered_set<std::string>{"A"});
@@ -269,10 +269,10 @@ A,B,C
 
     auto instance = factory.compile(initial, final);
 
-    bool result = Solver::post_star_accepts(instance); // NOTE: This test depends on the trace returned by post*, but with the current implementation we don't get a 'lucky' trace.
+    bool result = Solver::post_star_accepts(*instance); // NOTE: This test depends on the trace returned by post*, but with the current implementation we don't get a 'lucky' trace.
     BOOST_CHECK(result);
 
-    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), instance, initial, final);
+    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), *instance, initial, final);
     auto res = reconstruction.reconstruct_trace();
     BOOST_CHECK(res.index() == 2);
 
@@ -303,7 +303,7 @@ A,B,C
 )");
     auto factory = ParsingCegarPdaFactory<>::create(i_stream,
                                                     [](const auto& label){ return (int)label[0]; }, // No label abstraction.
-                                                    [](const auto& s){ return 0; }); // All states map to 0.
+                                                    [](const auto&){ return 0; }); // All states map to 0.
 
     // initial stack: [A,B,C]
     NFA<std::string> initial(std::unordered_set<std::string>{"A"});
@@ -319,10 +319,10 @@ A,B,C
 
     auto instance = factory.compile(initial, final);
 
-    bool result = Solver::post_star_accepts(instance); // NOTE: This test depends on the trace returned by post*, but with the current implementation we don't get a 'lucky' trace.
+    bool result = Solver::post_star_accepts(*instance); // NOTE: This test depends on the trace returned by post*, but with the current implementation we don't get a 'lucky' trace.
     BOOST_CHECK(result);
 
-    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), instance, initial, final);
+    ParsingCegarPdaReconstruction<> reconstruction(std::move(factory), *instance, initial, final);
     auto res = reconstruction.reconstruct_trace();
     BOOST_CHECK(res.index() == 1);
 
@@ -352,8 +352,8 @@ A,B,C
 # SWAP rules use LABEL
 )");
     auto factory = ParsingCegarPdaFactory<>::create(i_stream,
-                                                    [](const auto& label){ return 0; }, // All labels map to 0.
-                                                    [](const auto& s){ return 0; }); // All states map to 0.
+                                                    [](const auto&){ return 0; }, // All labels map to 0.
+                                                    [](const auto&){ return 0; }); // All states map to 0.
 
     // initial stack: [A,B,C]
     NFA<std::string> initial(std::unordered_set<std::string>{"A"});
@@ -375,7 +375,7 @@ A,B,C
     BOOST_CHECK_GE(trace.size(), 4);
     BOOST_CHECK_LE(trace.size(), 5);
     BOOST_CHECK(std::all_of(trace.begin(), trace.end(), [](const auto& trace_state){ return trace_state._stack.back() == "C"; }));
-    print_trace<std::string>(trace);
+    print_trace<decltype(trace)::value_type>(trace);
 }
 
 BOOST_AUTO_TEST_CASE(Complete_CEGAR_prestar_Full_Abstraction_Test)
@@ -399,8 +399,8 @@ A,B,C
 # SWAP rules use LABEL
 )");
     auto factory = ParsingCegarPdaFactory<>::create(i_stream,
-                                                    [](const auto& label){ return 0; }, // All labels map to 0.
-                                                    [](const auto& s){ return 0; }); // All states map to 0.
+                                                    [](const auto&){ return 0; }, // All labels map to 0.
+                                                    [](const auto&){ return 0; }); // All states map to 0.
 
     // initial stack: [A,B,C]
     NFA<std::string> initial(std::unordered_set<std::string>{"A"});
@@ -422,7 +422,7 @@ A,B,C
     BOOST_CHECK_GE(trace.size(), 4);
     BOOST_CHECK_LE(trace.size(), 5);
     BOOST_CHECK(std::all_of(trace.begin(), trace.end(), [](const auto& trace_state){ return trace_state._stack.back() == "C"; }));
-    print_trace<std::string>(trace);
+    print_trace<decltype(trace)::value_type>(trace);
 }
 
 
@@ -460,14 +460,14 @@ A,B
 
     auto instance = factory.compile(initial, final);
 
-    bool result = Solver::dual_search_accepts(instance);
+    bool result = Solver::dual_search_accepts(*instance);
     BOOST_CHECK(result);
 
-    auto trace = Solver::get_trace_dual_search(instance);
+    auto trace = Solver::get_trace_dual_search(*instance);
     BOOST_CHECK_GE(trace.size(), 4);
     BOOST_CHECK_LE(trace.size(), 5);
 
-    print_trace<std::string>(trace);
+    print_trace<decltype(trace)::value_type>(trace);
 }
 
 BOOST_AUTO_TEST_CASE(Complete_CEGAR_dualsearch_Full_Abstraction_Test)
@@ -491,8 +491,8 @@ A,B,C
 # SWAP rules use LABEL
 )");
     auto factory = ParsingCegarPdaFactory<>::create(i_stream,
-                                                    [](const auto& label){ return 0; }, // All labels map to 0.
-                                                    [](const auto& s){ return 0; }); // All states map to 0.
+                                                    [](const auto&){ return 0; }, // All labels map to 0.
+                                                    [](const auto&){ return 0; }); // All states map to 0.
 
     // initial stack: [A,B,C]
     NFA<std::string> initial(std::unordered_set<std::string>{"A"});
@@ -514,5 +514,5 @@ A,B,C
     BOOST_CHECK_GE(trace.size(), 4);
     BOOST_CHECK_LE(trace.size(), 5);
     BOOST_CHECK(std::all_of(trace.begin(), trace.end(), [](const auto& trace_state){ return trace_state._stack.back() == "C"; }));
-    print_trace<std::string>(trace);
+    print_trace<decltype(trace)::value_type>(trace);
 }

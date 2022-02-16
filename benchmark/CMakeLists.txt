@@ -1,6 +1,6 @@
-project(benchmark)
+#project(benchmark)
 
-include_directories(${libpdaaal_SOURCE_DIR})
+#include_directories(${libpdaaal_SOURCE_DIR})
 
 #add_library(murmur MurmurHash2.h MurmurHash2.cpp)
 #add_executable(benchmark benchmark.cpp utils.h binarywrapper.cpp)

@@ -37,24 +37,22 @@ BOOST_AUTO_TEST_CASE(VectorWeight) {
     std::vector<int> c{3,1,9};
     std::vector<int> d{3,0,9};
     std::vector<int> e;
-
-    const add<std::vector<int>> add;
-    auto result_1 = add(a,b);
+    using W = min_weight<std::vector<int>>;
+    auto result_1 = W::add(a,b);
     std::vector<int> expected_1{4,8,42};
     BOOST_CHECK_EQUAL_COLLECTIONS(result_1.begin(), result_1.end(), expected_1.begin(), expected_1.end());
 
-    auto result_2 = add(e,a);
+    auto result_2 = W::add(e,a);
     auto expected_2 = a;
     BOOST_CHECK_EQUAL_COLLECTIONS(result_2.begin(), result_2.end(), expected_2.begin(), expected_2.end());
 
-    const std::less<> less;
-    BOOST_CHECK_EQUAL(less(a,b), true);
-    BOOST_CHECK_EQUAL(less(b,a), false);
-    BOOST_CHECK_EQUAL(less(b,c), true);
-    BOOST_CHECK_EQUAL(less(c,d), false);
-    BOOST_CHECK_EQUAL(less(d,a), false);
-    BOOST_CHECK_EQUAL(less(e,a), true);
-    BOOST_CHECK_EQUAL(less(a,a), false);
+    BOOST_CHECK_EQUAL(W::less(a,b), true);
+    BOOST_CHECK_EQUAL(W::less(b,a), false);
+    BOOST_CHECK_EQUAL(W::less(b,c), true);
+    BOOST_CHECK_EQUAL(W::less(c,d), false);
+    BOOST_CHECK_EQUAL(W::less(d,a), false);
+    BOOST_CHECK_EQUAL(W::less(e,a), true);
+    BOOST_CHECK_EQUAL(W::less(a,a), false);
 }
 
 
