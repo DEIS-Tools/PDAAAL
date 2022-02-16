@@ -525,3 +525,345 @@ BOOST_AUTO_TEST_CASE(Incremental_Parsing_vs_Wildcard_test)
     auto result = Solver::post_star_accepts(instance);
     BOOST_TEST(!result);
 }
+
+BOOST_AUTO_TEST_CASE(Verification_longest_trace_arithmetic_3_5_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "s" : { "S": {"to":"p1", "swap":"X", "weight": 1}},
+          "p1": { "X": {"to":"p2", "push":"X", "weight": 1} },
+          "p2": { "X": {"to":"p3", "push":"X", "weight": 1} },
+          "p3": { "X":[{"to":"p1", "push":"X", "weight": 1},
+                       {"to":"q1", "swap":"X", "weight": 1}] },
+          "q1": { "X": {"to":"q2", "pop":"", "weight": 1} },
+          "q2": { "X": {"to":"q3", "pop":"", "weight": 1} },
+          "q3": { "X": {"to":"q4", "pop":"", "weight": 1} },
+          "q4": { "X": {"to":"q5", "pop":"", "weight": 1} },
+          "q5": { "X":[{"to":"q1", "pop":"", "weight": 1},
+                       {"to":"f", "swap":"F", "weight": 1}]},
+          "f": { }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [s] , [S] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [f] , [F] >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    auto result = Solver::pre_star_fixed_point_accepts<Trace_Type::Longest>(instance);
+    BOOST_TEST(result);
+
+    std::stringstream s;
+    print_automaton<Trace_Type::Longest>(instance.automaton(), pda, s);
+    s << std::endl;
+    print_automaton<Trace_Type::Longest>(instance.product_automaton(), pda, s);
+    s << std::endl;
+
+    auto [automaton_path, w] = instance.find_path<Trace_Type::Longest>();
+    BOOST_CHECK_EQUAL(w, max_weight<uint32_t>::bottom());
+
+    auto [trace, weight] = Solver::get_trace<Trace_Type::Longest>(instance);
+    BOOST_CHECK_EQUAL(w, weight);
+
+    BOOST_CHECK(automaton_path.has_value());
+    // TODO: Test instead of printing
+    details::TraceBack tb(instance.automaton(), std::move(automaton_path).value());
+    std::unordered_set<std::tuple<size_t,uint32_t,size_t>, absl::Hash<std::tuple<size_t,uint32_t,size_t>>> seen_front;
+    while (seen_front.emplace(tb.path().front_edge()).second) {
+        print_conf_path(s, tb.path(), pda);
+        print_edges_path(s, tb.path(), pda);
+        tb.next();
+    }
+    do {
+        print_conf_path(s, tb.path(), pda);
+        print_edges_path(s, tb.path(), pda);
+    } while (tb.next<true>());
+    BOOST_TEST_MESSAGE(s.str());
+}
+
+BOOST_AUTO_TEST_CASE(Verification_longest_trace_arithmetic_3_3_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "s" : { "S": {"to":"p1", "swap":"X", "weight": 1}},
+          "p1": { "X": {"to":"p2", "push":"X", "weight": 1} },
+          "p2": { "X": {"to":"p3", "push":"X", "weight": 1} },
+          "p3": { "X":[{"to":"p1", "push":"X", "weight": 1},
+                       {"to":"q2", "swap":"X", "weight": 1}] },
+          "q1": { "X": {"to":"q2", "pop":"", "weight": 1} },
+          "q2": { "X": {"to":"q3", "pop":"", "weight": 1} },
+          "q3": { "X":[{"to":"q1", "pop":"", "weight": 1},
+                       {"to":"f", "swap":"F", "weight": 1}]},
+          "f": { }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [s] , [S] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [f] , [F] >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    auto result = Solver::pre_star_fixed_point_accepts<Trace_Type::Longest>(instance);
+    BOOST_TEST(!result);
+}
+
+BOOST_AUTO_TEST_CASE(Verification_longest_trace_arithmetic_3_3or5_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "s" : { "S": {"to":"p1", "swap":"X", "weight": 1}},
+          "p1": { "X": {"to":"p2", "push":"X", "weight": 1} },
+          "p2": { "X": {"to":"p3", "push":"X", "weight": 1} },
+          "p3": { "X":[{"to":"p1", "push":"X", "weight": 1},
+                       {"to":"q3", "swap":"X", "weight": 1},
+                       {"to":"r1", "swap":"X", "weight": 1}] },
+          "q1": { "X": {"to":"q2", "pop":"", "weight": 1} },
+          "q2": { "X": {"to":"q3", "pop":"", "weight": 1} },
+          "q3": { "X":[{"to":"q1", "pop":"", "weight": 1},
+                       {"to":"f", "swap":"F", "weight": 1}]},
+          "r1": { "X": {"to":"r2", "pop":"", "weight": 1} },
+          "r2": { "X": {"to":"r3", "pop":"", "weight": 1} },
+          "r3": { "X": {"to":"r4", "pop":"", "weight": 1} },
+          "r4": { "X": {"to":"r5", "pop":"", "weight": 1} },
+          "r5": { "X":[{"to":"r1", "pop":"", "weight": 1},
+                       {"to":"f", "swap":"F", "weight": 1}]},
+          "f": { }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [s] , [S] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [f] , [F] | ([F] [X] [X] [X] [X] [X] [X] [X] [X] [X] [X] [X] [X] [X] [X] [X]) >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    auto result = Solver::pre_star_fixed_point_accepts<Trace_Type::Longest>(instance);
+    BOOST_TEST(result);
+
+    std::stringstream s;
+    print_automaton<Trace_Type::Longest>(instance.automaton(), pda, s);
+    s << std::endl;
+    print_automaton<Trace_Type::Longest>(instance.product_automaton(), pda, s);
+    s << std::endl;
+
+    auto [automaton_path, w] = instance.find_path<Trace_Type::Longest>();
+    BOOST_CHECK_EQUAL(w, max_weight<uint32_t>::bottom());
+
+    auto [trace, weight] = Solver::get_trace<Trace_Type::Longest>(instance);
+    BOOST_CHECK_EQUAL(w, weight);
+
+    BOOST_CHECK(automaton_path.has_value());
+    // TODO: Test instead of printing
+    details::TraceBack tb(instance.automaton(), std::move(automaton_path).value());
+    std::unordered_set<std::tuple<size_t,uint32_t,size_t>, absl::Hash<std::tuple<size_t,uint32_t,size_t>>> seen_front;
+    while (seen_front.emplace(tb.path().front_edge()).second) {
+        print_conf_path(s, tb.path(), pda);
+        print_edges_path(s, tb.path(), pda);
+        tb.next();
+    }
+    do {
+        print_conf_path(s, tb.path(), pda);
+        print_edges_path(s, tb.path(), pda);
+    } while (tb.next<true>());
+    BOOST_TEST_MESSAGE(s.str());
+}
+
+BOOST_AUTO_TEST_CASE(Verification_longest_trace_which_pop_seq_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "s" : { "S": {"to":"p3", "swap":"X", "weight": 1}},
+          "p1": { "X": {"to":"p2", "push":"X", "weight": 1} },
+          "p2": { "X": {"to":"p3", "push":"X", "weight": 1} },
+          "p3": { "X":[{"to":"p1", "push":"X", "weight": 1},
+                       {"to":"q", "swap":"X", "weight": 1}] },
+          "q" : { "X":[{"to":"q1", "pop":"", "weight": 1},
+                       {"to":"q2", "pop":"", "weight": 1},
+                       {"to":"q3", "pop":"", "weight": 1}] },
+          "q1": { "X": {"to":"q2", "pop":"", "weight": 1} },
+          "q2": { "X": {"to":"q3", "pop":"", "weight": 1} },
+          "q3": { "X": {"to":"r1", "swap":"X", "weight": 1} },
+          "r1": { "X": {"to":"r2", "pop":"", "weight": 1} },
+          "r2": { "X": {"to":"r3", "pop":"", "weight": 1} },
+          "r3": { "X":[{"to":"r1", "pop":"", "weight": 1},
+                       {"to":"f", "swap":"F", "weight": 1}] },
+          "f": { }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [s] , [S] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [f] , [F] >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    auto result = Solver::pre_star_fixed_point_accepts<Trace_Type::Longest>(instance);
+    BOOST_TEST(result);
+
+    std::stringstream s;
+    print_automaton<Trace_Type::Longest>(instance.automaton(), pda, s);
+    s << std::endl;
+    print_automaton<Trace_Type::Longest>(instance.product_automaton(), pda, s);
+    s << std::endl;
+
+    auto [automaton_path, w] = instance.find_path<Trace_Type::Longest>();
+    BOOST_CHECK_EQUAL(w, max_weight<uint32_t>::bottom());
+
+    auto [trace, weight] = Solver::get_trace<Trace_Type::Longest>(instance);
+    BOOST_CHECK_EQUAL(w, weight);
+
+    BOOST_CHECK(automaton_path.has_value());
+    // TODO: Test instead of printing
+    details::TraceBack tb(instance.automaton(), std::move(automaton_path).value());
+    std::unordered_set<std::tuple<size_t,uint32_t,size_t>, absl::Hash<std::tuple<size_t,uint32_t,size_t>>> seen_front;
+    while (seen_front.emplace(tb.path().front_edge()).second) {
+        print_conf_path(s, tb.path(), pda);
+        print_edges_path(s, tb.path(), pda);
+        tb.next();
+    }
+    do {
+        print_conf_path(s, tb.path(), pda);
+        print_edges_path(s, tb.path(), pda);
+    } while (tb.next<true>());
+    BOOST_TEST_MESSAGE(s.str());
+}
+
+BOOST_AUTO_TEST_CASE(Verification_longest_trace_arithmetic_pop3loop_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "s" : { "S": {"to":"p1", "swap":"X", "weight": 1}},
+          "p1": { "X": {"to":"p2", "pop":"", "weight": 1} },
+          "p2": { "X": {"to":"p3", "pop":"", "weight": 1} },
+          "p3": { "X":[{"to":"p1", "pop":"", "weight": 1},
+                       {"to":"f", "swap":"F", "weight": 1}] },
+          "f": { }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [s] , [S] [X]* >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [f] , [F] >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    auto result = Solver::pre_star_fixed_point_accepts<Trace_Type::Longest>(instance);
+    BOOST_TEST(result);
+
+    std::stringstream s;
+    print_automaton<Trace_Type::Longest>(instance.automaton(), pda, s);
+    s << std::endl;
+    print_automaton<Trace_Type::Longest>(instance.product_automaton(), pda, s);
+    BOOST_TEST_MESSAGE(s.str());
+
+    auto [automaton_path, w] = instance.find_path<Trace_Type::Longest>();
+    BOOST_CHECK_EQUAL(w, max_weight<uint32_t>::bottom());
+
+    auto [trace, weight] = Solver::get_trace<Trace_Type::Longest>(instance);
+    BOOST_CHECK_EQUAL(w, weight);
+}
+
+BOOST_AUTO_TEST_CASE(Verification_longest_trace_hill_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "p": { "X":[{"to":"p", "push":"X", "weight": 1},
+                      {"to":"q", "swap":"X", "weight": 1}]},
+          "q": { "X": {"to":"q", "pop":"", "weight": 1}}
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , [X] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [q] , >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    auto result = Solver::pre_star_fixed_point_accepts<Trace_Type::Longest>(instance);
+    BOOST_TEST(result);
+
+    std::stringstream s;
+    print_automaton<Trace_Type::Longest>(instance.product_automaton(), pda, s);
+    s << std::endl;
+    print_automaton<Trace_Type::Longest>(instance.automaton(), pda, s);
+    s << std::endl;
+
+    auto [automaton_path, w] = instance.find_path<Trace_Type::Longest>();
+    BOOST_CHECK_EQUAL(w, max_weight<uint32_t>::bottom());
+
+    auto pXq = get_edge<std::string,std::string>(instance.automaton(), pda, "p", "X", "q");
+    BOOST_CHECK_NE(pXq, nullptr);
+    BOOST_CHECK_EQUAL(pXq->second, max_weight<uint32_t>::bottom());
+
+    BOOST_CHECK(automaton_path.has_value());
+    // TODO: Test instead of printing
+    details::TraceBack tb(instance.automaton(), std::move(automaton_path).value());
+    std::unordered_set<std::tuple<size_t,uint32_t,size_t>, absl::Hash<std::tuple<size_t,uint32_t,size_t>>> seen_front;
+    while (seen_front.emplace(tb.path().front_edge()).second) {
+        print_conf_path(s, tb.path(), pda);
+        print_edges_path(s, tb.path(), pda);
+        tb.next();
+    }
+    do {
+        print_conf_path(s, tb.path(), pda);
+        print_edges_path(s, tb.path(), pda);
+    } while (tb.next<true>());
+
+    auto [trace, weight] = Solver::get_trace<Trace_Type::Longest>(instance);
+    BOOST_CHECK_EQUAL(w, weight);
+
+    BOOST_TEST_MESSAGE(s.str());
+}
+
+BOOST_AUTO_TEST_CASE(Verification_longest_trace_start_hill_end_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": {
+          "s": { "S": {"to":"p", "swap":"X", "weight": 1}},
+          "p": { "X":[{"to":"p", "push":"X", "weight": 1},
+                      {"to":"q", "swap":"X", "weight": 1}]},
+          "q": { "X":[{"to":"q", "pop":"", "weight": 1},
+                      {"to":"f", "swap":"F", "weight": 1}]},
+          "f": { }
+        }
+      }
+    })");
+    auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [s] , [S] >", pda);
+    auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [f] , [F] >", pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+
+    auto result = Solver::pre_star_fixed_point_accepts<Trace_Type::Longest>(instance);
+    BOOST_TEST(result);
+
+    std::stringstream s;
+    print_automaton<Trace_Type::Longest>(instance.product_automaton(), pda, s);
+    s << std::endl;
+    print_automaton<Trace_Type::Longest>(instance.automaton(), pda, s);
+    s << std::endl;
+
+    auto [automaton_path, w] = instance.find_path<Trace_Type::Longest>();
+    BOOST_CHECK_EQUAL(w, max_weight<uint32_t>::bottom());
+
+    BOOST_CHECK(automaton_path.has_value());
+    // TODO: Test instead of printing
+    details::TraceBack tb(instance.automaton(), std::move(automaton_path).value());
+    std::unordered_set<std::tuple<size_t,uint32_t,size_t>, absl::Hash<std::tuple<size_t,uint32_t,size_t>>> seen_front;
+    while (seen_front.emplace(tb.path().front_edge()).second) {
+        print_conf_path(s, tb.path(), pda);
+        print_edges_path(s, tb.path(), pda);
+        tb.next();
+    }
+    do {
+        print_conf_path(s, tb.path(), pda);
+        print_edges_path(s, tb.path(), pda);
+    } while (tb.next<true>());
+
+    auto [trace, weight] = Solver::get_trace<Trace_Type::Longest>(instance);
+    BOOST_CHECK_EQUAL(w, weight);
+
+    BOOST_TEST_MESSAGE(s.str());
+}

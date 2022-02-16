@@ -42,6 +42,7 @@ namespace pdaaal {
         using solverW = solver_weight<W,trace_type>;
         struct state_info {
             typename W::type weight = solverW::max();
+            uint32_t first_label = std::numeric_limits<uint32_t>::max();
             uint32_t label = std::numeric_limits<uint32_t>::max();
             size_t first_predecessor = uninitialized_state;
             size_t predecessor = uninitialized_state;
@@ -94,10 +95,11 @@ namespace pdaaal {
                         } else {
                             _states[to].weight = to_weight;
                         }
-                        _states[to].label = label->first;
                         if (_states[to].first_predecessor == uninitialized_state) {
+                            _states[to].first_label = label->first;
                             _states[to].first_predecessor = current;
                         }
+                        _states[to].label = label->first;
                         _states[to].predecessor = current;
                         if (!_states[to].in_queue) {
                             _states[to].in_queue = true;
@@ -117,30 +119,6 @@ namespace pdaaal {
         }
         [[nodiscard]] bool is_infinite() const {
             return get_weight() == solverW::bottom();
-        }
-
-        [[nodiscard]] auto get_path_old() const {
-            return get_path_old([](size_t s){ return s; });
-        }
-        template<typename MapFn>
-        [[nodiscard]] std::tuple<std::vector<size_t>, std::vector<uint32_t>, typename W::type> get_path_old(MapFn&& state_map) const {
-            static_assert(std::is_convertible_v<MapFn,std::function<size_t(size_t)>>);
-            // assert(this->_workset.size() == 1 && this->_workset.back() == next_round_elem);
-            // Return path and stack
-            std::vector<size_t> path;
-            path.emplace_back(state_map(_min_accepting_state));
-            std::vector<uint32_t> stack;
-            size_t state = _min_accepting_state;
-            while (_states[state].first_predecessor != no_state) {
-                assert(_states[state].label != std::numeric_limits<uint32_t>::max());
-                path.emplace_back(state_map(_states[state].predecessor));
-                stack.emplace_back(_states[state].label);
-                state = _states[state].predecessor;
-                assert(path.size() <= _states.size()); // There should be no loop here - covered elsewhere.
-            }
-            std::reverse(path.begin(), path.end());
-            std::reverse(stack.begin(), stack.end());
-            return {path, stack, _states[_min_accepting_state].weight};
         }
 
         // If (this->is_infinite() == false) Then we can safely use get_path
@@ -179,10 +157,12 @@ namespace pdaaal {
 
             template <bool avoid_loop = false>
             std::optional<uint32_t> next() {
-                auto label = _states[_current_state].label;
+                uint32_t label;
                 if constexpr (avoid_loop) {
+                    label = _states[_current_state].first_label;
                     _current_state = _states[_current_state].first_predecessor;
                 } else {
+                    label = _states[_current_state].label;
                     _current_state = _states[_current_state].predecessor;
                 }
                 if (_current_state == no_state) return std::nullopt; // Done searching.
@@ -199,13 +179,67 @@ namespace pdaaal {
             }
         };
 
-        [[nodiscard]] auto get_trace_back() {
-            return get_trace_back([](size_t s){ return s; });
+        [[nodiscard]] auto get_path_with_loop() {
+            return get_path_with_loop([](size_t s){ return s; });
         }
         template<typename MapFn>
-        [[nodiscard]] AutomatonTraceBack<MapFn> get_trace_back(MapFn&& state_map) {
-            return AutomatonTraceBack(*this, std::forward<MapFn>(state_map));
+        AutomatonPath<> get_path_with_loop(MapFn&& state_map) {
+            AutomatonTraceBack trace_back(*this, std::forward<MapFn>(state_map));
+            std::unordered_set<size_t> seen;
+            seen.emplace(trace_back.current_state());
+
+            std::optional<size_t> loop_elem = std::nullopt;
+
+            while (trace_back.next()) {
+                if (auto [it,fresh] = seen.emplace(trace_back.current_state()); !fresh) {
+                    loop_elem.emplace(*it);
+                    break;
+                }
+            }
+            // In case there is a loop, we take the loop one more time to ensure that there is a repeated edge.
+            if (loop_elem) {
+                size_t loop_elem_val = loop_elem.value();
+                do {
+#ifndef NDEBUG
+                    auto res =
+#endif
+                    trace_back.next();
+                    assert(res.has_value());
+                } while (trace_back.current_state() != loop_elem_val);
+                // Now go to the end without while avoiding the loop.
+                while (trace_back.template next<true>());
+            }
+            return trace_back.get_path();
         }
+
+//        [[nodiscard]] auto get_path_infinite() {
+//            return get_path_infinite([](size_t s){ return s; });
+//        }
+//        template<typename MapFn>
+//        std::variant<AutomatonPath<>,std::pair<AutomatonPath<>,AutomatonPath<>>>
+//        get_path_infinite(MapFn&& state_map) {
+//            AutomatonTraceBack trace_back(*this, std::forward<MapFn>(state_map));
+//            std::unordered_set<size_t> seen;
+//            seen.emplace(trace_back.current_state());
+//
+//            std::optional<size_t> loop_elem = std::nullopt;
+//            auto trace_back_copy = trace_back; // Make copy of current trace_back, so we can compare loop and non-loop behaviour.
+//
+//            while (auto elem = trace_back.next()) {
+//                if (auto [it,fresh] = seen.emplace(trace_back.current_state()); !fresh) {
+//                    loop_elem.emplace(*it);
+//                    break;
+//                }
+//            }
+//            if (loop_elem) {
+//                while (trace_back_copy.current_state() != loop_elem.value()) { // Go until first encounter of loop elem.
+//                    trace_back_copy.next();
+//                }
+//                return std::make_pair(trace_back.get_path(), trace_back_copy.get_path());
+//            } else {
+//                return trace_back.get_path();
+//            }
+//        }
 
 
     };
@@ -216,10 +250,11 @@ namespace pdaaal {
         using state_type = decltype(std::declval<const TB*>()->current_state());
         using trace_elem_type = typename decltype(std::declval<TB*>()->next())::value_type;
 
+    public:
         // if(memory_less) then we assume that the effect of TB::next<avoid_loop>() depends only on the current state TB::current_state() and value of parameter avoid_loop.
         //
         template <bool memory_less>
-        void run(TB&& trace_back) {
+        static void run(TB&& trace_back) {
             std::unordered_set<state_type, absl::Hash<state_type>> seen;
             seen.emplace(trace_back.current_state());
 

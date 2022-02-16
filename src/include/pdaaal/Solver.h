@@ -638,7 +638,7 @@ namespace pdaaal {
         template<typename W, Trace_Type trace_type>
         class PreStarFixedPointSaturation : public fixed_point_workset<PreStarFixedPointSaturation<W,trace_type>, temp_edge_t> {
             using parent_t = fixed_point_workset<PreStarFixedPointSaturation<W,trace_type>, temp_edge_t>;
-            static_assert(is_weighted<W>);
+            static_assert(W::is_weight);
             using weight_t = typename W::type;
             using solverW = solver_weight<W,trace_type>;
 
@@ -832,6 +832,13 @@ namespace pdaaal {
         public:
             [[nodiscard]] bool post() const { return _post; }
             [[nodiscard]] const AutomatonPath<>& path() const { return _path; }
+            [[nodiscard]] std::optional<std::tuple<size_t,uint32_t,size_t>> current_state() const {
+                if (_path.empty()) {
+                    return std::nullopt;
+                } else {
+                    return _path.front_edge();
+                }
+            }
             template <bool avoid_loop = false>
             std::optional<rule_t> next() {
                 while(true) { // In case of post_epsilon_trace, keep going until a rule is found or we are done.
@@ -903,10 +910,7 @@ namespace pdaaal {
         template <Trace_Type trace_type, typename W>
         static void pre_star_fixed_point(PAutomaton<W,TraceInfoType::Pair>& automaton) {
             details::PreStarFixedPointSaturation<W,trace_type> saturation(automaton);
-            while(!saturation.done()) {
-                saturation.step();
-            }
-            saturation.finalize();
+            saturation.run();
         }
 
         template <typename pda_t, typename automaton_t, typename W>
@@ -1027,7 +1031,42 @@ namespace pdaaal {
         template <Trace_Type trace_type = Trace_Type::Any, typename pda_t, typename automaton_t, typename W, TraceInfoType trace_info_type>
         static auto get_trace(const PAutomatonProduct<pda_t,automaton_t,W,trace_info_type>& instance) {
             static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
-            if constexpr (trace_type == Trace_Type::Shortest || trace_type == Trace_Type::Longest || trace_type == Trace_Type::ShortestFixedPoint) {
+            if constexpr (trace_type == Trace_Type::Longest || trace_type == Trace_Type::ShortestFixedPoint) {
+                using return_type = decltype(_get_trace(instance.pda(), instance.initial_automaton(), std::declval<AutomatonPath<>>()));
+                auto [automaton_path, weight] = instance.template find_path_fixed_point<trace_type>();
+                if (weight != solver_weight<W,trace_type>::bottom()) { // Not infinite. Use standard _get_trace.
+                    return std::make_pair(_get_trace(instance.pda(), instance.automaton(), automaton_path), weight);
+                }
+                // Infinite trace.
+                assert(automaton_path.has_value());
+//                details::TraceBack tb(instance.automaton(), std::move(automaton_path).value());
+                auto [trace1,loop1,trace2,loop2,trace3] = _get_trace_looping(instance.automaton(), automaton_path.value());
+                auto pda = instance.pda();
+                using rule_t = typename decltype(pda)::rule_t;
+                // FIXME: This printing is temporary!! We should construct an object with this info instead.
+                for (const auto& rule : trace1) {
+                    std::cout << rule_t(pda,rule) << std::endl;
+                }
+                if (!loop1.empty()) {
+                    std::cout << "loops:" << std::endl;
+                    for (const auto& rule : loop1) {
+                        std::cout << "  " << rule_t(pda,rule) << std::endl;
+                    }
+                }
+                for (const auto& rule : trace2) {
+                    std::cout << rule_t(pda,rule) << std::endl;
+                }
+                if (!loop2.empty()) {
+                    std::cout << "loops:" << std::endl;
+                    for (const auto& rule : loop2) {
+                        std::cout << "  " << rule_t(pda,rule) << std::endl;
+                    }
+                }
+                for (const auto& rule : trace3) {
+                    std::cout << rule_t(pda,rule) << std::endl;
+                }
+                return std::make_pair(return_type{}, weight);
+            } else if constexpr (trace_type == Trace_Type::Shortest) {
                 auto [automaton_path, weight] = instance.template find_path<trace_type>();
                 return std::make_pair(_get_trace(instance.pda(), instance.automaton(), automaton_path), weight);
             } else {
@@ -1115,6 +1154,20 @@ namespace pdaaal {
             return saturation.found();
         }
 
+        template <typename T, typename W, typename S, bool ssm>
+        static typename TypedPDA<T,W,fut::type::vector,S,ssm>::tracestate_t
+        _decode_edges(const TypedPDA<T,W,fut::type::vector,S,ssm> &pda, const AutomatonPath<>& path) {
+            using tracestate_t = typename TypedPDA<T,W,fut::type::vector,S,ssm>::tracestate_t;
+            tracestate_t result{path.front_state(), std::vector<T>()};
+            auto num_labels = pda.number_of_labels();
+            for (auto label : path.stack()) {
+                if (label < num_labels){
+                    result._stack.emplace_back(pda.get_symbol(label));
+                }
+            }
+            return result;
+        }
+
         template <typename T, typename W, typename S, bool ssm, TraceInfoType trace_info_type>
         static std::vector<typename TypedPDA<T,W,fut::type::vector,S,ssm>::tracestate_t>
         _get_trace(const TypedPDA<T,W,fut::type::vector,S,ssm> &pda, const PAutomaton<W,trace_info_type>& automaton,
@@ -1126,27 +1179,94 @@ namespace pdaaal {
             }
             auto automaton_path = path.value();
 
-            auto decode_edges = [&pda](const AutomatonPath<>& path) -> tracestate_t {
-                tracestate_t result{path.front_state(), std::vector<T>()};
-                auto num_labels = pda.number_of_labels();
-                for (auto label : path.stack()) {
-                    if (label < num_labels){
-                        result._stack.emplace_back(pda.get_symbol(label));
-                    }
-                }
-                return result;
-            };
-
             std::vector<tracestate_t> trace;
-            trace.push_back(decode_edges(automaton_path));
+            trace.push_back(_decode_edges(pda, automaton_path));
             details::TraceBack tb(automaton, std::move(automaton_path));
             while (tb.next()) {
-                trace.push_back(decode_edges(tb.path()));
+                trace.push_back(_decode_edges(pda, tb.path()));
             }
             if (tb.post()) {
                 std::reverse(trace.begin(), trace.end());
             }
             return trace;
+        }
+
+        template <typename W>
+        static auto _get_trace_looping(const PAutomaton<W,TraceInfoType::Pair>& automaton, AutomatonPath<> path) {
+            details::TraceBack trace_back(automaton, std::move(path));
+
+            using state_type = std::optional<std::tuple<size_t,uint32_t,size_t>>;
+            using trace_elem_type = user_rule_t<W>;
+            std::vector<trace_elem_type> empty;
+
+            std::unordered_set<state_type, absl::Hash<state_type>> seen;
+            seen.emplace(trace_back.current_state());
+
+            std::vector<trace_elem_type> trace1;
+            std::optional<state_type> loop_elem = std::nullopt;
+
+            auto trace_back_copy = trace_back; // Make copy of current trace_back, so we can compare loop and non-loop behaviour.
+
+            while (auto elem = trace_back.next()) {
+                trace1.emplace_back(elem.value());
+                if (auto [it,fresh] = seen.emplace(trace_back.current_state()); !fresh) {
+                    loop_elem.emplace(*it);
+                    break;
+                }
+            }
+            if (loop_elem) {
+                size_t pre_loop_size = 0;
+                while (trace_back_copy.current_state() != loop_elem.value()) { // Go until first encounter of loop elem.
+#ifndef NDEBUG
+                    auto elem =
+#endif
+                    trace_back_copy.next();
+                    assert(elem);
+                    assert(elem.value() == trace1[pre_loop_size]);
+                    ++pre_loop_size;
+                }
+                std::vector<trace_elem_type> trace_loop(trace1.size() - pre_loop_size);
+                std::copy(trace1.begin() + pre_loop_size, trace1.end(), trace_loop.begin());
+                trace1.resize(pre_loop_size);
+
+                // For pushdown trace back, we can have higher stack after a loop, which can lead to a second (pop) loop.
+
+                // Get to end after one loop and no loop, step by step.
+                std::vector<trace_elem_type> trace2;
+                auto elem1 = trace_back.template next<true>();
+                auto elem2 = trace_back_copy.template next<true>();
+                while (elem1 && elem2 && trace_back.current_state() == trace_back_copy.current_state()) {
+                    assert(elem1.value() == elem2.value());
+                    trace2.emplace_back(elem1.value());
+                    elem1 = trace_back.template next<true>();
+                    elem2 = trace_back_copy.template next<true>();
+                }
+                // TODO: This does not work, when initial header has first loop, we need to differentiate, or use some different logic.
+                // TODO: Maybe extend the 'repeating top edge' condition to also need that path lengths is at least as long.   
+                if (elem1) { // Found a difference between continuing after one loop and no loop - this must be a second loop.
+                    std::vector<trace_elem_type> trace_loop_2, trace3;
+                    do {
+                        trace_loop_2.emplace_back(elem1.value());
+                        elem1 = trace_back.template next<true>();
+                    } while (elem1 && trace_back.current_state() != trace_back_copy.current_state());
+
+                    while (elem1 && elem2) {
+                        assert(trace_back.current_state() == trace_back_copy.current_state());
+                        assert(elem1.value() == elem2.value());
+                        trace3.emplace_back(elem1.value());
+                        elem1 = trace_back.template next<true>();
+                        elem2 = trace_back_copy.template next<true>();
+                    }
+                    assert(!elem1);
+                    assert(!elem2); // They should now end at the same time.
+
+                    return std::make_tuple(trace1, trace_loop, trace2, trace_loop_2, trace3); //, trace_back;
+                } else {
+                    assert(!elem2); // continuing from no loop should not be longer than from one loop.
+                    return std::make_tuple(trace1, trace_loop, trace2, empty, empty); //, trace_back;
+                }
+            }
+            return std::make_tuple(trace1,empty,empty,empty,empty);
         }
 
 

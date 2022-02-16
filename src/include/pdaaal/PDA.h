@@ -159,6 +159,12 @@ namespace pdaaal {
           _op_label((rule._operation == PUSH || rule._operation == SWAP) ? rule._op_label : std::numeric_limits<uint32_t>::max()),
           _op(rule._operation) {};
 
+        bool operator==(const user_rule_t<W>& other) const {
+            return _from == other._from && _to == other._to && _pre == other._pre &&
+                   _op_label == other._op_label && _op == other._op;
+        }
+        bool operator!=(const user_rule_t<W>& other) const { return !(*this == other); }
+
         [[nodiscard]] size_t from() const {
             return _from;
         }
@@ -183,6 +189,12 @@ namespace pdaaal {
                 : _from(from), _to(rule._to), _pre(pre),
                   _op_label((rule._operation == PUSH || rule._operation == SWAP) ? rule._op_label : std::numeric_limits<uint32_t>::max()),
                   _op(rule._operation), _weight(rule._weight) {};
+
+        bool operator==(const user_rule_t<W>& other) const {
+            return _from == other._from && _to == other._to && _pre == other._pre &&
+                   _op_label == other._op_label && _op == other._op && _weight == other._weight;
+        }
+        bool operator!=(const user_rule_t<W>& other) const { return !(*this == other); }
 
         details::rule_t<W> to_impl_rule() const {
             return details::rule_t<W>{_to, _op, _weight, _op_label};
