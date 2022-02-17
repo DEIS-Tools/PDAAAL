@@ -84,6 +84,9 @@ namespace pdaaal {
             rule_t_(const TypedPDA& pda, size_t from, uint32_t pre, details::rule_t<WT> rule)
             : _from(from), _pre(pda.get_symbol(pre)), _to(rule._to), _op(rule._operation),
               _op_label(rule._operation == POP || rule._operation == NOOP ? label_t{} : pda.get_symbol(rule._op_label)) {};
+            rule_t_(const TypedPDA& pda, const user_rule_t<W>& rule)
+            : _from(rule._from), _pre(pda.get_symbol(rule._pre)), _to(rule._to), _op(rule._op),
+              _op_label(rule._op == POP || rule._op == NOOP ? label_t{} : pda.get_symbol(rule._op_label)) {};
         };
         template <typename WT>
         struct rule_t_<WT, std::enable_if_t<is_weighted<WT>>> {
@@ -100,6 +103,10 @@ namespace pdaaal {
             rule_t_(const TypedPDA& pda, size_t from, uint32_t pre, details::rule_t<WT> rule)
             : _from(from), _pre(pda.get_symbol(pre)), _to(rule._to), _op(rule._operation),
               _op_label(rule._operation == POP || rule._operation == NOOP ? label_t{} : pda.get_symbol(rule._op_label)),
+              _weight(rule._weight) {};
+            rule_t_(const TypedPDA& pda, const user_rule_t<W>& rule)
+            : _from(rule._from), _pre(pda.get_symbol(rule._pre)), _to(rule._to), _op(rule._op),
+              _op_label(rule._op == POP || rule._op == NOOP ? label_t{} : pda.get_symbol(rule._op_label)),
               _weight(rule._weight) {};
         };
     public:

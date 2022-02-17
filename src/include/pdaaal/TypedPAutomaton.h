@@ -36,10 +36,10 @@
 
 namespace pdaaal {
 
-    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, bool indirect = true>
-    class TypedPAutomaton : public PAutomaton<W,indirect>, private std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
+    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type = TraceInfoType::Single>
+    class TypedPAutomaton : public PAutomaton<W,trace_info_type>, private std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
         static_assert(!skip_state_mapping || std::is_same_v<state_t,size_t>, "When skip_state_mapping==true, you must use state_t=size_t");
-        using parent_t = PAutomaton<W,indirect>;
+        using parent_t = PAutomaton<W,trace_info_type>;
         using typed_pda_t = TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>;
         using pda_t = typename typed_pda_t::parent_t;
     public:
@@ -99,41 +99,41 @@ namespace pdaaal {
         const typed_pda_t& _typed_pda;
     };
     // CTAD guides
-    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, bool indirect = true>
-    TypedPAutomaton(const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const NFA<label_t>&, const std::vector<size_t>&) -> TypedPAutomaton<label_t,W,state_t,skip_state_mapping,indirect>;
-    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, bool indirect = true>
-    TypedPAutomaton(const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const NFA<uint32_t>&, const std::vector<size_t>&) -> TypedPAutomaton<label_t,W,state_t,skip_state_mapping,indirect>;
-    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, bool indirect = true>
-    TypedPAutomaton(const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const std::vector<size_t>&, bool special_accepting = true) -> TypedPAutomaton<label_t,W,state_t,skip_state_mapping,indirect>;
+    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type = TraceInfoType::Single>
+    TypedPAutomaton(const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const NFA<label_t>&, const std::vector<size_t>&) -> TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>;
+    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type = TraceInfoType::Single>
+    TypedPAutomaton(const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const NFA<uint32_t>&, const std::vector<size_t>&) -> TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>;
+    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type = TraceInfoType::Single>
+    TypedPAutomaton(const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const std::vector<size_t>&, bool special_accepting = true) -> TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>;
 
     class PAutomatonJsonParser {
     public:
-        template <bool indirect = true, typename pda_t>
-        static auto parse(const std::string& file, pda_t& pda, std::string name = "P-automaton") {
+        template <TraceInfoType trace_info_type = TraceInfoType::Single, typename pda_t>
+        static auto parse(const std::string& file, pda_t& pda, const std::string& name = "P-automaton") {
             std::ifstream file_stream(file);
             if (!file_stream.is_open()) {
                 std::stringstream error;
                 error << "Could not open " << name << " file: " << file << std::endl;
                 throw std::runtime_error(error.str());
             }
-            return parse<indirect>(file_stream, pda, name);
+            return parse<trace_info_type>(file_stream, pda, name);
         }
-        template <bool indirect = true, typename pda_t>
-        static auto parse(std::istream& istream, pda_t& pda, std::string name = "P-automaton") {
+        template <TraceInfoType trace_info_type = TraceInfoType::Single, typename pda_t>
+        static auto parse(std::istream& istream, pda_t& pda, const std::string& name = "P-automaton") {
             json j;
             istream >> j;
-            return from_json<indirect>(j[name], pda);
+            return from_json<trace_info_type>(j[name], pda);
         }
-        template <bool indirect, typename W>
+        template <TraceInfoType trace_info_type, typename W>
         static auto from_json(const json& j, TypedPDA<std::string,W,fut::type::vector, std::string>& pda) {
-            return from_json<indirect, std::string>(j, pda, [](const std::string& s) { return s; });
+            return from_json<trace_info_type, std::string>(j, pda, [](const std::string& s) { return s; });
         }
-        template <bool indirect, typename W, bool ssm>
+        template <TraceInfoType trace_info_type, typename W, bool ssm>
         static auto from_json(const json& j, TypedPDA<std::string,W,fut::type::vector, size_t, ssm>& pda) {
-            return from_json<indirect, size_t>(j, pda, [](const std::string& s) -> size_t { return std::stoul(s); });
+            return from_json<trace_info_type, size_t>(j, pda, [](const std::string& s) -> size_t { return std::stoul(s); });
         }
     private:
-        template <bool indirect, typename state_t, typename W, bool skip_state_mapping>
+        template <TraceInfoType trace_info_type, typename state_t, typename W, bool skip_state_mapping>
         static auto from_json(const json& j,
                               TypedPDA<std::string,W,fut::type::vector,state_t,skip_state_mapping>& pda,
                               const std::function<state_t(const std::string&)>& state_mapping) {
@@ -171,7 +171,7 @@ namespace pdaaal {
             });
             std::sort(accepting_initial_states.begin(), accepting_initial_states.end());
             accepting_initial_states.erase(std::unique(accepting_initial_states.begin(), accepting_initial_states.end()), accepting_initial_states.end());
-            TypedPAutomaton<std::string, W, state_t, skip_state_mapping, indirect> automaton(pda, accepting_initial_states, true);
+            TypedPAutomaton<std::string, W, state_t, skip_state_mapping, trace_info_type> automaton(pda, accepting_initial_states, true);
 
             auto state_to_id = [&automaton,&accepting_extra_states](const state_t& state){
                 auto [exists, id] = automaton.exists_state(state);
@@ -206,8 +206,8 @@ namespace pdaaal {
         }
     };
 
-    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, bool indirect>
-    void to_json(json& j, const TypedPAutomaton<label_t,W,state_t,skip_state_mapping,indirect>& automaton) {
+    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
+    void to_json(json& j, const TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>& automaton) {
         j = json::object();
         size_t num_pda_states = automaton.pda().states().size();
         auto state_to_string = [&automaton](size_t state){
@@ -231,7 +231,7 @@ namespace pdaaal {
                     } else {
                         edge["to"] = state_to_string(to);
                     }
-                    edge["label"] = label == PAutomaton<W,indirect>::epsilon ? "" : details::label_to_string(automaton.typed_pda().get_symbol(label));
+                    edge["label"] = label == PAutomaton<W,trace_info_type>::epsilon ? "" : details::label_to_string(automaton.typed_pda().get_symbol(label));
                     j_state["edges"].emplace_back(edge);
                 }
             }

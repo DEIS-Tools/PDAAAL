@@ -32,12 +32,15 @@
 
 namespace pdaaal {
 
+    template <bool state_pair = false>
     class AutomatonPath {
-        size_t _end{};
-        std::vector<std::pair<uint32_t,size_t>> _edges{};
+        using state_t = std::conditional_t<state_pair, std::pair<size_t,size_t>, size_t>;
+
+        state_t _end{};
+        std::vector<std::pair<uint32_t,state_t>> _edges{};
     public:
-        explicit AutomatonPath(size_t end) : _end(end) {};
-        AutomatonPath(const std::vector<size_t>& path, const std::vector<uint32_t>& stack)
+        explicit AutomatonPath(state_t end) : _end(end) {};
+        AutomatonPath(const std::vector<state_t>& path, const std::vector<uint32_t>& stack)
         : _end(path.back()) {
             assert(path.size() == stack.size() + 1);
             _edges.reserve(stack.size());
@@ -50,10 +53,13 @@ namespace pdaaal {
         [[nodiscard]] bool empty() const {
             return _edges.empty();
         }
-        [[nodiscard]] size_t front_state() const {
+        [[nodiscard]] size_t edges_size() const {
+            return _edges.size();
+        }
+        [[nodiscard]] state_t front_state() const {
             return _edges.empty() ? _end : _edges.back().second;
         }
-        [[nodiscard]] std::tuple<size_t,uint32_t,size_t> front_edge() const {
+        [[nodiscard]] std::tuple<state_t,uint32_t,state_t> front_edge() const {
             assert(!_edges.empty());
             return {_edges.back().second, _edges.back().first, _edges.size() > 1 ? _edges[_edges.size() - 2].second : _end};
         }
@@ -61,7 +67,7 @@ namespace pdaaal {
             assert(!_edges.empty());
             _edges.pop_back();
         }
-        void emplace(size_t from, uint32_t label) {
+        void emplace(state_t from, uint32_t label) {
             _edges.emplace_back(label, from);
         }
         [[nodiscard]] std::vector<uint32_t> stack() const {
@@ -72,8 +78,8 @@ namespace pdaaal {
             }
             return stack;
         }
-        [[nodiscard]] std::pair<std::vector<size_t>, std::vector<uint32_t>> get_path_and_stack() const {
-            std::vector<size_t>   path;  path.reserve(_edges.size() + 1);
+        [[nodiscard]] std::pair<std::vector<state_t>, std::vector<uint32_t>> get_path_and_stack() const {
+            std::vector<state_t>  path;  path.reserve(_edges.size() + 1);
             std::vector<uint32_t> stack; stack.reserve(_edges.size());
             for (auto it = _edges.crbegin(); it != _edges.crend(); ++it) {
                 if (it->first != std::numeric_limits<uint32_t>::max()) {
@@ -83,6 +89,31 @@ namespace pdaaal {
             }
             path.push_back(_end);
             return std::make_pair(path, stack);
+        }
+
+        [[nodiscard]] std::pair<AutomatonPath<>,AutomatonPath<>> split() const {
+            if constexpr(state_pair) {
+                AutomatonPath<> first_path(_end.first);
+                AutomatonPath<> second_path(_end.second);
+                for (const auto& [label, state] : _edges) {
+                    first_path.emplace(state.first, label);
+                    second_path.emplace(state.second, label);
+                }
+                return std::make_pair(first_path, second_path);
+            } else {
+                assert(false); // split should only be used for AutomatonPath with state_pair==true
+                return std::make_pair(*this, *this);
+            }
+        }
+
+        friend bool operator==(const AutomatonPath& l, const AutomatonPath& r) {
+            return l._end == r._end && l._edges == r._edges;
+        }
+        friend bool operator!=(const AutomatonPath& l, const AutomatonPath& r) { return !(l == r); }
+
+        template <typename H>
+        friend H AbslHashValue(H h, const AutomatonPath& p) {
+            return H::combine(std::move(h), p._end, p._edges);
         }
     };
 
