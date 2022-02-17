@@ -42,6 +42,7 @@ namespace pdaaal {
         assert(std::is_sorted(other.begin(), other.end()));
         std::vector<uint32_t> temp_labels;
         temp_labels.swap(_labels);
+        _labels.reserve(std::max(temp_labels.size(), other.size()));
         std::set_union(temp_labels.begin(), temp_labels.end(),
                        other.begin(), other.end(),
                        std::back_inserter(_labels));
