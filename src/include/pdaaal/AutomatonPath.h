@@ -39,7 +39,21 @@ namespace pdaaal {
         state_t _end{};
         std::vector<std::pair<uint32_t,state_t>> _edges{};
     public:
-        explicit AutomatonPath(state_t end) : _end(end) {};
+        AutomatonPath() {
+            if constexpr(state_pair) {
+                _end = std::make_pair(std::numeric_limits<size_t>::max(),std::numeric_limits<size_t>::max());
+            } else {
+                _end = std::numeric_limits<size_t>::max();
+            }
+        }
+        explicit AutomatonPath(state_t end) : _end(end) {
+            if constexpr(state_pair) {
+                assert(_end.first != std::numeric_limits<size_t>::max());
+                assert(_end.second != std::numeric_limits<size_t>::max());
+            } else {
+                assert(_end != std::numeric_limits<size_t>::max());
+            }
+        };
         AutomatonPath(const std::vector<state_t>& path, const std::vector<uint32_t>& stack)
         : _end(path.back()) {
             assert(path.size() == stack.size() + 1);
@@ -50,6 +64,13 @@ namespace pdaaal {
             }
         }
 
+        [[nodiscard]] bool is_null() const {
+            if constexpr(state_pair) {
+                return _end.first == std::numeric_limits<size_t>::max() && _end.second == std::numeric_limits<size_t>::max();
+            } else {
+                return _end == std::numeric_limits<size_t>::max();
+            }
+        }
         [[nodiscard]] bool empty() const {
             return _edges.empty();
         }
@@ -68,6 +89,7 @@ namespace pdaaal {
             _edges.pop_back();
         }
         void emplace(state_t from, uint32_t label) {
+            assert(!is_null());
             _edges.emplace_back(label, from);
         }
         [[nodiscard]] std::vector<uint32_t> stack() const {
@@ -116,6 +138,11 @@ namespace pdaaal {
             return H::combine(std::move(h), p._end, p._edges);
         }
     };
+
+    AutomatonPath(size_t end) -> AutomatonPath<false>;
+    AutomatonPath(std::pair<size_t,size_t> end) -> AutomatonPath<true>;
+    AutomatonPath(const std::vector<size_t>& path, const std::vector<uint32_t>& stack) -> AutomatonPath<false>;
+    AutomatonPath(const std::vector<std::pair<size_t,size_t>>& path, const std::vector<uint32_t>& stack) -> AutomatonPath<true>;
 
 }
 
