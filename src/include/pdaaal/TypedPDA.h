@@ -87,25 +87,6 @@ namespace pdaaal {
             rule_t_(const TypedPDA& pda, const user_rule_t<W>& rule)
             : _from(rule._from), _pre(pda.get_symbol(rule._pre)), _to(rule._to), _op(rule._op),
               _op_label(rule._op == POP || rule._op == NOOP ? label_t{} : pda.get_symbol(rule._op_label)) {};
-            
-            friend std::ostream& operator<<(std::ostream& s, const rule_t_<WT>& rule) {
-                s << "<" << rule._from << "," << rule._pre << "> -> <" << rule._to << ",";
-                switch (rule._op) {
-                    case POP:
-                        s << "pop";
-                        break;
-                    case NOOP:
-                        s << "swap " << rule._pre;
-                        break;
-                    case SWAP:
-                        s << "swap " << rule._op_label;
-                        break;
-                    case PUSH:
-                        s << "push " << rule._op_label;
-                }
-                s << ">";
-                return s;
-            }
         };
         template <typename WT>
         struct rule_t_<WT, std::enable_if_t<is_weighted<WT>>> {
@@ -127,25 +108,6 @@ namespace pdaaal {
             : _from(rule._from), _pre(pda.get_symbol(rule._pre)), _to(rule._to), _op(rule._op),
               _op_label(rule._op == POP || rule._op == NOOP ? label_t{} : pda.get_symbol(rule._op_label)),
               _weight(rule._weight) {};
-
-            friend std::ostream& operator<<(std::ostream& s, const rule_t_<WT>& rule) {
-                s << "<" << rule._from << "," << rule._pre << "> -> <" << rule._to << ",";
-                switch (rule._op) {
-                    case POP:
-                        s << "pop";
-                        break;
-                    case NOOP:
-                        s << "swap " << rule._pre;
-                        break;
-                    case SWAP:
-                        s << "swap " << rule._op_label;
-                        break;
-                    case PUSH:
-                        s << "push " << rule._op_label;
-                }
-                s << "> (" << rule._weight << ")";
-                return s;
-            }
         };
     public:
         using rule_t = rule_t_<W>; // This rule type can be used by users of the library.

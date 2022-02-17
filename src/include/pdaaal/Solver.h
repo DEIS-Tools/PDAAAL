@@ -1039,32 +1039,8 @@ namespace pdaaal {
                 }
                 // Infinite trace.
                 assert(automaton_path.has_value());
-//                details::TraceBack tb(instance.automaton(), std::move(automaton_path).value());
-                auto [trace1,loop1,trace2,loop2,trace3] = _get_trace_looping(instance.automaton(), automaton_path.value());
-                auto pda = instance.pda();
-                using rule_t = typename decltype(pda)::rule_t;
-                // FIXME: This printing is temporary!! We should construct an object with this info instead.
-                for (const auto& rule : trace1) {
-                    std::cout << rule_t(pda,rule) << std::endl;
-                }
-                if (!loop1.empty()) {
-                    std::cout << "loops:" << std::endl;
-                    for (const auto& rule : loop1) {
-                        std::cout << "  " << rule_t(pda,rule) << std::endl;
-                    }
-                }
-                for (const auto& rule : trace2) {
-                    std::cout << rule_t(pda,rule) << std::endl;
-                }
-                if (!loop2.empty()) {
-                    std::cout << "loops:" << std::endl;
-                    for (const auto& rule : loop2) {
-                        std::cout << "  " << rule_t(pda,rule) << std::endl;
-                    }
-                }
-                for (const auto& rule : trace3) {
-                    std::cout << rule_t(pda,rule) << std::endl;
-                }
+                // TODO: Implement infinite trace structure.
+                // auto [trace1,loop1,trace2,loop2,trace3] = _get_trace_looping(instance.automaton(), automaton_path.value());
                 return std::make_pair(return_type{}, weight);
             } else if constexpr (trace_type == Trace_Type::Shortest) {
                 auto [automaton_path, weight] = instance.template find_path<trace_type>();
