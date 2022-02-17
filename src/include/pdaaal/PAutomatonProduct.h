@@ -105,155 +105,47 @@ namespace pdaaal {
             _swap_initial_final = true;
         }
 
-        template<bool abstraction>
-        using path_state = std::conditional_t<abstraction, std::pair<size_t,size_t>, size_t>;
+        template<bool state_pair>
+        using path_state = std::conditional_t<state_pair, std::pair<size_t,size_t>, size_t>;
 
         template<Trace_Type trace_type>
-        std::tuple<std::optional<AutomatonPath<>>, typename W::type> find_path_fixed_point() const {
+        [[nodiscard]] auto find_path_fixed_point() const {
             assert(W::is_weight);
+            std::tuple<AutomatonPath<>, typename W::type> t; // Ensure copy elision.
+            auto& [path, weight] = t;
+
             PAutomatonFixedPoint<W,trace_type> fixed_point(_product);
             fixed_point.run();
             if (fixed_point.not_accepting()) {
-                return {std::nullopt, solver_weight<W,trace_type>::max()};
+                path = AutomatonPath();
+                weight = solver_weight<W,trace_type>::max();
+            } else if (fixed_point.is_infinite()) {
+                path = fixed_point.get_path_with_loop([this](size_t state) -> size_t { return get_original_ids(state).first; });
+                weight = solver_weight<W,trace_type>::bottom();
+            } else {
+                path = fixed_point.get_path([this](size_t state) -> size_t { return get_original_ids(state).first; });
+                weight = fixed_point.get_weight();
             }
-            if (fixed_point.is_infinite()) {
-                return {fixed_point.get_path_with_loop([this](size_t state) -> size_t { return get_original_ids(state).first; }), solver_weight<W,trace_type>::bottom()};
-            }
-            return {fixed_point.get_path([this](size_t state) -> size_t { return get_original_ids(state).first; }), fixed_point.get_weight()};
+            return t;
         }
 
         template <bool state_pair = false>
-        std::tuple<std::optional<AutomatonPath<state_pair>>, typename W::type> find_path_shortest() const {
-            if constexpr (is_weighted<W>) { // TODO: Consider unweighted shortest path.
-                // Dijkstra.
-                struct queue_elem {
-                    typename W::type weight;
-                    size_t state;
-                    uint32_t label;
-                    const queue_elem* back_pointer;
-
-                    queue_elem(typename W::type weight, size_t state, uint32_t label, const queue_elem* back_pointer = nullptr)
-                    : weight(weight), state(state), label(label), back_pointer(back_pointer) {};
-
-                    bool operator<(const queue_elem& other) const {
-                        return std::tie(state, label) < std::tie(other.state, other.label); // TODO: Is this correct? Should it not just be state?? and better then make 'visited' std::unordered_map<size_t, typename W::type>.
-                    }
-                    bool operator==(const queue_elem& other) const {
-                        return state == other.state && label == other.label;
-                    }
-                    bool operator!=(const queue_elem& other) const {
-                        return !(*this == other);
-                    }
-                };
-                struct queue_elem_comp {
-                    bool operator()(const queue_elem& lhs, const queue_elem& rhs) {
-                        return solver_weight<W, Trace_Type::Shortest>::less(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
-                    }
-                };
-                std::priority_queue<queue_elem, std::vector<queue_elem>, queue_elem_comp> search_queue;
-                std::vector<queue_elem> visited;
-                std::vector<std::unique_ptr<queue_elem>> pointers;
-                for (size_t i = 0; i < _pda_size; ++i) { // Iterate over _product._initial ([i]->_id)
-                    search_queue.emplace(W::zero(), i, std::numeric_limits<uint32_t>::max()); // No label going into initial state.
-                }
-                while (!search_queue.empty()) {
-                    auto current = search_queue.top();
-                    search_queue.pop();
-
-                    if (_product.states()[current.state]->_accepting) {
-                        AutomatonPath<state_pair> automaton_path(get_original<state_pair>(current.state));
-                        const queue_elem* p = &current;
-                        while (p->back_pointer != nullptr) {
-                            auto label = p->label;
-                            p = p->back_pointer;
-                            automaton_path.emplace(get_original<state_pair>(p->state), label);
-                        }
-                        return std::make_tuple(automaton_path, current.weight);
-                    }
-
-                    auto lb = std::lower_bound(visited.begin(), visited.end(), current);
-                    if (lb != std::end(visited) && *lb == current) {
-                        if (solver_weight<W, Trace_Type::Shortest>::less(current.weight, lb->weight)) {
-                            *lb = current;
-                        } else {
-                            continue;
-                        }
-                    } else {
-                        lb = visited.insert(lb, current); // TODO: Consider using std::unordered_map instead...
-                    }
-                    auto u_pointer = std::make_unique<queue_elem>(*lb);
-                    auto pointer = u_pointer.get();
-                    pointers.push_back(std::move(u_pointer));
-                    for (const auto& [to, labels] : _product.states()[current.state]->_edges) {
-                        if (!labels.empty()) {
-                            auto label = std::min_element(labels.begin(), labels.end(), [](const auto& a, const auto& b) {
-                                return solver_weight<W, Trace_Type::Shortest>::less(a.second.second, b.second.second);
-                            });
-                            search_queue.emplace(solver_weight<W, Trace_Type::Shortest>::add(current.weight, label->second.second), to, label->first, pointer);
-                        }
-                    }
-                }
-                return std::make_tuple(std::nullopt, solver_weight<W, Trace_Type::Shortest>::max());
-
-            } else {
-                assert(false);
-                throw std::logic_error("Not implemented: Shortest path for unweighted automaton.");
-            }
+        std::tuple<AutomatonPath<state_pair>, typename W::type> find_path_shortest() const {
+            return _product.find_path_shortest([this](size_t s){ return get_original<state_pair>(s); });
         }
 
         template<Trace_Type trace_type = Trace_Type::Any, bool state_pair = false>
         [[nodiscard]] typename std::conditional_t<
             (trace_type == Trace_Type::Shortest || trace_type == Trace_Type::Longest || trace_type == Trace_Type::ShortestFixedPoint) && is_weighted<W>,
-        std::tuple<std::optional<AutomatonPath<state_pair>>, typename W::type>,
-        std::optional<AutomatonPath<state_pair>>>
+        std::tuple<AutomatonPath<state_pair>, typename W::type>,
+        AutomatonPath<state_pair>>
         find_path() const {
             if constexpr ((trace_type == Trace_Type::Longest || trace_type == Trace_Type::ShortestFixedPoint) && W::is_weight) {
                 return find_path_fixed_point<trace_type>();
-
             } else if constexpr (trace_type == Trace_Type::Shortest && is_weighted<W>) { // TODO: Consider unweighted shortest path.
                 return find_path_shortest<state_pair>();
-
             } else {
-                // DFS search.
-                std::vector<path_state<state_pair>> path;
-                std::vector<uint32_t> label_stack;
-
-                std::vector<std::tuple<size_t,size_t,uint32_t>> waiting; // state_id, stack_index, last_label (if stack_index > 0)
-                waiting.reserve(_pda_size);
-                for (size_t i = 0; i < _pda_size; ++i) {
-                    if (_product.states()[i]->_accepting) { // Initial accepting state
-                        if constexpr (state_pair) {
-                            return AutomatonPath<state_pair>(std::make_pair(i,i));
-                        } else {
-                            return AutomatonPath<state_pair>(i);
-                        }
-                    }
-                    waiting.emplace_back(i, 0, std::numeric_limits<uint32_t>::max()); // Add all initial states in _product.
-                }
-                std::unordered_set<size_t> seen;
-
-                while (!waiting.empty()) {
-                    auto [current, stack_index, last_label] = waiting.back();
-                    waiting.pop_back();
-                    path.resize(stack_index + 2);
-                    label_stack.resize(stack_index + 1);
-                    path[stack_index] = get_original<state_pair>(current);
-                    if (stack_index > 0) {
-                        label_stack[stack_index - 1] = last_label;
-                    }
-                    for (const auto &[to,labels] : _product.states()[current]->_edges) {
-                        if (!labels.empty() && seen.emplace(to).second) {
-                            uint32_t label = labels[0].first;
-                            if (_product.states()[to]->_accepting) {
-                                path[stack_index + 1] = get_original<state_pair>(to);
-                                label_stack[stack_index] = label;
-                                return AutomatonPath<state_pair>(path, label_stack); // No nice way of creating this on the fly, so we do it in the end.
-                            }
-                            waiting.emplace_back(to, stack_index + 1, label);
-                        }
-                    }
-                }
-                return std::nullopt;
+                return _product.find_path([this](size_t s){ return get_original<state_pair>(s); });
             }
         }
 

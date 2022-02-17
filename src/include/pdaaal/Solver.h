@@ -1038,7 +1038,7 @@ namespace pdaaal {
                     return std::make_pair(_get_trace(instance.pda(), instance.automaton(), automaton_path), weight);
                 }
                 // Infinite trace.
-                assert(automaton_path.has_value());
+                assert(!automaton_path.is_null());
                 // TODO: Implement infinite trace structure.
                 return std::make_pair(return_type{}, weight);
             } else if constexpr (trace_type == Trace_Type::Shortest) {
@@ -1053,10 +1053,10 @@ namespace pdaaal {
         static auto get_trace_dual_search(const PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             auto paths = instance.template find_path<Trace_Type::Any, true>();
             using return_type = decltype(_get_trace(instance.pda(), instance.initial_automaton(), std::declval<AutomatonPath<>>()));
-            if (!paths.has_value()) {
+            if (paths.is_null()) {
                 return return_type{};
             }
-            auto [i_path, f_path] = paths.value().split();
+            auto [i_path, f_path] = paths.split();
             auto trace1 = _get_trace(instance.pda(), instance.initial_automaton(), i_path);
             auto trace2 = _get_trace(instance.pda(), instance.final_automaton(), f_path);
             assert(trace1.back()._pdastate == trace2.front()._pdastate);
@@ -1146,13 +1146,12 @@ namespace pdaaal {
         template <typename T, typename W, typename S, bool ssm, TraceInfoType trace_info_type>
         static std::vector<typename TypedPDA<T,W,fut::type::vector,S,ssm>::tracestate_t>
         _get_trace(const TypedPDA<T,W,fut::type::vector,S,ssm> &pda, const PAutomaton<W,trace_info_type>& automaton,
-                   std::optional<AutomatonPath<>> path) {
+                   AutomatonPath<> automaton_path) {
             using tracestate_t = typename TypedPDA<T,W,fut::type::vector,S,ssm>::tracestate_t;
 
-            if (!path.has_value()) {
+            if (automaton_path.is_null()) {
                 return std::vector<tracestate_t>();
             }
-            auto automaton_path = path.value();
 
             std::vector<tracestate_t> trace;
             trace.push_back(_decode_edges(pda, automaton_path));
@@ -1175,14 +1174,14 @@ namespace pdaaal {
                 std::vector<size_t>, // Path in initial PAutomaton (accepting initial stack)
                 std::vector<size_t>  // Path in final PAutomaton (accepting final stack) (independent of whether pre* or post* was used)
                 > _get_rule_trace_and_paths(const PAutomaton<W,trace_info_type>& automaton, // The PAutomaton that has been build up (either A_pre* or A_post*)
-                                            const std::optional<AutomatonPath<true>>& paths) {
+                                            const AutomatonPath<true>& paths) {
             using rule_t = user_rule_t<W>;
 
-            if (!paths.has_value()) {
+            if (paths.is_null()) {
                 return std::make_tuple(std::numeric_limits<size_t>::max(), std::vector<rule_t>(), std::vector<uint32_t>(), std::vector<uint32_t>(), std::vector<size_t>(), std::vector<size_t>());
             }
             // The paths was retrieved from the product automaton. First number is the state in @automaton (A_pre* or A_post*), second number is state in goal automaton.
-            auto [automaton_path, goal] = paths.value().split();
+            auto [automaton_path, goal] = paths.split();
             // Get path in goal automaton (returned in the end).
             auto [goal_path, goal_stack] = goal.get_path_and_stack();
 
@@ -1199,7 +1198,7 @@ namespace pdaaal {
                 std::reverse(trace.begin(), trace.end());
                 return std::make_tuple(trace[0].from(), trace, start_stack, goal_stack, start_path, goal_path);
             } else { // pre* was used
-                return std::make_tuple(paths.value().front_state().first, trace, goal_stack, start_stack, goal_path, start_path);
+                return std::make_tuple(paths.front_state().first, trace, goal_stack, start_stack, goal_path, start_path);
             }
         }
 
