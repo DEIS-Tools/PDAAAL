@@ -415,19 +415,8 @@ namespace pdaaal {
                     size_t state;
                     uint32_t label;
                     const queue_elem* back_pointer;
-
                     queue_elem(typename W::type weight, size_t state, uint32_t label, const queue_elem* back_pointer = nullptr)
                             : weight(weight), state(state), label(label), back_pointer(back_pointer) {};
-
-                    bool operator<(const queue_elem& other) const {
-                        return std::tie(state, label) < std::tie(other.state, other.label); // TODO: Is this correct? Should it not just be state?? and better then make 'visited' std::unordered_map<size_t, typename W::type>.
-                    }
-                    bool operator==(const queue_elem& other) const {
-                        return state == other.state && label == other.label;
-                    }
-                    bool operator!=(const queue_elem& other) const {
-                        return !(*this == other);
-                    }
                 };
                 struct queue_elem_comp {
                     bool operator()(const queue_elem& lhs, const queue_elem& rhs) {
@@ -435,7 +424,7 @@ namespace pdaaal {
                     }
                 };
                 std::priority_queue<queue_elem, std::vector<queue_elem>, queue_elem_comp> search_queue;
-                std::vector<queue_elem> visited;
+                std::unordered_map<size_t, typename W::type> visited;
                 std::vector<std::unique_ptr<queue_elem>> pointers;
                 const size_t pda_size = _pda.states().size();
                 for (size_t i = 0; i < pda_size; ++i) { // Iterate over _initial ([i]->_id)
@@ -456,17 +445,15 @@ namespace pdaaal {
                         return std::make_tuple(std::move(automaton_path), current.weight);
                     }
 
-                    auto lb = std::lower_bound(visited.begin(), visited.end(), current);
-                    if (lb != std::end(visited) && *lb == current) {
-                        if (solver_weight<W, Trace_Type::Shortest>::less(current.weight, lb->weight)) {
-                            *lb = current;
+                    auto [it, fresh] = visited.emplace(current.state, current.weight);
+                    if (!fresh) {
+                        if (solver_weight<W, Trace_Type::Shortest>::less(current.weight, it->second)) {
+                            it->second = current.weight;
                         } else {
                             continue;
                         }
-                    } else {
-                        lb = visited.insert(lb, current); // TODO: Consider using std::unordered_map instead...
                     }
-                    auto u_pointer = std::make_unique<queue_elem>(*lb);
+                    auto u_pointer = std::make_unique<queue_elem>(current);
                     auto pointer = u_pointer.get();
                     pointers.push_back(std::move(u_pointer));
                     for (const auto& [to, labels] : _states[current.state]->_edges) {
