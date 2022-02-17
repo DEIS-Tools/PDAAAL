@@ -1040,7 +1040,6 @@ namespace pdaaal {
                 // Infinite trace.
                 assert(automaton_path.has_value());
                 // TODO: Implement infinite trace structure.
-                // auto [trace1,loop1,trace2,loop2,trace3] = _get_trace_looping(instance.automaton(), automaton_path.value());
                 return std::make_pair(return_type{}, weight);
             } else if constexpr (trace_type == Trace_Type::Shortest) {
                 auto [automaton_path, weight] = instance.template find_path<trace_type>();
@@ -1166,85 +1165,6 @@ namespace pdaaal {
             }
             return trace;
         }
-
-        template <typename W>
-        static auto _get_trace_looping(const PAutomaton<W,TraceInfoType::Pair>& automaton, AutomatonPath<> path) {
-            details::TraceBack trace_back(automaton, std::move(path));
-
-            using state_type = std::optional<std::tuple<size_t,uint32_t,size_t>>;
-            using trace_elem_type = user_rule_t<W>;
-            std::vector<trace_elem_type> empty;
-
-            std::unordered_set<state_type, absl::Hash<state_type>> seen;
-            seen.emplace(trace_back.current_state());
-
-            std::vector<trace_elem_type> trace1;
-            std::optional<state_type> loop_elem = std::nullopt;
-
-            auto trace_back_copy = trace_back; // Make copy of current trace_back, so we can compare loop and non-loop behaviour.
-
-            while (auto elem = trace_back.next()) {
-                trace1.emplace_back(elem.value());
-                if (auto [it,fresh] = seen.emplace(trace_back.current_state()); !fresh) {
-                    loop_elem.emplace(*it);
-                    break;
-                }
-            }
-            if (loop_elem) {
-                size_t pre_loop_size = 0;
-                while (trace_back_copy.current_state() != loop_elem.value()) { // Go until first encounter of loop elem.
-#ifndef NDEBUG
-                    auto elem =
-#endif
-                    trace_back_copy.next();
-                    assert(elem);
-                    assert(elem.value() == trace1[pre_loop_size]);
-                    ++pre_loop_size;
-                }
-                std::vector<trace_elem_type> trace_loop(trace1.size() - pre_loop_size);
-                std::copy(trace1.begin() + pre_loop_size, trace1.end(), trace_loop.begin());
-                trace1.resize(pre_loop_size);
-
-                // For pushdown trace back, we can have higher stack after a loop, which can lead to a second (pop) loop.
-
-                // Get to end after one loop and no loop, step by step.
-                std::vector<trace_elem_type> trace2;
-                auto elem1 = trace_back.template next<true>();
-                auto elem2 = trace_back_copy.template next<true>();
-                while (elem1 && elem2 && trace_back.current_state() == trace_back_copy.current_state()) {
-                    assert(elem1.value() == elem2.value());
-                    trace2.emplace_back(elem1.value());
-                    elem1 = trace_back.template next<true>();
-                    elem2 = trace_back_copy.template next<true>();
-                }
-                // TODO: This does not work, when initial header has first loop, we need to differentiate, or use some different logic.
-                // TODO: Maybe extend the 'repeating top edge' condition to also need that path lengths is at least as long.   
-                if (elem1) { // Found a difference between continuing after one loop and no loop - this must be a second loop.
-                    std::vector<trace_elem_type> trace_loop_2, trace3;
-                    do {
-                        trace_loop_2.emplace_back(elem1.value());
-                        elem1 = trace_back.template next<true>();
-                    } while (elem1 && trace_back.current_state() != trace_back_copy.current_state());
-
-                    while (elem1 && elem2) {
-                        assert(trace_back.current_state() == trace_back_copy.current_state());
-                        assert(elem1.value() == elem2.value());
-                        trace3.emplace_back(elem1.value());
-                        elem1 = trace_back.template next<true>();
-                        elem2 = trace_back_copy.template next<true>();
-                    }
-                    assert(!elem1);
-                    assert(!elem2); // They should now end at the same time.
-
-                    return std::make_tuple(trace1, trace_loop, trace2, trace_loop_2, trace3); //, trace_back;
-                } else {
-                    assert(!elem2); // continuing from no loop should not be longer than from one loop.
-                    return std::make_tuple(trace1, trace_loop, trace2, empty, empty); //, trace_back;
-                }
-            }
-            return std::make_tuple(trace1,empty,empty,empty,empty);
-        }
-
 
         template <typename W, TraceInfoType trace_info_type>
         static std::tuple<

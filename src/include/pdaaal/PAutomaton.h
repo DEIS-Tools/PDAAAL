@@ -94,20 +94,10 @@ namespace pdaaal {
     };
 
     enum class TraceInfoType {
-//        Indirect,
         Single,
         Pair
     };
     template <TraceInfoType trace_info_type> struct TraceInfo {};
-//    template <> struct TraceInfo<TraceInfoType::Indirect> {
-//        using type = const trace_t*;
-//        static constexpr type make_default() {
-//            return nullptr;
-//        }
-//        static constexpr bool is_default(type t) {
-//            return t == nullptr;
-//        }
-//    };
     template <> struct TraceInfo<TraceInfoType::Single> {
         using type = trace_t;
         static constexpr type make_default() {

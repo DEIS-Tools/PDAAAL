@@ -122,7 +122,7 @@ namespace pdaaal {
         }
 
         // If (this->is_infinite() == false) Then we can safely use get_path
-        // else we might have a loop, and here to_trace_back is preferred.
+        // else we might have a loop, and here get_path_with_loop is preferred.
         [[nodiscard]] auto get_path() const {
             return get_path([](size_t s){ return s; });
         }
