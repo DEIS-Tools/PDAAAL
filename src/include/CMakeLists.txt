@@ -2,12 +2,10 @@ cmake_minimum_required(VERSION 3.14)
 
 project(PDAAAL-lib VERSION ${PDAAAL_VERSION} LANGUAGES CXX)
 
-#set(CMAKE_CXX_VISIBILITY_PRESET hidden)  ## Not sure about these
-#set(CMAKE_VISIBILITY_INLINES_HIDDEN YES)  |
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN YES)
 add_library(pdaaal)
 add_library(pdaaal::pdaaal ALIAS pdaaal)
-#include(GenerateExportHeader)             |
-#generate_export_header(pdaaal)            |.
 
 include(GNUInstallDirs) # With GNUInstallDirs we use platform-independent macros to get the correct install directory names.  (CMAKE_INSTALL_BINDIR, CMAKE_INSTALL_LIBDIR, CMAKE_INSTALL_INCLUDEDIR)
 
@@ -99,6 +97,14 @@ install(EXPORT      pdaaal-targets
         FILE        pdaaal-targets.cmake
         NAMESPACE   pdaaal::
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pdaaal)
+
+# Creates PDAAAL_EXPORT macro in pdaaal_export.h for platform-independent control of exported classes.
+# Currently this macro is empty, since pdaaal is a static library, but we keep it as part of standard cmake setup.
+include(GenerateExportHeader)
+generate_export_header(pdaaal)
+install(FILES "${PROJECT_BINARY_DIR}/pdaaal_export.h"
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
 # pdaaal-config.cmake.in defines dependencies that should be (transitively) available in pdaaal's parent project.
 configure_file(pdaaal-config.cmake.in pdaaal-config.cmake @ONLY)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/pdaaal-config.cmake"
