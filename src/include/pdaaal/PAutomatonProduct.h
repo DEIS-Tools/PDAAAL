@@ -366,7 +366,7 @@ namespace pdaaal {
     PAutomatonProduct(const PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
                       const NFA<label_t>& initial_nfa, const std::vector<size_t>& initial_states,
                       const NFA<label_t>& final_nfa, const std::vector<size_t>& final_states)
-      -> PAutomatonProduct<PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>,TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>,W>;
+      -> PAutomatonProduct<PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>,PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>,W>;
 
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
     PAutomatonProduct(const PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,

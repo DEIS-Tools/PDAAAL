@@ -28,7 +28,7 @@
 #define PDAAAL_PAUTOMATAREGEXPARSER_H
 
 #include <pdaaal/parsing/NfaParserGrammar.h>
-#include <pdaaal/TypedPAutomaton.h>
+#include <pdaaal/PAutomaton.h>
 #include <tao/pegtl/contrib/unescape.hpp>
 
 namespace pdaaal {
@@ -67,7 +67,7 @@ namespace pdaaal {
     // The State object that gets passed around by the parser is a builder that constructs the PAutomaton.
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
     class PAutomatonBuilder {
-        using automaton_t = TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>;
+        using automaton_t = PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>;
     public:
         explicit PAutomatonBuilder(PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
                                    const std::function<state_t(const std::string&)>& state_mapping)
