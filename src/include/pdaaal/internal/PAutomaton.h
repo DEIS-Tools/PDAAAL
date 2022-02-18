@@ -27,7 +27,7 @@
 #ifndef PDAAAL_PAUTOMATON_H
 #define PDAAAL_PAUTOMATON_H
 
-#include "pdaaal/TypedPDA.h"
+#include "PDA.h"
 #include "pdaaal/utils/fut_set.h"
 #include "pdaaal/NFA.h"
 #include "pdaaal/Weight.h"
@@ -191,12 +191,6 @@ namespace pdaaal::internal {
         };
 
         // Construct a PAutomaton that accepts a configuration <p,w> iff states contains p and nfa accepts w.
-        template<typename T>
-        PAutomaton(const TypedPDA<T,W>& pda, const NFA<T>& nfa, const std::vector<size_t>& states)
-        : PAutomaton(pda, states, nfa.empty_accept()) {
-            construct<T>(nfa, states, [&pda](const auto& v){ return pda.encode_pre(v); });
-        }
-        // Same, but where the NFA contains the symbols mapped to ids already.
         PAutomaton(const PDA<W>& pda, const NFA<uint32_t>& nfa, const std::vector<size_t>& states)
         : PAutomaton(pda, states, nfa.empty_accept()) {
             construct<uint32_t,false>(nfa, states, [](const auto& v){ return v; });
@@ -726,7 +720,7 @@ namespace pdaaal::internal {
         static constexpr trace_t new_post_trace(size_t epsilon_state) {
             return trace_t(epsilon_state);
         }
-    private:
+    protected:
         template<typename T, bool use_mapping = true>
         void construct(const NFA<T>& nfa, const std::vector<size_t>& states, const std::function<std::vector<uint32_t>(const std::vector<T>&)>& map_symbols) {
             using nfastate_t = typename NFA<T>::state_t;
@@ -773,7 +767,7 @@ namespace pdaaal::internal {
                 }
             }
         }
-
+    private:
         std::vector<std::unique_ptr<state_t>> _states;
         std::vector<state_t *> _initial;
         std::vector<state_t *> _accepting;

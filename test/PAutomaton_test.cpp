@@ -33,15 +33,16 @@
 #include <chrono>
 
 using namespace pdaaal;
-using namespace pdaaal::internal;
 
 BOOST_AUTO_TEST_CASE(Dijkstra_Test_1)
 {
+    using trace_t = internal::trace_t;
+
     std::unordered_set<char> labels{'A'};
     TypedPDA<char, weight<int>> pda(labels);
     pda.add_rule(0, 0, POP, '*', 'A', 0);
 
-    PAutomaton automaton(pda, std::vector<size_t>());
+    internal::PAutomaton automaton(pda, std::vector<size_t>());
     auto id1 = automaton.add_state(false, false);
     auto id2 = automaton.add_state(false, false);
     auto id3 = automaton.add_state(false, false);
@@ -79,7 +80,7 @@ BOOST_AUTO_TEST_CASE(UnweightedPreStar)
     pda.add_rule(3, 2, PUSH, 'C', 'A');
 
     std::vector<char> init_stack{'A', 'A'};
-    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
     Solver::pre_star(automaton);
 
@@ -103,7 +104,7 @@ BOOST_AUTO_TEST_CASE(UnweightedPostStar)
     pda.add_rule(3, 2, PUSH, 'C', 'A');
 
     std::vector<char> init_stack{'A', 'A'};
-    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
     Solver::post_star(automaton);
 
@@ -130,7 +131,7 @@ BOOST_AUTO_TEST_CASE(UnweightedPostStarPath)
     pda.add_rule(3, 2, PUSH, 'C', 'A');
 
     std::vector<char> init_stack{'A', 'A'};
-    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
     Solver::post_star(automaton);
 
@@ -155,7 +156,7 @@ BOOST_AUTO_TEST_CASE(WeightedPreStar)
     pda.add_rule(3, 2, PUSH, 'C', 'A', w);
 
     std::vector<char> init_stack{'A', 'A'};
-    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
     Solver::pre_star(automaton);
 
@@ -178,7 +179,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar4EarlyTermination)
     pda.add_rule(2, 4, POP , 'A', 'A', 16);
 
     std::vector<char> init_stack{'A'};
-    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
     std::vector<char> test_stack_reachable{'A'};
     BOOST_CHECK_EQUAL(Solver::post_star_accepts<Trace_Type::Shortest>(automaton, 4, pda.encode_pre(test_stack_reachable)), true);
@@ -202,7 +203,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar)
     pda.add_rule(3, 2, PUSH, 'C', 'A', w);
 
     std::vector<char> init_stack{'A', 'A'};
-    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
     Solver::post_star<Trace_Type::Shortest>(automaton);
 
@@ -227,7 +228,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar2)
     pda.add_rule(3, 1, POP, '*', 'B', 1);
 
     std::vector<char> init_stack{'A', 'B', 'A'};
-    PAutomaton automaton(pda, 1, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 1, pda.encode_pre(init_stack));
 
     Solver::post_star<Trace_Type::Shortest>(automaton);
 
@@ -247,7 +248,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar3)
     pda.add_rule(3, 2, POP , 'A', 'A', 1);
 
     std::vector<char> init_stack{'A'};
-    PAutomaton automaton(pda, 1, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 1, pda.encode_pre(init_stack));
 
     Solver::post_star<Trace_Type::Shortest>(automaton);
 
@@ -267,7 +268,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar4)
     pda.add_rule(2, 4, POP , 'A', 'A', 16);
 
     std::vector<char> init_stack{'A'};
-    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
     Solver::post_star<Trace_Type::Shortest>(automaton);
 
@@ -287,7 +288,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStarResult)
     pda.add_rule(2, 4, POP , 'A', 'A', 16);
 
     std::vector<char> init_stack{'A'};
-    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
     Solver::post_star<Trace_Type::Shortest>(automaton);
 
@@ -378,7 +379,7 @@ BOOST_AUTO_TEST_CASE(WeightedPostStarSyntacticModel)
     TypedPDA<int,weight<int>> pda = create_syntactic_network_broad(1);
     std::vector<int> init_stack;
     init_stack.push_back(0);
-    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
     Solver::post_star<Trace_Type::Shortest>(automaton);
 
@@ -414,11 +415,11 @@ BOOST_AUTO_TEST_CASE(WeightedPostStarVSPostUnorderedPerformance)
     std::vector<int> test_stack_reachable;
     test_stack_reachable.push_back(0);
 
-    PAutomaton shortest_automaton(pda, 0, pda.encode_pre(init_stack));
+    internal::PAutomaton shortest_automaton(pda, 0, pda.encode_pre(init_stack));
     auto t1 = std::chrono::high_resolution_clock::now();
     Solver::post_star<Trace_Type::Shortest>(shortest_automaton);
     auto t2 = std::chrono::high_resolution_clock::now();
-    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
     auto t3 = std::chrono::high_resolution_clock::now();
     Solver::post_star<Trace_Type::Any>(automaton);
     auto t4 = std::chrono::high_resolution_clock::now();
@@ -443,12 +444,12 @@ BOOST_AUTO_TEST_CASE(WeightedShortestPerformance)
     test_stack_reachable.push_back(0);
     test_stack_reachable.push_back(0);
 
-    PAutomaton shortest_automaton(pda, 0, pda.encode_pre(init_stack));
+    internal::PAutomaton shortest_automaton(pda, 0, pda.encode_pre(init_stack));
     auto t1 = std::chrono::high_resolution_clock::now();
     Solver::post_star<Trace_Type::Shortest>(shortest_automaton);
     auto t2 = std::chrono::high_resolution_clock::now();
 
-    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
     auto t3 = std::chrono::high_resolution_clock::now();
     Solver::post_star<Trace_Type::Any>(automaton);
     auto t4 = std::chrono::high_resolution_clock::now();

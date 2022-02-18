@@ -43,8 +43,12 @@ namespace pdaaal {
         using typed_pda_t = TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>;
         using pda_t = typename typed_pda_t::parent_t;
     public:
+
+        // Construct a PAutomaton that accepts a configuration <p,w> iff states contains p and nfa accepts w.
         TypedPAutomaton(const typed_pda_t& pda, const NFA<label_t>& nfa, const std::vector<size_t>& states)
-        : parent_t(pda, nfa, states), _typed_pda(pda) { };
+        : parent_t(static_cast<const pda_t&>(pda), states, nfa.empty_accept()), _typed_pda(pda) {
+            this->template construct<label_t>(nfa, states, [&pda](const auto& v){ return pda.encode_pre(v); });
+        }
         // Same, but where the NFA contains the symbols mapped to ids already.
         TypedPAutomaton(const typed_pda_t& pda, const NFA<uint32_t>& nfa, const std::vector<size_t>& states)
         : parent_t(static_cast<const pda_t&>(pda), nfa, states), _typed_pda(pda) { };
