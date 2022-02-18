@@ -12,6 +12,7 @@ set(PDAAAL_test_sources
     NFA_test.cpp
     ParsingPDAFactory_test.cpp
     NfaParser_test.cpp
+    AutomatonPath_test.cpp
 )
 
 foreach(test_source_file ${PDAAAL_test_sources})
