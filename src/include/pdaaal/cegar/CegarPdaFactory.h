@@ -39,10 +39,10 @@ namespace pdaaal {
 
     // NOTE: CEGAR construction with weights is not yet implemented.
     template <typename label_t, typename W = weight<void>>
-    class CegarPdaFactory : public PDAFactory<label_t, AbstractionPDA<label_t,W,fut::type::hash>, AbstractionPDA<label_t,W,fut::type::vector>,
+    class CegarPdaFactory : public BasePDAFactory<label_t, AbstractionPDA<label_t,W,fut::type::hash>, AbstractionPDA<label_t,W,fut::type::vector>,
                                        user_rule_t<W>, AbstractionSolverInstance<label_t,W>> {
     private:
-        using parent_t = PDAFactory<label_t,AbstractionPDA<label_t,W,fut::type::hash>, // We optimize for set insertion while building,
+        using parent_t = BasePDAFactory<label_t,AbstractionPDA<label_t,W,fut::type::hash>, // We optimize for set insertion while building,
                                     AbstractionPDA<label_t,W,fut::type::vector>,       // and then optimize for iteration when analyzing.
                                     user_rule_t<W>, // FIXME: This does not yet work for weighted rules.
                                     AbstractionSolverInstance<label_t,W>>;

@@ -41,7 +41,7 @@
 namespace pdaaal {
 
     template<typename Label, typename BuilderPDA, typename ResultPDA, typename Rule, typename SolverInstance>
-    class PDAFactory {
+    class BasePDAFactory {
         // Expose template parameters for convenience in deriving/consuming classes.
     protected:
         using builder_pda_t = BuilderPDA;
@@ -52,7 +52,7 @@ namespace pdaaal {
         using solver_instance_t = SolverInstance;
 
         template<typename... Args>
-        explicit PDAFactory(Args&&... args) : _temp_pda(std::forward<Args>(args)...) { }
+        explicit BasePDAFactory(Args&&... args) : _temp_pda(std::forward<Args>(args)...) { }
 
         // NFAs must be already compiled before passing them to this function.
         solver_instance_t compile(const NFA<label_t>& initial_headers, const NFA<label_t>& final_headers) {
@@ -76,21 +76,21 @@ namespace pdaaal {
     };
 
     template<typename T, typename W = weight<void>>
-    class TypedPDAFactory : public PDAFactory<T, TypedPDA<T,W,fut::type::hash>, TypedPDA<T,W,fut::type::vector>,
+    class PDAFactory : public BasePDAFactory<T, TypedPDA<T,W,fut::type::hash>, TypedPDA<T,W,fut::type::vector>,
                                        typename TypedPDA<T,W,fut::type::hash>::rule_t, SolverInstance<T,W>> {
     private:
-        using parent_t = PDAFactory<T, TypedPDA<T,W,fut::type::hash>, TypedPDA<T,W,fut::type::vector>,
+        using parent_t = BasePDAFactory<T, TypedPDA<T,W,fut::type::hash>, TypedPDA<T,W,fut::type::vector>,
                                     typename TypedPDA<T,W,fut::type::hash>::rule_t, SolverInstance<T,W>>;
     public:
         using rule_t = typename parent_t::rule_t;
-        explicit TypedPDAFactory(const std::unordered_set<T>& all_labels) : parent_t(all_labels) { };
+        explicit PDAFactory(const std::unordered_set<T>& all_labels) : parent_t(all_labels) { };
     };
 
     // This is the 'old' PDAFactory.
     template<typename T, typename W = weight<void>>
-    class DFS_PDAFactory : public TypedPDAFactory<T,W> {
+    class DFS_PDAFactory : public PDAFactory<T,W> {
     private:
-        using parent_t = TypedPDAFactory<T,W>;
+        using parent_t = PDAFactory<T,W>;
     public:
         using rule_t = typename parent_t::rule_t;
         DFS_PDAFactory(const std::unordered_set<T>& all_labels, T wildcard_label)
