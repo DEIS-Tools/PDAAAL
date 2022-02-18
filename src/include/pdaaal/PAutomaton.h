@@ -40,38 +40,42 @@ namespace pdaaal {
     class PAutomaton : public internal::PAutomaton<W,trace_info_type>, private std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
         static_assert(!skip_state_mapping || std::is_same_v<state_t,size_t>, "When skip_state_mapping==true, you must use state_t=size_t");
         using parent_t = internal::PAutomaton<W,trace_info_type>;
-        using typed_pda_t = PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>;
-        using pda_t = typename typed_pda_t::parent_t;
+        using pda_t = PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>;
+        using internal_pda_t = typename pda_t::parent_t;
     public:
+        static constexpr auto epsilon = parent_t::epsilon;
+
+        // Accept one control state with given stack.
+        PAutomaton(const pda_t& pda, size_t initial_state, const std::vector<label_t>& initial_stack)
+        : parent_t(static_cast<const internal_pda_t&>(pda), initial_state, pda.encode_pre(initial_stack)), _pda(pda) { };
 
         // Construct a PAutomaton that accepts a configuration <p,w> iff states contains p and nfa accepts w.
-        PAutomaton(const typed_pda_t& pda, const NFA<label_t>& nfa, const std::vector<size_t>& states)
-        : parent_t(static_cast<const pda_t&>(pda), states, nfa.empty_accept()), _typed_pda(pda) {
+        PAutomaton(const pda_t& pda, const NFA<label_t>& nfa, const std::vector<size_t>& states)
+        : parent_t(static_cast<const internal_pda_t&>(pda), states, nfa.empty_accept()), _pda(pda) {
             this->template construct<label_t>(nfa, states, [&pda](const auto& v){ return pda.encode_pre(v); });
         }
         // Same, but where the NFA contains the symbols mapped to ids already.
-        PAutomaton(const typed_pda_t& pda, const NFA<uint32_t>& nfa, const std::vector<size_t>& states)
-        : parent_t(static_cast<const pda_t&>(pda), nfa, states), _typed_pda(pda) { };
+        PAutomaton(const pda_t& pda, const NFA<uint32_t>& nfa, const std::vector<size_t>& states)
+        : parent_t(static_cast<const internal_pda_t&>(pda), nfa, states), _pda(pda) { };
 
-        PAutomaton(const typed_pda_t& pda, const std::vector<size_t>& special_initial_states, bool special_accepting = true)
-        : parent_t(static_cast<const pda_t&>(pda), special_initial_states, special_accepting), _typed_pda(pda) { };
+        PAutomaton(const pda_t& pda, const std::vector<size_t>& special_initial_states, bool special_accepting = true)
+        : parent_t(static_cast<const internal_pda_t&>(pda), special_initial_states, special_accepting), _pda(pda) { };
 
         [[nodiscard]] nlohmann::json to_json(const std::string& name = "P-automaton") const {
             nlohmann::json j;
             j[name] = *this;
             return j;
         }
-        const typed_pda_t& typed_pda() const { return _typed_pda; }
 
         [[nodiscard]] std::pair<bool,size_t> exists_state(const state_t& state) const {
             if constexpr (skip_state_mapping) {
                 return std::make_pair(state < this->states().size(), state);
             } else {
-                auto res = this->typed_pda().exists_state(state);
+                auto res = _pda.exists_state(state);
                 if (!res.first) {
                     auto [exists, temp_id] = this->_state_map.exists(state);
                     if (exists) {
-                        return std::make_pair(true, temp_id + this->typed_pda().states().size());
+                        return std::make_pair(true, temp_id + _pda.states().size());
                     } else {
                         return std::make_pair(false, temp_id);
                     }
@@ -83,7 +87,7 @@ namespace pdaaal {
             if constexpr (skip_state_mapping) {
                 return state; // + this->pda().states().size();
             } else {
-                return this->_state_map.insert(state).second + this->typed_pda().states().size();
+                return this->_state_map.insert(state).second + _pda.states().size();
             }
         }
 
@@ -91,16 +95,17 @@ namespace pdaaal {
             if constexpr (skip_state_mapping) {
                 return id;
             } else {
-                if (id < this->typed_pda().states().size()) {
-                    return this->typed_pda().get_state(id);
+                if (id < _pda.states().size()) {
+                    return _pda.get_state(id);
                 } else {
-                    return static_cast<const state_mapping<state_t>*>(this)->get_state(id - this->typed_pda().states().size());
+                    return static_cast<const state_mapping<state_t>*>(this)->get_state(id - _pda.states().size());
                 }
             }
         }
+        [[nodiscard]] label_t get_symbol(size_t id) const { return _pda.get_symbol(id); }
 
     private:
-        const typed_pda_t& _typed_pda;
+        const pda_t& _pda;
     };
     // CTAD guides
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type = TraceInfoType::Single>
@@ -235,7 +240,7 @@ namespace pdaaal {
                     } else {
                         edge["to"] = state_to_string(to);
                     }
-                    edge["label"] = label == internal::PAutomaton<W,trace_info_type>::epsilon ? "" : details::label_to_string(automaton.typed_pda().get_symbol(label));
+                    edge["label"] = label == automaton.epsilon ? "" : details::label_to_string(automaton.get_symbol(label));
                     j_state["edges"].emplace_back(edge);
                 }
             }

@@ -27,12 +27,42 @@
 #define BOOST_TEST_MODULE PAutomaton
 
 #include <boost/test/unit_test.hpp>
-#include <pdaaal/internal/PAutomaton.h>
+#include <pdaaal/PAutomaton.h>
 #include <pdaaal/PDA.h>
 #include <pdaaal/Solver.h>
 #include <chrono>
 
 using namespace pdaaal;
+
+BOOST_AUTO_TEST_CASE(PAutomatonFromJsonTest)
+{
+    std::unordered_set<std::string> labels{"A"};
+    PDA<std::string> pda(labels);
+    pda.add_rule(0, 0, POP, "*", "A");
+    std::istringstream automaton_stream(R"({"P-automaton":{
+        "states":[
+            {"edges":[{"label":"A","to":1}],"initial":true},
+            {"edges":[{"label":"A","to":2}]},
+            {"accepting":true,"edges":[]}
+        ]
+    }})");
+    auto automaton = PAutomatonJsonParser::parse<>(automaton_stream, pda);
+    std::vector<uint32_t> stack; stack.emplace_back(0);
+    bool result = Solver::post_star_accepts(automaton, 0, stack);
+    BOOST_CHECK(result);
+}
+
+BOOST_AUTO_TEST_CASE(PAutomatonToJsonTest)
+{
+    std::unordered_set<std::string> labels{"A"};
+    PDA<std::string> pda(labels);
+    pda.add_rule(0, 0, POP, "*", "A");
+    std::vector<std::string> init_stack{"A", "A"};
+    PAutomaton automaton(pda, 0, init_stack);
+    auto j = automaton.to_json();
+    BOOST_TEST_MESSAGE(j.dump());
+    BOOST_CHECK_EQUAL(j.dump(), R"({"P-automaton":{"states":[{"edges":[{"label":"A","to":1}],"initial":true},{"edges":[{"label":"A","to":2}]},{"accepting":true,"edges":[]}]}})");
+}
 
 BOOST_AUTO_TEST_CASE(Dijkstra_Test_1)
 {
