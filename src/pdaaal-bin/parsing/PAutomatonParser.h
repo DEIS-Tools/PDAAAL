@@ -69,7 +69,7 @@ namespace pdaaal {
     class PAutomatonBuilder {
         using automaton_t = TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>;
     public:
-        explicit PAutomatonBuilder(TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
+        explicit PAutomatonBuilder(PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
                                    const std::function<state_t(const std::string&)>& state_mapping)
         : _pda(pda), _state_mapping(state_mapping),
           _label_mapping([&pda](const std::string& label) -> uint32_t { return pda.insert_label(label); }) {};
@@ -109,18 +109,18 @@ namespace pdaaal {
         NFA<uint32_t> _current_nfa;
         std::optional<automaton_t> _current_p_automaton;
 
-        const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& _pda;
+        const PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& _pda;
         const std::function<state_t(const std::string&)>& _state_mapping;
         std::function<uint32_t(const std::string&)> _label_mapping;
     };
     template<TraceInfoType trace_info_type, typename label_t, typename W, typename state_t, bool skip_state_mapping>
-    inline auto make_PAutomatonBuilder(TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
+    inline auto make_PAutomatonBuilder(PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
                                        const std::function<state_t(const std::string&)>& state_mapping) {
         return PAutomatonBuilder<label_t,W,state_t,skip_state_mapping,trace_info_type>(pda, state_mapping);
     }
     // CTAD guide
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping>
-    PAutomatonBuilder(TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
+    PAutomatonBuilder(PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
                       const std::function<state_t(const std::string&)>& state_mapping) -> PAutomatonBuilder<label_t,W,state_t,skip_state_mapping,TraceInfoType::Single>;
 
     // Definition of the actions applied by the parser to the builder state object.
@@ -158,11 +158,11 @@ namespace pdaaal {
 
     private:
         template <TraceInfoType trace_info_type, typename Input, typename W>
-        static internal::PAutomaton<W,trace_info_type> parse(Input& in, TypedPDA<std::string,W,fut::type::vector, std::string>& pda) {
+        static internal::PAutomaton<W,trace_info_type> parse(Input& in, PDA<std::string,W,fut::type::vector, std::string>& pda) {
             return parse<trace_info_type, std::string>(in, pda, [](const std::string& s){ return s; });
         }
         template <TraceInfoType trace_info_type, typename Input, typename W, bool ssm>
-        static internal::PAutomaton<W,trace_info_type> parse(Input& in, TypedPDA<std::string,W,fut::type::vector, size_t, ssm>& pda) {
+        static internal::PAutomaton<W,trace_info_type> parse(Input& in, PDA<std::string,W,fut::type::vector, size_t, ssm>& pda) {
             return parse<trace_info_type, size_t>(in, pda, [](const std::string& s) -> size_t { return std::stoul(s); });
         }
         template <TraceInfoType trace_info_type, typename state_t, typename Input, typename pda_t>

@@ -179,7 +179,7 @@ namespace pdaaal {
     private:
         using abstract_label_t = int;
         using state_t = size_t;
-        using rule_t = typename TypedPDA<std::string, W>::rule_t; // For concrete rules we just use this one.
+        using rule_t = typename PDA<std::string, W>::rule_t; // For concrete rules we just use this one.
         using abstract_state_t = state_t;
         using parent_t = CegarPdaFactory<label_t, W>;
         using abstract_rule_t = typename parent_t::abstract_rule_t;
@@ -305,19 +305,19 @@ namespace pdaaal {
             std::string, // label_t
             size_t, // state_t
             const std::vector< // configuration_range_t        In this case configuration_t consists of:
-                    std::pair<typename TypedPDA<std::string, W>::rule_t, // Our concrete rule_t
+                    std::pair<typename PDA<std::string, W>::rule_t, // Our concrete rule_t
                               Header<std::string>> // header_t
             >&,
-            std::vector<typename TypedPDA<std::string>::tracestate_t>, // concrete_trace_t
+            std::vector<typename PDA<std::string>::tracestate_t>, // concrete_trace_t
             W> {
         friend class ParsingCegarPdaFactory<W>;
     public:
         using label_t = std::string;
-        using concrete_trace_t = std::vector<typename TypedPDA<label_t>::tracestate_t>;
+        using concrete_trace_t = std::vector<typename PDA<label_t>::tracestate_t>;
     private:
         using state_t = size_t;
         using header_t = Header<label_t>;
-        using rule_t = typename TypedPDA<std::string, W>::rule_t; // For concrete rules we just use this one.
+        using rule_t = typename PDA<std::string, W>::rule_t; // For concrete rules we just use this one.
         using configuration_t = std::pair<rule_t, header_t>;
         using configuration_range_t = const std::vector<configuration_t>&;
         using parent_t = CegarPdaReconstruction<label_t, state_t, configuration_range_t, concrete_trace_t, W>;

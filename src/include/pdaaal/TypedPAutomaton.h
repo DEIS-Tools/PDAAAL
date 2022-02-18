@@ -30,7 +30,7 @@
 #include <iostream>
 #include <fstream>
 #include "pdaaal/internal/PAutomaton.h"
-#include "TypedPDA.h"
+#include "PDA.h"
 
 #include <nlohmann/json.hpp>
 
@@ -40,7 +40,7 @@ namespace pdaaal {
     class TypedPAutomaton : public internal::PAutomaton<W,trace_info_type>, private std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
         static_assert(!skip_state_mapping || std::is_same_v<state_t,size_t>, "When skip_state_mapping==true, you must use state_t=size_t");
         using parent_t = internal::PAutomaton<W,trace_info_type>;
-        using typed_pda_t = TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>;
+        using typed_pda_t = PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>;
         using pda_t = typename typed_pda_t::parent_t;
     public:
 
@@ -104,11 +104,11 @@ namespace pdaaal {
     };
     // CTAD guides
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type = TraceInfoType::Single>
-    TypedPAutomaton(const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const NFA<label_t>&, const std::vector<size_t>&) -> TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>;
+    TypedPAutomaton(const PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const NFA<label_t>&, const std::vector<size_t>&) -> TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>;
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type = TraceInfoType::Single>
-    TypedPAutomaton(const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const NFA<uint32_t>&, const std::vector<size_t>&) -> TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>;
+    TypedPAutomaton(const PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const NFA<uint32_t>&, const std::vector<size_t>&) -> TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>;
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type = TraceInfoType::Single>
-    TypedPAutomaton(const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const std::vector<size_t>&, bool special_accepting = true) -> TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>;
+    TypedPAutomaton(const PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const std::vector<size_t>&, bool special_accepting = true) -> TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>;
 
     class PAutomatonJsonParser {
     public:
@@ -129,17 +129,17 @@ namespace pdaaal {
             return from_json<trace_info_type>(j[name], pda);
         }
         template <TraceInfoType trace_info_type, typename W>
-        static auto from_json(const json& j, TypedPDA<std::string,W,fut::type::vector, std::string>& pda) {
+        static auto from_json(const json& j, PDA<std::string,W,fut::type::vector, std::string>& pda) {
             return from_json<trace_info_type, std::string>(j, pda, [](const std::string& s) { return s; });
         }
         template <TraceInfoType trace_info_type, typename W, bool ssm>
-        static auto from_json(const json& j, TypedPDA<std::string,W,fut::type::vector, size_t, ssm>& pda) {
+        static auto from_json(const json& j, PDA<std::string,W,fut::type::vector, size_t, ssm>& pda) {
             return from_json<trace_info_type, size_t>(j, pda, [](const std::string& s) -> size_t { return std::stoul(s); });
         }
     private:
         template <TraceInfoType trace_info_type, typename state_t, typename W, bool skip_state_mapping>
         static auto from_json(const json& j,
-                              TypedPDA<std::string,W,fut::type::vector,state_t,skip_state_mapping>& pda,
+                              PDA<std::string,W,fut::type::vector,state_t,skip_state_mapping>& pda,
                               const std::function<state_t(const std::string&)>& state_mapping) {
             // TODO: Proper error checking and handling.!
             auto iterate_states = [&j,&state_mapping](const std::function<void(const state_t&,const json&)>& fn) {

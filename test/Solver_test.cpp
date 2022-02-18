@@ -36,7 +36,7 @@ BOOST_AUTO_TEST_CASE(SolverTest1)
     // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
     // However r_2 requires a swap and a push, which is done through auxiliary state 3.
     std::unordered_set<char> labels{'A', 'B', 'C'};
-    TypedPDA<char, weight<std::array<double, 3>>> pda(labels);
+    PDA<char, weight<std::array<double, 3>>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
     pda.add_rule(0, 1, PUSH, 'B', 'A', w);
     pda.add_rule(0, 0, POP , '*', 'B', w);
@@ -59,7 +59,7 @@ BOOST_AUTO_TEST_CASE(SolverTest2)
     // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
     // However r_2 requires a swap and a push, which is done through auxiliary state 3.
     std::unordered_set<uint32_t> labels{2,3,4};
-    TypedPDA<uint32_t, weight<std::array<double, 3>>> pda(labels);
+    PDA<uint32_t, weight<std::array<double, 3>>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
     pda.add_rule(0, 1, PUSH, 3, 2, w);
     pda.add_rule(0, 0, POP , '*', 3, w);
@@ -82,7 +82,7 @@ BOOST_AUTO_TEST_CASE(SolverTest3)
     // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
     // However r_2 requires a swap and a push, which is done through auxiliary state 3.
     std::unordered_set<char> labels{'A', 'B', 'C'};
-    TypedPDA<char, weight<std::array<double, 3>>> pda(labels);
+    PDA<char, weight<std::array<double, 3>>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
     pda.add_rule(0, 1, PUSH, 'B', 'A', w);
     pda.add_rule(0, 0, POP , '*', 'B', w);
@@ -106,7 +106,7 @@ BOOST_AUTO_TEST_CASE(EarlyTerminationPostStar)
     // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
     // However r_2 requires a swap and a push, which is done through auxiliary state 3.
     std::unordered_set<char> labels{'A', 'B', 'C'};
-    TypedPDA<char, weight<std::array<double, 3>>> pda(labels);
+    PDA<char, weight<std::array<double, 3>>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
     pda.add_rule(0, 1, PUSH, 'B', 'A', w);
     pda.add_rule(0, 0, POP , '*', 'B', w);
@@ -131,7 +131,7 @@ BOOST_AUTO_TEST_CASE(EarlyTerminationPreStar)
     // This is pretty much the rules from the example in Figure 3.1 (Schwoon-php02)
     // However r_2 requires a swap and a push, which is done through auxiliary state 3.
     std::unordered_set<char> labels{'A', 'B', 'C'};
-    TypedPDA<char, weight<std::array<double, 3>>> pda(labels);
+    PDA<char, weight<std::array<double, 3>>> pda(labels);
     std::array<double, 3> w{0.5, 1.2, 0.3};
     pda.add_rule(0, 1, PUSH, 'B', 'A', w);
     pda.add_rule(0, 0, POP , '*', 'B', w);
@@ -153,7 +153,7 @@ BOOST_AUTO_TEST_CASE(EarlyTerminationPreStar)
 BOOST_AUTO_TEST_CASE(Post_0AApop1A)
 {
     std::unordered_set<char> labels{'A'};
-    TypedPDA<char> pda(labels);
+    PDA<char> pda(labels);
     pda.add_rule(0, 1, POP, '*', 'A');
 
     NFA<char> initial_nfa(std::unordered_set<char>{'A'});
@@ -172,7 +172,7 @@ BOOST_AUTO_TEST_CASE(Post_0AApop1A)
 BOOST_AUTO_TEST_CASE(POST_0Apop1)
 {
     std::unordered_set<char> labels{'A'};
-    TypedPDA<char> pda(labels);
+    PDA<char> pda(labels);
     pda.add_rule(0, 1, POP, '*', 'A');
 
     NFA<char> initial_nfa(std::unordered_set<char>{'A'});
@@ -190,7 +190,7 @@ BOOST_AUTO_TEST_CASE(POST_0Apop1)
 BOOST_AUTO_TEST_CASE(Pre_0AApop1A)
 {
     std::unordered_set<char> labels{'A'};
-    TypedPDA<char> pda(labels);
+    PDA<char> pda(labels);
     pda.add_rule(0, 1, POP, '*', 'A');
 
     NFA<char> initial_nfa(std::unordered_set<char>{'A'});
@@ -209,7 +209,7 @@ BOOST_AUTO_TEST_CASE(Pre_0AApop1A)
 BOOST_AUTO_TEST_CASE(Pre_0Apop1)
 {
     std::unordered_set<char> labels{'A'};
-    TypedPDA<char> pda(labels);
+    PDA<char> pda(labels);
     pda.add_rule(0, 1, POP, '*', 'A');
 
     NFA<char> initial_nfa(std::unordered_set<char>{'A'});
@@ -227,7 +227,7 @@ BOOST_AUTO_TEST_CASE(Pre_0Apop1)
 BOOST_AUTO_TEST_CASE(Pre_0AApop0)
 {
     std::unordered_set<char> labels{'A'};
-    TypedPDA<char> pda(labels);
+    PDA<char> pda(labels);
     pda.add_rule(0, 0, POP, '*', 'A');
 
     NFA<char> initial_nfa(std::unordered_set<char>{'A'});
@@ -246,7 +246,7 @@ BOOST_AUTO_TEST_CASE(Pre_0AApop0)
 BOOST_AUTO_TEST_CASE(Pre_0AApop0A)
 {
     std::unordered_set<char> labels{'A'};
-    TypedPDA<char> pda(labels);
+    PDA<char> pda(labels);
     pda.add_rule(0, 0, POP, '*', 'A');
 
     NFA<char> initial_nfa(std::unordered_set<char>{'A'});
@@ -266,7 +266,7 @@ BOOST_AUTO_TEST_CASE(Pre_0AApop0A)
 BOOST_AUTO_TEST_CASE(Post_0AApop0)
 {
     std::unordered_set<char> labels{'A'};
-    TypedPDA<char> pda(labels);
+    PDA<char> pda(labels);
     pda.add_rule(0, 0, POP, '*', 'A');
 
     NFA<char> initial_nfa(std::unordered_set<char>{'A'});
@@ -285,7 +285,7 @@ BOOST_AUTO_TEST_CASE(Post_0AApop0)
 BOOST_AUTO_TEST_CASE(Post_0AAApop0A)
 {
     std::unordered_set<char> labels{'A'};
-    TypedPDA<char> pda(labels);
+    PDA<char> pda(labels);
     pda.add_rule(0, 0, POP, '*', 'A');
 
     NFA<char> initial_nfa(std::unordered_set<char>{'A'});

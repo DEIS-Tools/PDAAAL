@@ -34,7 +34,7 @@
 #include <unordered_set>
 
 #include "NFA.h"
-#include "TypedPDA.h"
+#include "PDA.h"
 #include "pdaaal/internal/PAutomaton.h"
 #include "SolverInstance.h"
 
@@ -76,11 +76,11 @@ namespace pdaaal {
     };
 
     template<typename T, typename W = weight<void>>
-    class PDAFactory : public BasePDAFactory<T, TypedPDA<T,W,fut::type::hash>, TypedPDA<T,W,fut::type::vector>,
-                                       typename TypedPDA<T,W,fut::type::hash>::rule_t, SolverInstance<T,W>> {
+    class PDAFactory : public BasePDAFactory<T, PDA<T,W,fut::type::hash>, PDA<T,W,fut::type::vector>,
+                                       typename PDA<T,W,fut::type::hash>::rule_t, SolverInstance<T,W>> {
     private:
-        using parent_t = BasePDAFactory<T, TypedPDA<T,W,fut::type::hash>, TypedPDA<T,W,fut::type::vector>,
-                                    typename TypedPDA<T,W,fut::type::hash>::rule_t, SolverInstance<T,W>>;
+        using parent_t = BasePDAFactory<T, PDA<T,W,fut::type::hash>, PDA<T,W,fut::type::vector>,
+                                    typename PDA<T,W,fut::type::hash>::rule_t, SolverInstance<T,W>>;
     public:
         using rule_t = typename parent_t::rule_t;
         explicit PDAFactory(const std::unordered_set<T>& all_labels) : parent_t(all_labels) { };

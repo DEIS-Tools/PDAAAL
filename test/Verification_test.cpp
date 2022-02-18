@@ -100,7 +100,7 @@ void print_edges_path(std::ostream& s, const AutomatonPath<>& automaton_path, co
     s << std::endl;
 }
 template<typename label_t, typename state_t, typename W, bool ssm, TraceInfoType trace_info_type>
-auto get_edge(const internal::PAutomaton<W,trace_info_type>& automaton, const TypedPDA<label_t,W,fut::type::vector,state_t,ssm>& pda, const state_t& from, const label_t& label, const state_t& to) {
+auto get_edge(const internal::PAutomaton<W,trace_info_type>& automaton, const PDA<label_t,W,fut::type::vector,state_t,ssm>& pda, const state_t& from, const label_t& label, const state_t& to) {
     BOOST_TEST(pda.exists_state(from).first);
     auto from_id = pda.exists_state(from).second;
     BOOST_TEST(pda.exists_label(label).first);
