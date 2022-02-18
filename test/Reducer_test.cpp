@@ -27,7 +27,7 @@
 #define BOOST_TEST_MODULE Reducer
 
 #include <boost/test/unit_test.hpp>
-#include <pdaaal/Reducer.h>
+#include <pdaaal/internal/Reducer.h>
 #include <pdaaal/TypedPDA.h>
 
 using namespace pdaaal;
@@ -44,7 +44,7 @@ BOOST_AUTO_TEST_CASE(ReducerTest1) {
     pda.add_rule(2, 0, SWAP, 'B', 'C', w);
     pda.add_rule(3, 2, PUSH, 'C', 'A', w);
 
-    auto res = Reducer::reduce(pda, 3, 3, 0);
+    auto res = internal::Reducer::reduce(pda, 3, 3, 0);
 
     BOOST_CHECK_LT(res.second, res.first);
 }

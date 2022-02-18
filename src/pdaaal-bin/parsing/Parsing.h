@@ -32,7 +32,7 @@
 #include <fstream>
 
 #include <utils/stopwatch.h>
-#include <parsing/PdaJsonParser.h>
+#include "PdaJsonParser.h"
 
 namespace po = boost::program_options;
 

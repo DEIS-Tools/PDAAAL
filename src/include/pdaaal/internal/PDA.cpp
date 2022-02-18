@@ -25,10 +25,10 @@
  * Created on 19-02-2020.
  */
 
-#include <pdaaal/PDA.h>
+#include "PDA.h"
 #include <cassert>
 
-namespace pdaaal {
+namespace pdaaal::internal {
 
     void labels_t::merge(bool wildcard, const std::vector<uint32_t>& other) {
         if (_wildcard) return;

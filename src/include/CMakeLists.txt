@@ -11,8 +11,8 @@ include(GNUInstallDirs) # With GNUInstallDirs we use platform-independent macros
 
 # Here we define the source files for building pdaaal, and that the header files can also be used when building dependents.
 target_sources(pdaaal
-    PRIVATE pdaaal/PDA.cpp
-            pdaaal/Reducer.cpp
+    PRIVATE pdaaal/internal/PDA.cpp
+            pdaaal/internal/Reducer.cpp
             pdaaal/parsing/NfaParser.cpp
     PUBLIC  ${HEADER_FILES}
 )

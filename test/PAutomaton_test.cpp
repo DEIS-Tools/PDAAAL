@@ -27,12 +27,13 @@
 #define BOOST_TEST_MODULE PAutomaton
 
 #include <boost/test/unit_test.hpp>
-#include <pdaaal/PAutomaton.h>
+#include <pdaaal/internal/PAutomaton.h>
 #include <pdaaal/TypedPDA.h>
 #include <pdaaal/Solver.h>
 #include <chrono>
 
 using namespace pdaaal;
+using namespace pdaaal::internal;
 
 BOOST_AUTO_TEST_CASE(Dijkstra_Test_1)
 {

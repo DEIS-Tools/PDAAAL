@@ -30,7 +30,7 @@
 #include <ptrie/ptrie_map.h>
 #include <vector>
 #include <variant>
-#include <pdaaal/utils/std20.h>
+#include "std20.h"
 
 #include <boost/mp11.hpp>
 

@@ -25,10 +25,10 @@
  * Created on August 21, 2019, 2:47 PM
  */
 
-#include <pdaaal/Reducer.h>
+#include "Reducer.h"
 #include <cassert>
 
-namespace pdaaal {
+namespace pdaaal::internal {
 
     bool Reducer::tos_t::update_state(const std::pair<bool, bool>& new_state) {
         auto pre = _in_waiting;

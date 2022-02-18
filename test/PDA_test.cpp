@@ -27,7 +27,7 @@
 #define BOOST_TEST_MODULE WPDA
 
 #include <boost/test/unit_test.hpp>
-#include <pdaaal/PDA.h>
+#include <pdaaal/internal/PDA.h>
 #include <pdaaal/TypedPDA.h>
 
 using namespace pdaaal;
@@ -48,7 +48,7 @@ BOOST_AUTO_TEST_CASE(IntWeight)
 
 BOOST_AUTO_TEST_CASE(LabelsMerge)
 {
-    labels_t labels;
+    internal::labels_t labels;
     std::vector<uint32_t> init_labels{1,5,6,9,11,15};
 
     labels.merge(false, init_labels);

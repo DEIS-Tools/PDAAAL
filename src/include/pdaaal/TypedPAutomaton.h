@@ -29,17 +29,17 @@
 
 #include <iostream>
 #include <fstream>
-#include <pdaaal/PAutomaton.h>
-#include <pdaaal/TypedPDA.h>
+#include "pdaaal/internal/PAutomaton.h"
+#include "TypedPDA.h"
 
 #include <nlohmann/json.hpp>
 
 namespace pdaaal {
 
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type = TraceInfoType::Single>
-    class TypedPAutomaton : public PAutomaton<W,trace_info_type>, private std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
+    class TypedPAutomaton : public internal::PAutomaton<W,trace_info_type>, private std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
         static_assert(!skip_state_mapping || std::is_same_v<state_t,size_t>, "When skip_state_mapping==true, you must use state_t=size_t");
-        using parent_t = PAutomaton<W,trace_info_type>;
+        using parent_t = internal::PAutomaton<W,trace_info_type>;
         using typed_pda_t = TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>;
         using pda_t = typename typed_pda_t::parent_t;
     public:
@@ -231,7 +231,7 @@ namespace pdaaal {
                     } else {
                         edge["to"] = state_to_string(to);
                     }
-                    edge["label"] = label == PAutomaton<W,trace_info_type>::epsilon ? "" : details::label_to_string(automaton.typed_pda().get_symbol(label));
+                    edge["label"] = label == internal::PAutomaton<W,trace_info_type>::epsilon ? "" : details::label_to_string(automaton.typed_pda().get_symbol(label));
                     j_state["edges"].emplace_back(edge);
                 }
             }

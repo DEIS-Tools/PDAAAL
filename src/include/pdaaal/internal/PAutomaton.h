@@ -27,11 +27,11 @@
 #ifndef PDAAAL_PAUTOMATON_H
 #define PDAAAL_PAUTOMATON_H
 
-#include <pdaaal/TypedPDA.h>
-#include <pdaaal/utils/fut_set.h>
-#include <pdaaal/NFA.h>
-#include <pdaaal/Weight.h>
-#include <pdaaal/AutomatonPath.h>
+#include "pdaaal/TypedPDA.h"
+#include "pdaaal/utils/fut_set.h"
+#include "pdaaal/NFA.h"
+#include "pdaaal/Weight.h"
+#include "pdaaal/AutomatonPath.h"
 
 #include <memory>
 #include <functional>
@@ -42,7 +42,6 @@
 #include <cassert>
 
 namespace pdaaal {
-
     enum class Trace_Type {
         None,
         Any,
@@ -51,6 +50,13 @@ namespace pdaaal {
         ShortestFixedPoint // TODO: Detect the need for fixed-point computation automatically.
     };
 
+    enum class TraceInfoType {
+        Single,
+        Pair
+    };
+}
+
+namespace pdaaal::internal {
     template<typename W, Trace_Type trace_type> using solver_weight = std::conditional_t<trace_type == Trace_Type::Longest, max_weight<typename W::type>, min_weight<typename W::type>>;
 
     struct trace_t {
@@ -94,10 +100,6 @@ namespace pdaaal {
         }
     };
 
-    enum class TraceInfoType {
-        Single,
-        Pair
-    };
     template <TraceInfoType trace_info_type> struct TraceInfo {};
     template <> struct TraceInfo<TraceInfoType::Single> {
         using type = trace_t;
