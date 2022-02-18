@@ -31,6 +31,7 @@
 #include <pdaaal/utils/fut_set.h>
 #include <pdaaal/NFA.h>
 #include <pdaaal/Weight.h>
+#include <pdaaal/AutomatonPath.h>
 
 #include <memory>
 #include <functional>
@@ -353,6 +354,123 @@ namespace pdaaal {
                 out << "\" [style=invisible];\n";
             }
             out << "}\n";
+        }
+
+        // Find_path searches for an accepting path.
+        // The state_map function allows us to use this in PAutomatonProduct as well.
+        [[nodiscard]] auto find_path() const { return find_path([](size_t s){ return s; }); }
+        template <typename Fn> [[nodiscard]] auto find_path(Fn&& state_map) const {
+            using path_state = decltype(std::declval<Fn>()(std::declval<size_t>()));
+            static_assert(std::is_convertible_v<Fn, std::function<path_state(size_t)>>);
+            using automaton_path_t = decltype(AutomatonPath(std::declval<path_state>()));
+
+            // DFS search.
+            std::vector<path_state> path;
+            std::vector<uint32_t> label_stack;
+            std::vector<std::tuple<size_t,size_t,uint32_t>> waiting; // state_id, stack_index, last_label (if stack_index > 0)
+            const size_t pda_size = _pda.states().size();
+            waiting.reserve(pda_size);
+            for (size_t i = 0; i < pda_size; ++i) {
+                if (_states[i]->_accepting) { // Initial accepting state
+                    return automaton_path_t(state_map(i));
+                }
+                waiting.emplace_back(i, 0, std::numeric_limits<uint32_t>::max()); // Add all initial states.
+            }
+            std::unordered_set<size_t> seen;
+
+            while (!waiting.empty()) {
+                auto [current, stack_index, last_label] = waiting.back();
+                waiting.pop_back();
+                path.resize(stack_index + 2);
+                label_stack.resize(stack_index + 1);
+                path[stack_index] = state_map(current);
+                if (stack_index > 0) {
+                    label_stack[stack_index - 1] = last_label;
+                }
+                for (const auto &[to,labels] : _states[current]->_edges) {
+                    if (!labels.empty() && seen.emplace(to).second) {
+                        uint32_t label = labels[0].first;
+                        if (_states[to]->_accepting) {
+                            path[stack_index + 1] = state_map(to);
+                            label_stack[stack_index] = label;
+                            return automaton_path_t(path, label_stack); // No nice way of creating this on the fly, so we do it in the end.
+                        }
+                        waiting.emplace_back(to, stack_index + 1, label);
+                    }
+                }
+            }
+            return automaton_path_t();
+        }
+
+        [[nodiscard]] auto find_path_shortest() const { return find_path_shortest([](size_t s){ return s; }); }
+        template <typename Fn> [[nodiscard]] auto find_path_shortest(Fn&& state_map) const {
+            using path_state = decltype(std::declval<Fn>()(std::declval<size_t>()));
+            static_assert(std::is_convertible_v<Fn, std::function<path_state(size_t)>>);
+            using automaton_path_t = decltype(AutomatonPath(std::declval<path_state>()));
+
+            if constexpr (is_weighted<W>) { // TODO: Consider unweighted shortest path.
+                // Dijkstra.
+                struct queue_elem {
+                    typename W::type weight;
+                    size_t state;
+                    uint32_t label;
+                    const queue_elem* back_pointer;
+                    queue_elem(typename W::type weight, size_t state, uint32_t label, const queue_elem* back_pointer = nullptr)
+                            : weight(weight), state(state), label(label), back_pointer(back_pointer) {};
+                };
+                struct queue_elem_comp {
+                    bool operator()(const queue_elem& lhs, const queue_elem& rhs) {
+                        return solver_weight<W, Trace_Type::Shortest>::less(rhs.weight, lhs.weight); // Used in a max-heap, so swap arguments to make it a min-heap.
+                    }
+                };
+                std::priority_queue<queue_elem, std::vector<queue_elem>, queue_elem_comp> search_queue;
+                std::unordered_map<size_t, typename W::type> visited;
+                std::vector<std::unique_ptr<queue_elem>> pointers;
+                const size_t pda_size = _pda.states().size();
+                for (size_t i = 0; i < pda_size; ++i) { // Iterate over _initial ([i]->_id)
+                    search_queue.emplace(W::zero(), i, std::numeric_limits<uint32_t>::max()); // No label going into initial state.
+                }
+                while (!search_queue.empty()) {
+                    auto current = search_queue.top();
+                    search_queue.pop();
+
+                    if (_states[current.state]->_accepting) {
+                        AutomatonPath automaton_path(state_map(current.state));
+                        const queue_elem* p = &current;
+                        while (p->back_pointer != nullptr) {
+                            auto label = p->label;
+                            p = p->back_pointer;
+                            automaton_path.emplace(state_map(p->state), label);
+                        }
+                        return std::make_tuple(std::move(automaton_path), current.weight);
+                    }
+
+                    auto [it, fresh] = visited.emplace(current.state, current.weight);
+                    if (!fresh) {
+                        if (solver_weight<W, Trace_Type::Shortest>::less(current.weight, it->second)) {
+                            it->second = current.weight;
+                        } else {
+                            continue;
+                        }
+                    }
+                    auto u_pointer = std::make_unique<queue_elem>(current);
+                    auto pointer = u_pointer.get();
+                    pointers.push_back(std::move(u_pointer));
+                    for (const auto& [to, labels] : _states[current.state]->_edges) {
+                        if (!labels.empty()) {
+                            auto label = std::min_element(labels.begin(), labels.end(), [](const auto& a, const auto& b) {
+                                return solver_weight<W, Trace_Type::Shortest>::less(a.second.second, b.second.second);
+                            });
+                            search_queue.emplace(solver_weight<W, Trace_Type::Shortest>::add(current.weight, label->second.second), to, label->first, pointer);
+                        }
+                    }
+                }
+                return std::make_tuple(automaton_path_t(), solver_weight<W, Trace_Type::Shortest>::max());
+
+            } else {
+                assert(false);
+                throw std::logic_error("Not implemented: Shortest path for unweighted automaton.");
+            }
         }
 
         [[nodiscard]] bool accepts(size_t state, const std::vector<uint32_t> &stack) const {
