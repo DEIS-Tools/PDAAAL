@@ -28,7 +28,7 @@
 
 #include <boost/test/unit_test.hpp>
 #include <pdaaal/PDAFactory.h>
-#include <pdaaal/CegarPdaFactory.h>
+#include <pdaaal/cegar/CegarPdaFactory.h>
 
 using namespace pdaaal;
 

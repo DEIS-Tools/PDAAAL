@@ -158,11 +158,11 @@ namespace pdaaal {
 
     private:
         template <TraceInfoType trace_info_type, typename Input, typename W>
-        static PAutomaton<W,trace_info_type> parse(Input& in, TypedPDA<std::string,W,fut::type::vector, std::string>& pda) {
+        static internal::PAutomaton<W,trace_info_type> parse(Input& in, TypedPDA<std::string,W,fut::type::vector, std::string>& pda) {
             return parse<trace_info_type, std::string>(in, pda, [](const std::string& s){ return s; });
         }
         template <TraceInfoType trace_info_type, typename Input, typename W, bool ssm>
-        static PAutomaton<W,trace_info_type> parse(Input& in, TypedPDA<std::string,W,fut::type::vector, size_t, ssm>& pda) {
+        static internal::PAutomaton<W,trace_info_type> parse(Input& in, TypedPDA<std::string,W,fut::type::vector, size_t, ssm>& pda) {
             return parse<trace_info_type, size_t>(in, pda, [](const std::string& s) -> size_t { return std::stoul(s); });
         }
         template <TraceInfoType trace_info_type, typename state_t, typename Input, typename pda_t>

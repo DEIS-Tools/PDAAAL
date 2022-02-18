@@ -27,10 +27,10 @@
 #ifndef PDAAAL_SOLVERINSTANCE_H
 #define PDAAAL_SOLVERINSTANCE_H
 
-#include <pdaaal/TypedPAutomaton.h>
-#include <pdaaal/AbstractionPDA.h>
-#include <pdaaal/AbstractionPAutomaton.h>
-#include <pdaaal/PAutomatonProduct.h>
+#include "TypedPAutomaton.h"
+#include "pdaaal/cegar/AbstractionPDA.h"
+#include "pdaaal/cegar/AbstractionPAutomaton.h"
+#include "PAutomatonProduct.h"
 #include <limits>
 
 namespace pdaaal {

@@ -27,11 +27,11 @@
 #ifndef PDAAAL_PAUTOMATON_H
 #define PDAAAL_PAUTOMATON_H
 
-#include <pdaaal/TypedPDA.h>
-#include <pdaaal/utils/fut_set.h>
-#include <pdaaal/NFA.h>
-#include <pdaaal/Weight.h>
-#include <pdaaal/AutomatonPath.h>
+#include "PDA.h"
+#include "pdaaal/utils/fut_set.h"
+#include "pdaaal/NFA.h"
+#include "pdaaal/Weight.h"
+#include "pdaaal/AutomatonPath.h"
 
 #include <memory>
 #include <functional>
@@ -42,7 +42,6 @@
 #include <cassert>
 
 namespace pdaaal {
-
     enum class Trace_Type {
         None,
         Any,
@@ -51,6 +50,13 @@ namespace pdaaal {
         ShortestFixedPoint // TODO: Detect the need for fixed-point computation automatically.
     };
 
+    enum class TraceInfoType {
+        Single,
+        Pair
+    };
+}
+
+namespace pdaaal::internal {
     template<typename W, Trace_Type trace_type> using solver_weight = std::conditional_t<trace_type == Trace_Type::Longest, max_weight<typename W::type>, min_weight<typename W::type>>;
 
     struct trace_t {
@@ -94,10 +100,6 @@ namespace pdaaal {
         }
     };
 
-    enum class TraceInfoType {
-        Single,
-        Pair
-    };
     template <TraceInfoType trace_info_type> struct TraceInfo {};
     template <> struct TraceInfo<TraceInfoType::Single> {
         using type = trace_t;
@@ -189,12 +191,6 @@ namespace pdaaal {
         };
 
         // Construct a PAutomaton that accepts a configuration <p,w> iff states contains p and nfa accepts w.
-        template<typename T>
-        PAutomaton(const TypedPDA<T,W>& pda, const NFA<T>& nfa, const std::vector<size_t>& states)
-        : PAutomaton(pda, states, nfa.empty_accept()) {
-            construct<T>(nfa, states, [&pda](const auto& v){ return pda.encode_pre(v); });
-        }
-        // Same, but where the NFA contains the symbols mapped to ids already.
         PAutomaton(const PDA<W>& pda, const NFA<uint32_t>& nfa, const std::vector<size_t>& states)
         : PAutomaton(pda, states, nfa.empty_accept()) {
             construct<uint32_t,false>(nfa, states, [](const auto& v){ return v; });
@@ -724,7 +720,7 @@ namespace pdaaal {
         static constexpr trace_t new_post_trace(size_t epsilon_state) {
             return trace_t(epsilon_state);
         }
-    private:
+    protected:
         template<typename T, bool use_mapping = true>
         void construct(const NFA<T>& nfa, const std::vector<size_t>& states, const std::function<std::vector<uint32_t>(const std::vector<T>&)>& map_symbols) {
             using nfastate_t = typename NFA<T>::state_t;
@@ -771,7 +767,7 @@ namespace pdaaal {
                 }
             }
         }
-
+    private:
         std::vector<std::unique_ptr<state_t>> _states;
         std::vector<state_t *> _initial;
         std::vector<state_t *> _accepting;

@@ -28,7 +28,7 @@
 #define PDAAAL_VERIFIER_H
 
 #include <pdaaal/Solver.h>
-#include <parsing/PAutomatonParser.h>
+#include "parsing/PAutomatonParser.h"
 
 namespace pdaaal {
 
@@ -210,7 +210,7 @@ namespace pdaaal {
                                         typename pda_t::weight_type weight;
                                         std::tie(trace, weight) = Solver::get_trace<Trace_Type::Longest>(instance);
                                         using W = typename pda_t::weight;
-                                        if (weight == solver_weight<W,Trace_Type::Longest>::bottom()) {
+                                        if (weight == internal::solver_weight<W,Trace_Type::Longest>::bottom()) {
                                             std::cout << "Weight: infinity" << std::endl;
                                         } else {
                                             std::cout << "Weight: " << weight << std::endl;
@@ -222,7 +222,7 @@ namespace pdaaal {
                                         typename pda_t::weight_type weight;
                                         std::tie(trace, weight) = Solver::get_trace<Trace_Type::ShortestFixedPoint>(instance);
                                         using W = typename pda_t::weight;
-                                        if (weight == solver_weight<W,Trace_Type::ShortestFixedPoint>::bottom()) {
+                                        if (weight == internal::solver_weight<W,Trace_Type::ShortestFixedPoint>::bottom()) {
                                             std::cout << "Weight: negative infinity" << std::endl;
                                         } else {
                                             std::cout << "Weight: " << weight << std::endl;

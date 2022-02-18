@@ -27,8 +27,8 @@
 #ifndef TPDA_H
 #define TPDA_H
 
-#include <pdaaal/PDA.h>
-#include <pdaaal/utils/ptrie_interface.h>
+#include "pdaaal/internal/PDA.h"
+#include "pdaaal/utils/ptrie_interface.h"
 
 #include <vector>
 #include <queue>
@@ -61,11 +61,11 @@ namespace pdaaal {
     };
 
     template<typename label_t, typename W = weight<void>, fut::type Container = fut::type::vector, typename state_t = size_t, bool skip_state_mapping = std::is_same_v<state_t,size_t>>
-    class TypedPDA : public PDA<W, Container>, public std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
+class TypedPDA : public internal::PDA<W, Container>, public std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
     public:
-        using parent_t = PDA<W, Container>;
+        using parent_t = internal::PDA<W, Container>;
     protected:
-        using impl_rule_t = typename PDA<W, Container>::rule_t; // This rule type is used internally.
+        using impl_rule_t = typename internal::PDA<W, Container>::rule_t; // This rule type is used internally.
         static_assert(!skip_state_mapping || std::is_same_v<state_t,size_t>, "When skip_state_mapping==true, you must use state_t=size_t");
         using StateMapOrEmpty = std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>>;
     private:
@@ -81,7 +81,7 @@ namespace pdaaal {
             rule_t_() = default;
             rule_t_(size_t from, label_t pre, size_t to, op_t op, label_t op_label)
             : _from(from), _pre(pre), _to(to), _op(op), _op_label(op_label) {};
-            rule_t_(const TypedPDA& pda, size_t from, uint32_t pre, details::rule_t<WT> rule)
+            rule_t_(const TypedPDA& pda, size_t from, uint32_t pre, internal::pda_rule_t<WT> rule)
             : _from(from), _pre(pda.get_symbol(pre)), _to(rule._to), _op(rule._operation),
               _op_label(rule._operation == POP || rule._operation == NOOP ? label_t{} : pda.get_symbol(rule._op_label)) {};
             rule_t_(const TypedPDA& pda, const user_rule_t<W>& rule)
@@ -100,7 +100,7 @@ namespace pdaaal {
             rule_t_() = default;
             rule_t_(size_t from, label_t pre, size_t to, op_t op, label_t op_label, typename WT::type weight = WT::zero())
             : _from(from), _pre(pre), _to(to), _op(op), _op_label(op_label), _weight(weight) {};
-            rule_t_(const TypedPDA& pda, size_t from, uint32_t pre, details::rule_t<WT> rule)
+            rule_t_(const TypedPDA& pda, size_t from, uint32_t pre, internal::pda_rule_t<WT> rule)
             : _from(from), _pre(pda.get_symbol(pre)), _to(rule._to), _op(rule._operation),
               _op_label(rule._operation == POP || rule._operation == NOOP ? label_t{} : pda.get_symbol(rule._op_label)),
               _weight(rule._weight) {};
@@ -121,7 +121,7 @@ namespace pdaaal {
     public:
         template<fut::type OtherContainer>
         explicit TypedPDA(TypedPDA<label_t,W,OtherContainer,state_t,skip_state_mapping>&& other_pda)
-        : parent_t(std::move(static_cast<PDA<W,OtherContainer>&>(other_pda))),
+        : parent_t(std::move(static_cast<internal::PDA<W,OtherContainer>&>(other_pda))),
           StateMapOrEmpty(std::move(static_cast<StateMapOrEmpty&>(other_pda))),
           _label_map(other_pda.move_label_map()) {}
 
@@ -206,11 +206,11 @@ namespace pdaaal {
             this->add_state(id);
             return id;
         }
-        void add_rule_detail(size_t from, typename PDA<W>::rule_t r, bool wildcard, const std::vector<uint32_t>& pre_labels) {
+        void add_rule_detail(size_t from, typename internal::PDA<W>::rule_t r, bool wildcard, const std::vector<uint32_t>& pre_labels) {
             this->add_untyped_rule_impl(from, r, wildcard, pre_labels);
         }
 
-        std::vector<label_t> get_labels(const labels_t& labels) const { // TODO: Support lazy iteration. Maybe with C++20 ranges..?
+        std::vector<label_t> get_labels(const internal::labels_t& labels) const { // TODO: Support lazy iteration. Maybe with C++20 ranges..?
             std::vector<label_t> result;
             if (labels.wildcard()) {
                 result.reserve(_label_map.size());
@@ -305,7 +305,7 @@ namespace pdaaal {
 
         template<typename label_t, typename W, fut::type Container, typename state_t, bool ssm>
         void pda_rule_to_json(json& j_state, json& j_rule, const label_t& pre_label,
-                              const typename PDA<W, Container>::rule_t& rule,
+                              const typename internal::PDA<W, Container>::rule_t& rule,
                               const TypedPDA<label_t, W, Container, state_t, ssm>& pda) {
             auto label_s = label_to_string(pre_label);
             switch (rule._operation) {

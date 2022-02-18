@@ -27,7 +27,7 @@
 #ifndef PDAAAL_NFAPARSER_H
 #define PDAAAL_NFAPARSER_H
 
-#include <pdaaal/NFA.h>
+#include "pdaaal/NFA.h"
 
 namespace pdaaal {
 

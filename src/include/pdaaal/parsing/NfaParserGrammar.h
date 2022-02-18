@@ -27,7 +27,7 @@
 #ifndef PDAAAL_NFAPARSERGRAMMAR_H
 #define PDAAAL_NFAPARSERGRAMMAR_H
 
-#include <pdaaal/NFA.h>
+#include "pdaaal/NFA.h"
 #include <tao/pegtl.hpp>
 
 namespace pegtl = tao::pegtl;

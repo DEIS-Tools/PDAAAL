@@ -100,7 +100,7 @@ void print_edges_path(std::ostream& s, const AutomatonPath<>& automaton_path, co
     s << std::endl;
 }
 template<typename label_t, typename state_t, typename W, bool ssm, TraceInfoType trace_info_type>
-auto get_edge(const PAutomaton<W,trace_info_type>& automaton, const TypedPDA<label_t,W,fut::type::vector,state_t,ssm>& pda, const state_t& from, const label_t& label, const state_t& to) {
+auto get_edge(const internal::PAutomaton<W,trace_info_type>& automaton, const TypedPDA<label_t,W,fut::type::vector,state_t,ssm>& pda, const state_t& from, const label_t& label, const state_t& to) {
     BOOST_TEST(pda.exists_state(from).first);
     auto from_id = pda.exists_state(from).second;
     BOOST_TEST(pda.exists_label(label).first);
@@ -568,7 +568,7 @@ BOOST_AUTO_TEST_CASE(Verification_longest_trace_arithmetic_3_5_test)
 
     BOOST_CHECK(!automaton_path.is_null());
     // TODO: Test instead of printing
-    details::TraceBack tb(instance.automaton(), std::move(automaton_path));
+    internal::TraceBack tb(instance.automaton(), std::move(automaton_path));
     std::unordered_set<std::tuple<size_t,uint32_t,size_t>, absl::Hash<std::tuple<size_t,uint32_t,size_t>>> seen_front;
     while (seen_front.emplace(tb.path().front_edge()).second) {
         print_conf_path(s, tb.path(), pda);
@@ -656,7 +656,7 @@ BOOST_AUTO_TEST_CASE(Verification_longest_trace_arithmetic_3_3or5_test)
 
     BOOST_CHECK(!automaton_path.is_null());
     // TODO: Test instead of printing
-    details::TraceBack tb(instance.automaton(), std::move(automaton_path));
+    internal::TraceBack tb(instance.automaton(), std::move(automaton_path));
     std::unordered_set<std::tuple<size_t,uint32_t,size_t>, absl::Hash<std::tuple<size_t,uint32_t,size_t>>> seen_front;
     while (seen_front.emplace(tb.path().front_edge()).second) {
         print_conf_path(s, tb.path(), pda);
@@ -716,7 +716,7 @@ BOOST_AUTO_TEST_CASE(Verification_longest_trace_which_pop_seq_test)
 
     BOOST_CHECK(!automaton_path.is_null());
     // TODO: Test instead of printing
-    details::TraceBack tb(instance.automaton(), std::move(automaton_path));
+    internal::TraceBack tb(instance.automaton(), std::move(automaton_path));
     std::unordered_set<std::tuple<size_t,uint32_t,size_t>, absl::Hash<std::tuple<size_t,uint32_t,size_t>>> seen_front;
     while (seen_front.emplace(tb.path().front_edge()).second) {
         print_conf_path(s, tb.path(), pda);
@@ -799,7 +799,7 @@ BOOST_AUTO_TEST_CASE(Verification_longest_trace_hill_test)
 
     BOOST_CHECK(!automaton_path.is_null());
     // TODO: Test instead of printing
-    details::TraceBack tb(instance.automaton(), std::move(automaton_path));
+    internal::TraceBack tb(instance.automaton(), std::move(automaton_path));
     std::unordered_set<std::tuple<size_t,uint32_t,size_t>, absl::Hash<std::tuple<size_t,uint32_t,size_t>>> seen_front;
     while (seen_front.emplace(tb.path().front_edge()).second) {
         print_conf_path(s, tb.path(), pda);
@@ -850,7 +850,7 @@ BOOST_AUTO_TEST_CASE(Verification_longest_trace_start_hill_end_test)
 
     BOOST_CHECK(!automaton_path.is_null());
     // TODO: Test instead of printing
-    details::TraceBack tb(instance.automaton(), std::move(automaton_path));
+    internal::TraceBack tb(instance.automaton(), std::move(automaton_path));
     std::unordered_set<std::tuple<size_t,uint32_t,size_t>, absl::Hash<std::tuple<size_t,uint32_t,size_t>>> seen_front;
     while (seen_front.emplace(tb.path().front_edge()).second) {
         print_conf_path(s, tb.path(), pda);

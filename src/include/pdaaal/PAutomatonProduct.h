@@ -27,13 +27,13 @@
 #ifndef PDAAAL_PAUTOMATONPRODUCT_H
 #define PDAAAL_PAUTOMATONPRODUCT_H
 
-#include <pdaaal/PAutomatonAlgorithms.h>
+#include "pdaaal/internal/PAutomatonAlgorithms.h"
 
 namespace pdaaal {
 
     template <typename pda_t, typename automaton_t, typename W, TraceInfoType trace_info_type = TraceInfoType::Single>
     class PAutomatonProduct {
-        using product_automaton_t = PAutomaton<W,trace_info_type>; // No explicit abstraction on product automaton - this is covered by _initial and _final.
+        using product_automaton_t = internal::PAutomaton<W,trace_info_type>; // No explicit abstraction on product automaton - this is covered by _initial and _final.
         using state_t = typename product_automaton_t::state_t;
         static constexpr auto epsilon = product_automaton_t::epsilon;
     public:
@@ -60,17 +60,17 @@ namespace pdaaal {
         }
 
         // Returns whether an accepting state in the product automaton was reached.
-        bool add_edge_product(size_t from, uint32_t label, size_t to, edge_annotation_t<W> trace) {
+        bool add_edge_product(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) {
             return add_edge(from, label, to, trace,
                             _swap_initial_final ? _final : _initial,
                             _swap_initial_final ? _initial : _final);
         }
 
         // This is for the dual_search mode:
-        bool add_initial_edge(size_t from, uint32_t label, size_t to, edge_annotation_t<W> trace) {
+        bool add_initial_edge(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) {
             return add_edge<true, true>(from, label, to, trace, _initial, _final);
         }
-        bool add_final_edge(size_t from, uint32_t label, size_t to, edge_annotation_t<W> trace) {
+        bool add_final_edge(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) {
             return add_edge<false, true>(from, label, to, trace, _initial, _final);
         }
 
@@ -114,14 +114,14 @@ namespace pdaaal {
             std::tuple<AutomatonPath<>, typename W::type> t; // Ensure copy elision.
             auto& [path, weight] = t;
 
-            PAutomatonFixedPoint<W,trace_type> fixed_point(_product);
+            internal::PAutomatonFixedPoint<W,trace_type> fixed_point(_product);
             fixed_point.run();
             if (fixed_point.not_accepting()) {
                 path = AutomatonPath();
-                weight = solver_weight<W,trace_type>::max();
+                weight = internal::solver_weight<W,trace_type>::max();
             } else if (fixed_point.is_infinite()) {
                 path = fixed_point.get_path_with_loop([this](size_t state) -> size_t { return get_original_ids(state).first; });
-                weight = solver_weight<W,trace_type>::bottom();
+                weight = internal::solver_weight<W,trace_type>::bottom();
             } else {
                 path = fixed_point.get_path([this](size_t state) -> size_t { return get_original_ids(state).first; });
                 weight = fixed_point.get_weight();
@@ -151,7 +151,7 @@ namespace pdaaal {
 
     private:
         template<bool edge_in_first = true, bool needs_back_lookup = false>
-        bool add_edge(size_t from, uint32_t label, size_t to, edge_annotation_t<W> trace,
+        bool add_edge(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace,
                       const automaton_t& first, const automaton_t& second) { // States in first and second automaton corresponds to respectively first and second component of the states in product automaton.
             static_assert(edge_in_first || needs_back_lookup, "If you insert edge in the second automaton, then you must also enable using _id_fast_lookup_back to keep the relevant information.");
             const auto& fast_lookup = constexpr_ternary<edge_in_first>(_id_fast_lookup, _id_fast_lookup_back);
@@ -366,11 +366,12 @@ namespace pdaaal {
     PAutomatonProduct(const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
                       const NFA<label_t>& initial_nfa, const std::vector<size_t>& initial_states,
                       const NFA<label_t>& final_nfa, const std::vector<size_t>& final_states)
-      -> PAutomatonProduct<TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>,PAutomaton<W,trace_info_type>,W>;
+      -> PAutomatonProduct<TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>,TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>,W>;
 
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
     PAutomatonProduct(const TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
-                      PAutomaton<W,trace_info_type> initial, PAutomaton<W,trace_info_type> final) -> PAutomatonProduct<TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>,PAutomaton<W,trace_info_type>,W,trace_info_type>;
+                      internal::PAutomaton<W,trace_info_type> initial, internal::PAutomaton<W,trace_info_type> final)
+      -> PAutomatonProduct<TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>,internal::PAutomaton<W,trace_info_type>,W,trace_info_type>;
 
 }
 

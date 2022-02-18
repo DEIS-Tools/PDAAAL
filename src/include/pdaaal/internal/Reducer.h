@@ -29,9 +29,9 @@
 #define PDAAAL_REDUCER_H
 
 #include <queue>
-#include <pdaaal/PDA.h>
+#include "PDA.h"
 
-namespace pdaaal {
+namespace pdaaal::internal {
 
     class Reducer {
     private:

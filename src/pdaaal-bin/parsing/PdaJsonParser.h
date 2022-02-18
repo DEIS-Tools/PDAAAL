@@ -228,7 +228,7 @@ namespace pdaaal {
         size_t current_from_state = 0;
         std::vector<uint32_t> current_pre;
         bool current_wildcard = false;
-        typename PDA<W>::rule_t current_rule;
+        typename internal::PDA<W>::rule_t current_rule;
 
     public:
         using number_integer_t = typename json::number_integer_t;

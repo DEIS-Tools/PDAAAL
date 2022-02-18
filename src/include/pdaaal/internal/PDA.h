@@ -28,8 +28,8 @@
 #ifndef PDAAAL_PDA_H
 #define PDAAAL_PDA_H
 
-#include <pdaaal/Weight.h>
-#include <pdaaal/utils/fut_set.h>
+#include "pdaaal/Weight.h"
+#include "pdaaal/utils/fut_set.h"
 
 #include <cinttypes>
 #include <vector>
@@ -40,7 +40,15 @@
 #include <type_traits>
 
 namespace pdaaal {
+    enum op_t {
+        PUSH = 1,
+        POP = 2,
+        SWAP = 4,
+        NOOP = 8
+    };
+}
 
+namespace pdaaal::internal {
     struct labels_t {
     private:
         bool _wildcard = false;
@@ -53,7 +61,7 @@ namespace pdaaal {
             return _wildcard;
         }
 
-        [[nodiscard]] const std::vector<uint32_t> &labels() const {
+        [[nodiscard]] const std::vector<uint32_t>& labels() const {
             return _labels;
         }
 
@@ -74,67 +82,62 @@ namespace pdaaal {
 
         void merge(bool wildcard, const std::vector<uint32_t>& other);
 
-        bool intersect(const std::vector<uint32_t> &tos, size_t all_labels);
+        bool intersect(const std::vector<uint32_t>& tos, size_t all_labels);
 
-        bool noop_pre_filter(const std::set<uint32_t> &usefull);
+        bool noop_pre_filter(const std::set<uint32_t>& usefull);
     };
 
-    enum op_t {
-        PUSH = 1,
-        POP = 2,
-        SWAP = 4,
-        NOOP = 8
-    };
-}
-
-namespace pdaaal::details {
     // Implementation details of PDA structure. Should not be accessed by user.
     // TypedPDA defines a rule_t to be used by users.
 
     // Define rules with and without weights.
     template<typename W, typename = void>
-    struct rule_t;
+    struct pda_rule_t;
 
     template<typename W>
-    struct rule_t<W, std::enable_if_t<!is_weighted<W>>> {
+    struct pda_rule_t<W, std::enable_if_t<!is_weighted<W>>> {
         size_t _to = 0;
         op_t _operation = PUSH;
         uint32_t _op_label = 0;
 
-        bool operator<(const rule_t<W>& other) const {
-            return std::tie(      _to,       _op_label,       _operation)
-                 < std::tie(other._to, other._op_label, other._operation);
+        bool operator<(const pda_rule_t<W>& other) const {
+            return std::tie(_to, _op_label, _operation)
+                   < std::tie(other._to, other._op_label, other._operation);
         }
-        bool operator==(const rule_t<W>& other) const {
+
+        bool operator==(const pda_rule_t<W>& other) const {
             return _to == other._to && _op_label == other._op_label && _operation == other._operation;
         }
-        bool operator!=(const rule_t<W>& other) const { return !(*this == other); }
 
-        template <typename H>
-        friend H AbslHashValue(H h, const rule_t<W>& rule) {
+        bool operator!=(const pda_rule_t<W>& other) const { return !(*this == other); }
+
+        template<typename H>
+        friend H AbslHashValue(H h, const pda_rule_t<W>& rule) {
             return H::combine(std::move(h), rule._to, rule._operation, rule._op_label);
         }
     };
 
     template<typename W>
-    struct rule_t<W, std::enable_if_t<is_weighted<W>>> {
+    struct pda_rule_t<W, std::enable_if_t<is_weighted<W>>> {
         size_t _to = 0;
         op_t _operation = PUSH;
         typename W::type _weight = W::zero();
         uint32_t _op_label = 0;
 
-        bool operator<(const rule_t<W>& other) const {
-            return std::tie(      _to,       _op_label,       _operation,       _weight)
-                 < std::tie(other._to, other._op_label, other._operation, other._weight);
+        bool operator<(const pda_rule_t<W>& other) const {
+            return std::tie(_to, _op_label, _operation, _weight)
+                   < std::tie(other._to, other._op_label, other._operation, other._weight);
         }
-        bool operator==(const rule_t<W>& other) const {
+
+        bool operator==(const pda_rule_t<W>& other) const {
             return _to == other._to && _op_label == other._op_label && _operation == other._operation &&
                    _weight == other._weight;
         }
-        bool operator!=(const rule_t<W>& other) const { return !(*this == other); }
 
-        template <typename H>
-        friend H AbslHashValue(H h, const rule_t<W>& rule) {
+        bool operator!=(const pda_rule_t<W>& other) const { return !(*this == other); }
+
+        template<typename H>
+        friend H AbslHashValue(H h, const pda_rule_t<W>& rule) {
             return H::combine(std::move(h), rule._to, rule._operation, rule._weight, rule._op_label);
         }
     };
@@ -153,11 +156,11 @@ namespace pdaaal {
         // Use max as default value, so we will notice if it has not been set.
         user_rule_t() = default;
         user_rule_t(size_t from, uint32_t pre, size_t to, op_t op, uint32_t op_label)
-        : _from(from), _to(to), _pre(pre), _op_label(op_label), _op(op) {};
-        user_rule_t(size_t from, uint32_t pre, const details::rule_t<W>& rule)
-        : _from(from), _to(rule._to), _pre(pre),
-          _op_label((rule._operation == PUSH || rule._operation == SWAP) ? rule._op_label : std::numeric_limits<uint32_t>::max()),
-          _op(rule._operation) {};
+                : _from(from), _to(to), _pre(pre), _op_label(op_label), _op(op) {};
+        user_rule_t(size_t from, uint32_t pre, const internal::pda_rule_t<W>& rule)
+                : _from(from), _to(rule._to), _pre(pre),
+                  _op_label((rule._operation == PUSH || rule._operation == SWAP) ? rule._op_label : std::numeric_limits<uint32_t>::max()),
+                  _op(rule._operation) {};
 
         bool operator==(const user_rule_t<W>& other) const {
             return _from == other._from && _to == other._to && _pre == other._pre &&
@@ -169,8 +172,8 @@ namespace pdaaal {
             return _from;
         }
 
-        details::rule_t<W> to_impl_rule() const {
-            return details::rule_t<W>{_to, _op, _op_label};
+        internal::pda_rule_t<W> to_impl_rule() const {
+            return internal::pda_rule_t<W>{_to, _op, _op_label};
         }
     } __attribute__((packed)); // packed is used to make this work fast with ptries
     template<typename W>
@@ -185,7 +188,7 @@ namespace pdaaal {
         user_rule_t() = default;
         user_rule_t(size_t from, uint32_t pre, size_t to, op_t op, uint32_t op_label, typename W::type weight)
                 : _from(from), _to(to), _pre(pre), _op_label(op_label), _op(op), _weight(weight) {};
-        user_rule_t(size_t from, uint32_t pre, const details::rule_t<W>& rule)
+        user_rule_t(size_t from, uint32_t pre, const internal::pda_rule_t<W>& rule)
                 : _from(from), _to(rule._to), _pre(pre),
                   _op_label((rule._operation == PUSH || rule._operation == SWAP) ? rule._op_label : std::numeric_limits<uint32_t>::max()),
                   _op(rule._operation), _weight(rule._weight) {};
@@ -196,11 +199,13 @@ namespace pdaaal {
         }
         bool operator!=(const user_rule_t<W>& other) const { return !(*this == other); }
 
-        details::rule_t<W> to_impl_rule() const {
-            return details::rule_t<W>{_to, _op, _weight, _op_label};
+        internal::pda_rule_t<W> to_impl_rule() const {
+            return internal::pda_rule_t<W>{_to, _op, _weight, _op_label};
         }
     };
+}
 
+namespace pdaaal::internal {
 
     template <typename W, fut::type Container = fut::type::vector>
     class PDA {
@@ -209,7 +214,7 @@ namespace pdaaal {
         using weight = W;
         using weight_type = std::conditional_t<has_weight, typename W::type, void>;
 
-        using rule_t = typename details::rule_t<W>;
+        using rule_t = pda_rule_t<W>;
 
         struct state_t {
             fut::set<std::tuple<rule_t,labels_t>,Container> _rules;
@@ -293,5 +298,6 @@ namespace pdaaal {
     };
 
 }
+
 
 #endif //PDAAAL_PDA_H

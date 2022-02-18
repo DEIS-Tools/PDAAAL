@@ -45,7 +45,7 @@ BOOST_AUTO_TEST_CASE(SolverTest1)
     pda.add_rule(3, 2, PUSH, 'C', 'A', w);
 
     std::vector<char> init_stack{'A', 'A'};
-    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
     Solver::post_star<Trace_Type::Shortest>(automaton);
 
@@ -68,7 +68,7 @@ BOOST_AUTO_TEST_CASE(SolverTest2)
     pda.add_rule(3, 2, PUSH, 4, 2, w);
 
     std::vector<uint32_t> init_stack{2, 2};
-    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
     Solver::post_star<Trace_Type::Shortest>(automaton);
 
@@ -91,7 +91,7 @@ BOOST_AUTO_TEST_CASE(SolverTest3)
     pda.add_rule(3, 2, PUSH, 'C', 'A', w);
 
     std::vector<char> init_stack{'A', 'A'};
-    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
     Solver::post_star<Trace_Type::Shortest>(automaton);
 
@@ -115,7 +115,7 @@ BOOST_AUTO_TEST_CASE(EarlyTerminationPostStar)
     pda.add_rule(3, 2, PUSH, 'C', 'A', w);
 
     std::vector<char> init_stack{'A', 'A'};
-    PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
     std::vector<char> test_stack_reachable{'B', 'A', 'A', 'A'};
     auto stack_native = pda.encode_pre(test_stack_reachable);
@@ -140,7 +140,7 @@ BOOST_AUTO_TEST_CASE(EarlyTerminationPreStar)
     pda.add_rule(3, 2, PUSH, 'C', 'A', w);
 
     std::vector<char> init_stack{'B', 'A', 'A', 'A'};
-    PAutomaton automaton(pda, 1, pda.encode_pre(init_stack));
+    internal::PAutomaton automaton(pda, 1, pda.encode_pre(init_stack));
 
     std::vector<char> test_stack_reachable{'A'};
     auto result = Solver::pre_star_accepts(automaton, 0, pda.encode_pre(test_stack_reachable));
