@@ -26,9 +26,8 @@
 
 #define BOOST_TEST_MODULE WPDA
 
-#include <boost/test/unit_test.hpp>
-#include <pdaaal/internal/PDA.h>
 #include <pdaaal/PDA.h>
+#include <boost/test/unit_test.hpp>
 
 using namespace pdaaal;
 

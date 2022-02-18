@@ -26,9 +26,9 @@
 
 #define BOOST_TEST_MODULE Reducer
 
-#include <boost/test/unit_test.hpp>
 #include <pdaaal/internal/Reducer.h>
 #include <pdaaal/PDA.h>
+#include <boost/test/unit_test.hpp>
 
 using namespace pdaaal;
 

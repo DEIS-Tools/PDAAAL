@@ -27,12 +27,11 @@
 #ifndef PDAAAL_PAUTOMATON_H
 #define PDAAAL_PAUTOMATON_H
 
+#include "PDA.h"
+#include "pdaaal/internal/PAutomaton.h"
+#include <nlohmann/json.hpp>
 #include <iostream>
 #include <fstream>
-#include "pdaaal/internal/PAutomaton.h"
-#include "PDA.h"
-
-#include <nlohmann/json.hpp>
 
 namespace pdaaal {
 

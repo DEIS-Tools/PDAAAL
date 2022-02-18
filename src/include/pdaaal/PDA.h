@@ -30,16 +30,13 @@
 #include "pdaaal/internal/PDA.h"
 #include "pdaaal/utils/ptrie_interface.h"
 
-#include <vector>
+#include <nlohmann/json.hpp>
+
 #include <queue>
-#include <unordered_set>
 #include <unordered_map>
-#include <set>
 #include <cassert>
 #include <iostream>
 #include <sstream>
-
-#include <nlohmann/json.hpp>
 
 namespace pdaaal {
 

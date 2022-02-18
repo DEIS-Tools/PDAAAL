@@ -26,12 +26,11 @@
 
 #define BOOST_TEST_MODULE Verification_test
 
-#include <boost/test/unit_test.hpp>
-
 #include <parsing/PAutomatonParser.h>
 #include <parsing/PdaJsonParser.h>
 #include <pdaaal/SolverInstance.h>
 #include <pdaaal/Solver.h>
+#include <boost/test/unit_test.hpp>
 
 using namespace pdaaal;
 

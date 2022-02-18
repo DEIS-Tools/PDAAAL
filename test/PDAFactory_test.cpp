@@ -26,9 +26,9 @@
 
 #define BOOST_TEST_MODULE PDAFactory
 
-#include <boost/test/unit_test.hpp>
 #include <pdaaal/PDAFactory.h>
 #include <pdaaal/cegar/CegarPdaFactory.h>
+#include <boost/test/unit_test.hpp>
 
 using namespace pdaaal;
 

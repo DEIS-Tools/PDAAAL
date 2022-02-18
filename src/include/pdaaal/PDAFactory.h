@@ -27,16 +27,16 @@
 #ifndef PDAAAL_PDAFACTORY_H
 #define PDAAAL_PDAFACTORY_H
 
+#include "NFA.h"
+#include "PDA.h"
+#include "SolverInstance.h"
+#include "pdaaal/internal/PAutomaton.h"
+
 #include <string>
 #include <sstream>
 #include <vector>
 #include <ostream>
 #include <unordered_set>
-
-#include "NFA.h"
-#include "PDA.h"
-#include "pdaaal/internal/PAutomaton.h"
-#include "SolverInstance.h"
 
 namespace pdaaal {
 

@@ -26,8 +26,8 @@
 
 #define BOOST_TEST_MODULE Solver
 
-#include <boost/test/unit_test.hpp>
 #include <pdaaal/Solver.h>
+#include <boost/test/unit_test.hpp>
 
 using namespace pdaaal;
 

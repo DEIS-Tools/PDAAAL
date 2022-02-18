@@ -29,29 +29,33 @@
 
 #include <cassert>
 #include <vector>
+#include <utility>
+#include <limits>
+#include <cstdint>
+#include <cstddef>
 
 namespace pdaaal {
 
     template <bool state_pair = false>
     class AutomatonPath {
-        using state_t = std::conditional_t<state_pair, std::pair<size_t,size_t>, size_t>;
+        using state_t = std::conditional_t<state_pair, std::pair<std::size_t,std::size_t>, std::size_t>;
 
         state_t _end{};
         std::vector<std::pair<uint32_t,state_t>> _edges{};
     public:
         AutomatonPath() {
             if constexpr(state_pair) {
-                _end = std::make_pair(std::numeric_limits<size_t>::max(),std::numeric_limits<size_t>::max());
+                _end = std::make_pair(std::numeric_limits<std::size_t>::max(),std::numeric_limits<std::size_t>::max());
             } else {
-                _end = std::numeric_limits<size_t>::max();
+                _end = std::numeric_limits<std::size_t>::max();
             }
         }
         explicit AutomatonPath(state_t end) : _end(end) {
             if constexpr(state_pair) {
-                assert(_end.first != std::numeric_limits<size_t>::max());
-                assert(_end.second != std::numeric_limits<size_t>::max());
+                assert(_end.first != std::numeric_limits<std::size_t>::max());
+                assert(_end.second != std::numeric_limits<std::size_t>::max());
             } else {
-                assert(_end != std::numeric_limits<size_t>::max());
+                assert(_end != std::numeric_limits<std::size_t>::max());
             }
         };
         AutomatonPath(const std::vector<state_t>& path, const std::vector<uint32_t>& stack)
@@ -66,15 +70,15 @@ namespace pdaaal {
 
         [[nodiscard]] bool is_null() const {
             if constexpr(state_pair) {
-                return _end.first == std::numeric_limits<size_t>::max() && _end.second == std::numeric_limits<size_t>::max();
+                return _end.first == std::numeric_limits<std::size_t>::max() && _end.second == std::numeric_limits<std::size_t>::max();
             } else {
-                return _end == std::numeric_limits<size_t>::max();
+                return _end == std::numeric_limits<std::size_t>::max();
             }
         }
         [[nodiscard]] bool empty() const {
             return _edges.empty();
         }
-        [[nodiscard]] size_t edges_size() const {
+        [[nodiscard]] std::size_t edges_size() const {
             return _edges.size();
         }
         [[nodiscard]] state_t front_state() const {
@@ -139,10 +143,10 @@ namespace pdaaal {
         }
     };
 
-    AutomatonPath(size_t end) -> AutomatonPath<false>;
-    AutomatonPath(std::pair<size_t,size_t> end) -> AutomatonPath<true>;
-    AutomatonPath(const std::vector<size_t>& path, const std::vector<uint32_t>& stack) -> AutomatonPath<false>;
-    AutomatonPath(const std::vector<std::pair<size_t,size_t>>& path, const std::vector<uint32_t>& stack) -> AutomatonPath<true>;
+    AutomatonPath(std::size_t end) -> AutomatonPath<false>;
+    AutomatonPath(std::pair<std::size_t,std::size_t> end) -> AutomatonPath<true>;
+    AutomatonPath(const std::vector<std::size_t>& path, const std::vector<uint32_t>& stack) -> AutomatonPath<false>;
+    AutomatonPath(const std::vector<std::pair<std::size_t,std::size_t>>& path, const std::vector<uint32_t>& stack) -> AutomatonPath<true>;
 
 }
 

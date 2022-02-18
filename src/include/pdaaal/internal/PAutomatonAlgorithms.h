@@ -27,8 +27,8 @@
 #ifndef PDAAAL_PAUTOMATONALGORITHMS_H
 #define PDAAAL_PAUTOMATONALGORITHMS_H
 
-#include "pdaaal/utils/workset.h"
 #include "PAutomaton.h"
+#include "pdaaal/utils/workset.h"
 
 namespace pdaaal::internal {
 

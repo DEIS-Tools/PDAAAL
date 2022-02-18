@@ -28,9 +28,9 @@
 #define PDAAAL_SOLVERINSTANCE_H
 
 #include "PAutomaton.h"
+#include "PAutomatonProduct.h"
 #include "pdaaal/cegar/AbstractionPDA.h"
 #include "pdaaal/cegar/AbstractionPAutomaton.h"
-#include "PAutomatonProduct.h"
 #include <limits>
 
 namespace pdaaal {

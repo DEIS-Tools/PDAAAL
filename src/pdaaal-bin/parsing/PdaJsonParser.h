@@ -27,10 +27,8 @@
 #ifndef PDAAAL_PDAJSONPARSER_H
 #define PDAAAL_PDAJSONPARSER_H
 
-#include <nlohmann/json.hpp>
-
 #include <pdaaal/PDA.h>
-
+#include <nlohmann/json.hpp>
 #include <iostream>
 #include <fstream>
 #include <sstream>

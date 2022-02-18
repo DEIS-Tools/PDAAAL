@@ -27,9 +27,8 @@
 #ifndef PDAAAL_PDASATURATION_H
 #define PDAAAL_PDASATURATION_H
 
-#include "pdaaal/utils/workset.h"
-#include "PDA.h"
 #include "PAutomaton.h"
+#include "pdaaal/utils/workset.h"
 
 namespace pdaaal::internal {
     constexpr auto epsilon = std::numeric_limits<uint32_t>::max();

@@ -28,9 +28,9 @@
 #define PDAAAL_SOLVER_H
 
 #include "AutomatonPath.h"
-#include "pdaaal/internal/PdaSaturation.h"
 #include "PDA.h"
 #include "SolverInstance.h"
+#include "pdaaal/internal/PdaSaturation.h"
 #include <absl/hash/hash.h>
 
 namespace pdaaal {

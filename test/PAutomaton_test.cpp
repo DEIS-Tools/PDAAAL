@@ -26,10 +26,10 @@
 
 #define BOOST_TEST_MODULE PAutomaton
 
-#include <boost/test/unit_test.hpp>
 #include <pdaaal/PAutomaton.h>
 #include <pdaaal/PDA.h>
 #include <pdaaal/Solver.h>
+#include <boost/test/unit_test.hpp>
 #include <chrono>
 
 using namespace pdaaal;

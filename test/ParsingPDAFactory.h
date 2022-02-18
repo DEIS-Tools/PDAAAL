@@ -27,8 +27,8 @@
 #ifndef PDAAAL_PARSINGPDAFACTORY_H
 #define PDAAAL_PARSINGPDAFACTORY_H
 
-#include <pdaaal/PDAFactory.h>
 #include <pdaaal/cegar/CegarPdaFactory.h>
+#include <pdaaal/PDAFactory.h>
 #include <istream>
 #include <algorithm>
 #include <vector>

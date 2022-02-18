@@ -27,12 +27,11 @@
 #ifndef PDAAAL_PTRIE_INTERFACE_H
 #define PDAAAL_PTRIE_INTERFACE_H
 
+#include "std20.h"
 #include <ptrie/ptrie_map.h>
+#include <boost/mp11.hpp>
 #include <vector>
 #include <variant>
-#include "std20.h"
-
-#include <boost/mp11.hpp>
 
 namespace pdaaal::utils {
     // This file defines interfacing functionality for using more types with ptrie.
