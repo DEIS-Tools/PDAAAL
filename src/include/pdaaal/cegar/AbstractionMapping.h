@@ -27,12 +27,11 @@
 #ifndef PDAAAL_ABSTRACTIONMAPPING_H
 #define PDAAAL_ABSTRACTIONMAPPING_H
 
-#include "pdaaal/utils/ptrie_interface.h"
 #include "Refinement.h"
+#include "pdaaal/utils/ptrie_interface.h"
 #include <iterator>
 #include <memory>
 #include <vector>
-
 
 namespace pdaaal {
     using namespace pdaaal::utils;

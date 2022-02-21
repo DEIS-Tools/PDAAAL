@@ -34,6 +34,7 @@
 #include <ostream>
 #include <functional>
 #include <iostream>
+#include <cassert>
 
 namespace pdaaal {
 

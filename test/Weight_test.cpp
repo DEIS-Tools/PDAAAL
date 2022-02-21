@@ -26,8 +26,8 @@
 
 #define BOOST_TEST_MODULE Weight
 
-#include <boost/test/unit_test.hpp>
 #include <pdaaal/Weight.h>
+#include <boost/test/unit_test.hpp>
 
 using namespace pdaaal;
 

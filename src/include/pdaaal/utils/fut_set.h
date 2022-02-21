@@ -27,9 +27,9 @@
 #ifndef PDAAAL_FUT_SET_H
 #define PDAAAL_FUT_SET_H
 
+#include "std20.h"
 #include "vector_set.h"
 #include <absl/hash/hash.h>
-#include "std20.h"
 
 namespace pdaaal::fut {
 

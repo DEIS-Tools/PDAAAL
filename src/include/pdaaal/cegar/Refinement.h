@@ -30,6 +30,8 @@
 #include <vector>
 #include <algorithm>
 #include <cassert>
+#include <limits>
+#include <unordered_set>
 
 namespace pdaaal {
 

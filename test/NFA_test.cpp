@@ -26,8 +26,8 @@
 
 #define BOOST_TEST_MODULE NFA
 
-#include <boost/test/unit_test.hpp>
 #include <pdaaal/NFA.h>
+#include <boost/test/unit_test.hpp>
 
 using namespace pdaaal;
 

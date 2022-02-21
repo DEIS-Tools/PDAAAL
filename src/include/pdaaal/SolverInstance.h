@@ -27,10 +27,10 @@
 #ifndef PDAAAL_SOLVERINSTANCE_H
 #define PDAAAL_SOLVERINSTANCE_H
 
-#include "TypedPAutomaton.h"
+#include "PAutomaton.h"
+#include "PAutomatonProduct.h"
 #include "pdaaal/cegar/AbstractionPDA.h"
 #include "pdaaal/cegar/AbstractionPAutomaton.h"
-#include "PAutomatonProduct.h"
 #include <limits>
 
 namespace pdaaal {
@@ -41,8 +41,8 @@ namespace pdaaal {
     template <typename T, typename W, typename state_t = size_t, bool skip_state_mapping = std::is_same_v<state_t,size_t>, TraceInfoType trace_info_type = TraceInfoType::Single>
     class SolverInstance {
     public:
-        using pda_t = TypedPDA<T,W,fut::type::vector,state_t,skip_state_mapping>;
-        using pautomaton_t = TypedPAutomaton<T,W,state_t,skip_state_mapping, trace_info_type>;
+        using pda_t = PDA<T,W,fut::type::vector,state_t,skip_state_mapping>;
+        using pautomaton_t = PAutomaton<T,W,state_t,skip_state_mapping, trace_info_type>;
         using product_t = PAutomatonProduct<pda_t, pautomaton_t, W, trace_info_type>;
         SolverInstance(pda_t&& pda,
                        const NFA<T>& initial_nfa, const std::vector<size_t>& initial_states,
@@ -76,13 +76,13 @@ namespace pdaaal {
         product_t _product;
     };
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type = TraceInfoType::Single>
-    SolverInstance(TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&& pda,
+    SolverInstance(PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&& pda,
                    const NFA<label_t>& initial_nfa, const std::vector<size_t>& initial_states,
-                   const NFA<label_t>& final_nfa,   const std::vector<size_t>& final_states) -> SolverInstance<label_t,W,state_t,skip_state_mapping,trace_info_type>;
+                   const NFA<label_t>& final_nfa, const std::vector<size_t>& final_states) -> SolverInstance<label_t,W,state_t,skip_state_mapping,trace_info_type>;
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
-    SolverInstance(TypedPDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&& pda,
-                   TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type> initial,
-                   TypedPAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type> final) -> SolverInstance<label_t,W,state_t,skip_state_mapping,trace_info_type>;
+    SolverInstance(PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&& pda,
+                   PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type> initial,
+                   PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type> final) -> SolverInstance<label_t,W,state_t,skip_state_mapping,trace_info_type>;
 
     template <typename T, typename W>
     class AbstractionSolverInstance {

@@ -27,6 +27,9 @@
 #ifndef PDAAAL_STD20_H
 #define PDAAAL_STD20_H
 
+#include <unordered_set>
+#include <unordered_map>
+
 // TODO: When C++20 arrives: Delete all this.
 namespace std20{
     template< class T >

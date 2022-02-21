@@ -24,15 +24,12 @@
  * Created on 08-01-2020.
  */
 
-#ifndef PDAAAL_PAUTOMATON_H
-#define PDAAAL_PAUTOMATON_H
+#ifndef PDAAAL_INTERNAL_PAUTOMATON_H
+#define PDAAAL_INTERNAL_PAUTOMATON_H
 
 #include "PDA.h"
-#include "pdaaal/utils/fut_set.h"
 #include "pdaaal/NFA.h"
-#include "pdaaal/Weight.h"
 #include "pdaaal/AutomatonPath.h"
-
 #include <memory>
 #include <functional>
 #include <vector>
@@ -777,4 +774,4 @@ namespace pdaaal::internal {
 
 }
 
-#endif //PDAAAL_PAUTOMATON_H
+#endif //PDAAAL_INTERNAL_PAUTOMATON_H

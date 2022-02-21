@@ -28,9 +28,9 @@
 #define PDAAAL_SOLVER_H
 
 #include "AutomatonPath.h"
-#include "pdaaal/internal/PdaSaturation.h"
-#include "TypedPDA.h"
+#include "PDA.h"
 #include "SolverInstance.h"
+#include "pdaaal/internal/PdaSaturation.h"
 #include <absl/hash/hash.h>
 
 namespace pdaaal {
@@ -216,7 +216,7 @@ namespace pdaaal {
         }
 
         template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W>
-        static auto get_trace(const TypedPDA<T,W>& pda, const internal::PAutomaton<W>& automaton, size_t state, const std::vector<T>& stack) {
+        static auto get_trace(const PDA<T,W>& pda, const internal::PAutomaton<W>& automaton, size_t state, const std::vector<T>& stack) {
             static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
             auto stack_native = pda.encode_pre(stack);
             if constexpr (trace_type == Trace_Type::Shortest) {
@@ -228,7 +228,7 @@ namespace pdaaal {
             }
         }
         template <Trace_Type trace_type = Trace_Type::Any, typename T, typename W, typename = std::enable_if_t<!std::is_same_v<T,uint32_t>>>
-        static auto get_trace(const TypedPDA<T,W>& pda, const internal::PAutomaton<W>& automaton, size_t state, const std::vector<uint32_t>& stack_native) {
+        static auto get_trace(const PDA<T,W>& pda, const internal::PAutomaton<W>& automaton, size_t state, const std::vector<uint32_t>& stack_native) {
             static_assert(trace_type != Trace_Type::None, "If you want a trace, don't ask for none.");
             if constexpr (trace_type == Trace_Type::Shortest) {
                 auto [path, weight] = automaton.template accept_path<trace_type>(state, stack_native);
@@ -266,9 +266,9 @@ namespace pdaaal {
         }
 
         template <typename T, typename W, typename S, bool ssm>
-        static typename TypedPDA<T,W,fut::type::vector,S,ssm>::tracestate_t
-        _decode_edges(const TypedPDA<T,W,fut::type::vector,S,ssm> &pda, const AutomatonPath<>& path) {
-            using tracestate_t = typename TypedPDA<T,W,fut::type::vector,S,ssm>::tracestate_t;
+        static typename PDA<T,W,fut::type::vector,S,ssm>::tracestate_t
+        _decode_edges(const PDA<T,W,fut::type::vector,S,ssm> &pda, const AutomatonPath<>& path) {
+            using tracestate_t = typename PDA<T,W,fut::type::vector,S,ssm>::tracestate_t;
             tracestate_t result{path.front_state(), std::vector<T>()};
             auto num_labels = pda.number_of_labels();
             for (auto label : path.stack()) {
@@ -280,10 +280,10 @@ namespace pdaaal {
         }
 
         template <typename T, typename W, typename S, bool ssm, TraceInfoType trace_info_type>
-        static std::vector<typename TypedPDA<T,W,fut::type::vector,S,ssm>::tracestate_t>
-        _get_trace(const TypedPDA<T,W,fut::type::vector,S,ssm> &pda, const internal::PAutomaton<W,trace_info_type>& automaton,
+        static std::vector<typename PDA<T,W,fut::type::vector,S,ssm>::tracestate_t>
+        _get_trace(const PDA<T,W,fut::type::vector,S,ssm> &pda, const internal::PAutomaton<W,trace_info_type>& automaton,
                    AutomatonPath<> automaton_path) {
-            using tracestate_t = typename TypedPDA<T,W,fut::type::vector,S,ssm>::tracestate_t;
+            using tracestate_t = typename PDA<T,W,fut::type::vector,S,ssm>::tracestate_t;
 
             if (automaton_path.is_null()) {
                 return std::vector<tracestate_t>();

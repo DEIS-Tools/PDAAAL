@@ -28,8 +28,8 @@
 #ifndef PDAAAL_REDUCER_H
 #define PDAAAL_REDUCER_H
 
-#include <queue>
 #include "PDA.h"
+#include <queue>
 
 namespace pdaaal::internal {
 

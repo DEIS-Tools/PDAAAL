@@ -24,14 +24,13 @@
  * Created on 11-06-2021.
  */
 
-
-#include <boost/program_options.hpp>
-#include <iostream>
-
 #include "parsing/Parsing.h"
 #include "Verifier.h"
 
 #include "version.h" // Generated at build time. Defines PDAAAL_GIT_HASH, PDAAAL_GIT_HASH_STR, PDAAAL_VERSION and PDAAAL_VERSION_STR
+
+#include <boost/program_options.hpp>
+#include <iostream>
 
 namespace po = boost::program_options;
 using namespace pdaaal;

@@ -25,8 +25,8 @@
  * Created on 19-02-2020.
  */
 
-#ifndef PDAAAL_PDA_H
-#define PDAAAL_PDA_H
+#ifndef PDAAAL_INTERNAL_PDA_H
+#define PDAAAL_INTERNAL_PDA_H
 
 #include "pdaaal/Weight.h"
 #include "pdaaal/utils/fut_set.h"
@@ -300,4 +300,4 @@ namespace pdaaal::internal {
 }
 
 
-#endif //PDAAAL_PDA_H
+#endif //PDAAAL_INTERNAL_PDA_H

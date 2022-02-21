@@ -26,9 +26,9 @@
 
 #define BOOST_TEST_MODULE ParsingPDAFactory
 
-#include <boost/test/unit_test.hpp>
 #include "ParsingPDAFactory.h"
 #include <pdaaal/Solver.h>
+#include <boost/test/unit_test.hpp>
 #include <iostream>
 #include <sstream>
 

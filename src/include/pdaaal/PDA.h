@@ -18,28 +18,25 @@
  */
 
 /* 
- * File:   TypedPDA.h
+ * File:   PDA.h
  * Author: Peter G. Jensen <root@petergjoel.dk>
  *
  * Created on July 23, 2019, 1:34 PM
  */
 
-#ifndef TPDA_H
-#define TPDA_H
+#ifndef PDAAAL_PDA_H
+#define PDAAAL_PDA_H
 
 #include "pdaaal/internal/PDA.h"
 #include "pdaaal/utils/ptrie_interface.h"
 
-#include <vector>
+#include <nlohmann/json.hpp>
+
 #include <queue>
-#include <unordered_set>
 #include <unordered_map>
-#include <set>
 #include <cassert>
 #include <iostream>
 #include <sstream>
-
-#include <nlohmann/json.hpp>
 
 namespace pdaaal {
 
@@ -61,7 +58,7 @@ namespace pdaaal {
     };
 
     template<typename label_t, typename W = weight<void>, fut::type Container = fut::type::vector, typename state_t = size_t, bool skip_state_mapping = std::is_same_v<state_t,size_t>>
-class TypedPDA : public internal::PDA<W, Container>, public std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
+    class PDA : public internal::PDA<W, Container>, public std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
     public:
         using parent_t = internal::PDA<W, Container>;
     protected:
@@ -81,10 +78,10 @@ class TypedPDA : public internal::PDA<W, Container>, public std::conditional_t<s
             rule_t_() = default;
             rule_t_(size_t from, label_t pre, size_t to, op_t op, label_t op_label)
             : _from(from), _pre(pre), _to(to), _op(op), _op_label(op_label) {};
-            rule_t_(const TypedPDA& pda, size_t from, uint32_t pre, internal::pda_rule_t<WT> rule)
+            rule_t_(const PDA& pda, size_t from, uint32_t pre, internal::pda_rule_t<WT> rule)
             : _from(from), _pre(pda.get_symbol(pre)), _to(rule._to), _op(rule._operation),
               _op_label(rule._operation == POP || rule._operation == NOOP ? label_t{} : pda.get_symbol(rule._op_label)) {};
-            rule_t_(const TypedPDA& pda, const user_rule_t<W>& rule)
+            rule_t_(const PDA& pda, const user_rule_t<W>& rule)
             : _from(rule._from), _pre(pda.get_symbol(rule._pre)), _to(rule._to), _op(rule._op),
               _op_label(rule._op == POP || rule._op == NOOP ? label_t{} : pda.get_symbol(rule._op_label)) {};
         };
@@ -100,11 +97,11 @@ class TypedPDA : public internal::PDA<W, Container>, public std::conditional_t<s
             rule_t_() = default;
             rule_t_(size_t from, label_t pre, size_t to, op_t op, label_t op_label, typename WT::type weight = WT::zero())
             : _from(from), _pre(pre), _to(to), _op(op), _op_label(op_label), _weight(weight) {};
-            rule_t_(const TypedPDA& pda, size_t from, uint32_t pre, internal::pda_rule_t<WT> rule)
+            rule_t_(const PDA& pda, size_t from, uint32_t pre, internal::pda_rule_t<WT> rule)
             : _from(from), _pre(pda.get_symbol(pre)), _to(rule._to), _op(rule._operation),
               _op_label(rule._operation == POP || rule._operation == NOOP ? label_t{} : pda.get_symbol(rule._op_label)),
               _weight(rule._weight) {};
-            rule_t_(const TypedPDA& pda, const user_rule_t<W>& rule)
+            rule_t_(const PDA& pda, const user_rule_t<W>& rule)
             : _from(rule._from), _pre(pda.get_symbol(rule._pre)), _to(rule._to), _op(rule._op),
               _op_label(rule._op == POP || rule._op == NOOP ? label_t{} : pda.get_symbol(rule._op_label)),
               _weight(rule._weight) {};
@@ -120,12 +117,12 @@ class TypedPDA : public internal::PDA<W, Container>, public std::conditional_t<s
 
     public:
         template<fut::type OtherContainer>
-        explicit TypedPDA(TypedPDA<label_t,W,OtherContainer,state_t,skip_state_mapping>&& other_pda)
+        explicit PDA(PDA<label_t,W,OtherContainer,state_t,skip_state_mapping>&& other_pda)
         : parent_t(std::move(static_cast<internal::PDA<W,OtherContainer>&>(other_pda))),
           StateMapOrEmpty(std::move(static_cast<StateMapOrEmpty&>(other_pda))),
           _label_map(other_pda.move_label_map()) {}
 
-        explicit TypedPDA(const std::unordered_set<label_t>& all_labels) {
+        explicit PDA(const std::unordered_set<label_t>& all_labels) {
             std::set<label_t> sorted(all_labels.begin(), all_labels.end());
             for (auto &l : sorted) {
 #ifndef NDEBUG
@@ -137,7 +134,7 @@ class TypedPDA : public internal::PDA<W, Container>, public std::conditional_t<s
 #endif
             }
         }
-        TypedPDA() = default;
+        PDA() = default;
 
         auto move_label_map() { return std::move(_label_map); }
 
@@ -306,7 +303,7 @@ class TypedPDA : public internal::PDA<W, Container>, public std::conditional_t<s
         template<typename label_t, typename W, fut::type Container, typename state_t, bool ssm>
         void pda_rule_to_json(json& j_state, json& j_rule, const label_t& pre_label,
                               const typename internal::PDA<W, Container>::rule_t& rule,
-                              const TypedPDA<label_t, W, Container, state_t, ssm>& pda) {
+                              const PDA<label_t, W, Container, state_t, ssm>& pda) {
             auto label_s = label_to_string(pre_label);
             switch (rule._operation) {
                 case POP:
@@ -340,7 +337,7 @@ class TypedPDA : public internal::PDA<W, Container>, public std::conditional_t<s
         }
     }
     template<typename label_t, typename W, fut::type Container>
-    void to_json(json& j, const TypedPDA<label_t,W,Container,size_t,true>& pda) {
+    void to_json(json& j, const PDA<label_t,W,Container,size_t,true>& pda) {
         j = json::object();
         auto j_states = json::array();
         for (const auto& state : pda.states()) {
@@ -357,7 +354,7 @@ class TypedPDA : public internal::PDA<W, Container>, public std::conditional_t<s
         j["states"] = j_states;
     }
     template<typename label_t, typename W, fut::type Container, typename state_t>
-    void to_json(json& j, const TypedPDA<label_t,W,Container,state_t,false>& pda) {
+    void to_json(json& j, const PDA<label_t,W,Container,state_t,false>& pda) {
         j = json::object();
         auto j_states = json::object();
         size_t state_i = 0;
@@ -388,4 +385,4 @@ class TypedPDA : public internal::PDA<W, Container>, public std::conditional_t<s
 
 }
 
-#endif /* TPDA_H */
+#endif /* PDAAAL_PDA_H */

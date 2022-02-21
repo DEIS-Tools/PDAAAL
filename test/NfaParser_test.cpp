@@ -26,13 +26,12 @@
 
 #define BOOST_TEST_MODULE NfaParser_test
 
-#include <boost/test/unit_test.hpp>
-
 #include <pdaaal/parsing/NfaParser.h>
 #include <pdaaal/parsing/NfaParserGrammar.h>
+#include <pdaaal/utils/ptrie_interface.h>
 #include <tao/pegtl/contrib/analyze.hpp>
 #include <tao/pegtl/contrib/trace.hpp>
-#include <pdaaal/utils/ptrie_interface.h>
+#include <boost/test/unit_test.hpp>
 
 namespace pegtl = tao::pegtl;
 
