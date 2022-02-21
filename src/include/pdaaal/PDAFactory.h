@@ -75,12 +75,12 @@ namespace pdaaal {
         builder_pda_t _temp_pda;
     };
 
-    template<typename T, typename W = weight<void>>
+    template<typename T, typename W = weight<void>, TraceInfoType trace_info_type = TraceInfoType::Single>
     class PDAFactory : public BasePDAFactory<T, PDA<T,W,fut::type::hash>, PDA<T,W,fut::type::vector>,
-                                       typename PDA<T,W,fut::type::hash>::rule_t, SolverInstance<T,W>> {
+                                       typename PDA<T,W,fut::type::hash>::rule_t, SolverInstance<T,W,size_t,true,trace_info_type>> {
     private:
         using parent_t = BasePDAFactory<T, PDA<T,W,fut::type::hash>, PDA<T,W,fut::type::vector>,
-                                    typename PDA<T,W,fut::type::hash>::rule_t, SolverInstance<T,W>>;
+                                    typename PDA<T,W,fut::type::hash>::rule_t, SolverInstance<T,W,size_t,true,trace_info_type>>;
     public:
         using rule_t = typename parent_t::rule_t;
         explicit PDAFactory(const std::unordered_set<T>& all_labels) : parent_t(all_labels) { };
