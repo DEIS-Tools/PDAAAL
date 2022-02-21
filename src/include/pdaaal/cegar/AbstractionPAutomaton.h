@@ -37,44 +37,11 @@ namespace pdaaal {
     private:
         using nfastate_t = typename NFA<T>::state_t;
     public:
-        // TODO: This one is mostly copy-paste from PAutomaton. Clean up later...
         AbstractionPAutomaton(const AbstractionPDA<T,W>& pda, const NFA<T>& nfa, const std::vector<size_t>& states)
         : internal::PAutomaton<W>(pda, states, nfa.empty_accept()) {
-            std::unordered_map<const nfastate_t*, size_t> nfastate_to_id;
-            std::vector<std::pair<const nfastate_t*,size_t>> waiting;
-            auto get_nfastate_id = [this, &waiting, &nfastate_to_id](const nfastate_t* n) -> size_t {
-                // Adds nfastate if not yet seen.
-                size_t n_id;
-                auto it = nfastate_to_id.find(n);
-                if (it != nfastate_to_id.end()) {
-                    n_id = it->second;
-                } else {
-                    n_id = this->add_state(false, n->_accepting);
-                    nfastate_to_id.emplace(n, n_id);
-                    waiting.emplace_back(n, n_id);
-                    this->_pautomaton_to_nfastate_map.emplace(n_id, n);
-                }
-                return n_id;
-            };
-
-            for (const auto& i : nfa.initial()) {
-                for (const auto& e : i->_edges) {
-                    for (const nfastate_t* n : e.follow_epsilon()) {
-                        size_t n_id = get_nfastate_id(n);
-                        this->add_edges(states, n_id, e._negated, pda.encode_labels(e._symbols, e._negated));
-                    }
-                }
-            }
-            while (!waiting.empty()) {
-                auto [top, top_id] = waiting.back();
-                waiting.pop_back();
-                for (const auto& e : top->_edges) {
-                    for (const nfastate_t* n : e.follow_epsilon()) {
-                        size_t n_id = get_nfastate_id(n);
-                        this->add_edges(top_id, n_id, e._negated, pda.encode_labels(e._symbols, e._negated));
-                    }
-                }
-            }
+            this->template construct<T,true,true>(nfa,states,
+                    [&pda](const auto& e){ return pda.encode_labels(e._symbols, e._negated); },
+                    [this](const auto& n, size_t n_id){ this->_pautomaton_to_nfastate_map.emplace(n_id, n); });
         }
 
         const nfastate_t* get_nfastate(size_t pautomaton_state_id) const {
