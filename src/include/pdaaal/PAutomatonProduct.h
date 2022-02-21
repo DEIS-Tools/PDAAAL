@@ -27,6 +27,8 @@
 #ifndef PDAAAL_PAUTOMATONPRODUCT_H
 #define PDAAAL_PAUTOMATONPRODUCT_H
 
+#include "PDA.h"
+#include "PAutomaton.h"
 #include "pdaaal/internal/PAutomatonAlgorithms.h"
 
 namespace pdaaal {

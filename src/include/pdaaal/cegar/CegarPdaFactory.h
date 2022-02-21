@@ -30,6 +30,7 @@
 #include "AbstractionMapping.h"
 #include "AbstractionPAutomaton.h"
 #include "AbstractionPDA.h"
+#include "AbstractionSolverInstance.h"
 #include "pdaaal/PDAFactory.h"
 #include "pdaaal/Solver.h"
 #include "pdaaal/internal/PDA.h"
