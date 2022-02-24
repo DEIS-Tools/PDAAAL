@@ -41,12 +41,12 @@ namespace pdaaal {
     class Parsing {
     public:
         using pda_variant_t = std::variant<
-                PdaaalSAXHandler<weight<void>, true>::pda_t,
-                PdaaalSAXHandler<weight<void>, false>::pda_t,
-                PdaaalSAXHandler<weight<uint32_t>, true>::pda_t,
-                PdaaalSAXHandler<weight<uint32_t>, false>::pda_t,
-                PdaaalSAXHandler<weight<int32_t>, true>::pda_t,
-                PdaaalSAXHandler<weight<int32_t>, false>::pda_t>;
+                PdaSaxHandler<weight<void>, true>::pda_t,
+                PdaSaxHandler<weight<void>, false>::pda_t,
+                PdaSaxHandler<weight<uint32_t>, true>::pda_t,
+                PdaSaxHandler<weight<uint32_t>, false>::pda_t,
+                PdaSaxHandler<weight<int32_t>, true>::pda_t,
+                PdaSaxHandler<weight<int32_t>, false>::pda_t>;
 
         explicit Parsing(const std::string& caption = "Input Options") : input_options{caption} {
             input_options.add_options()

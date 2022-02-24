@@ -27,6 +27,7 @@
 #ifndef PDAAAL_PDAJSONPARSER_H
 #define PDAAAL_PDAJSONPARSER_H
 
+#include "SaxHandlerHelpers.h"
 #include <pdaaal/PDA.h>
 #include <nlohmann/json.hpp>
 #include <iostream>
@@ -40,8 +41,8 @@ using json = nlohmann::json;
 
 namespace pdaaal {
 
-    template <typename W = weight<void>, bool use_state_names = true>
-    class PdaaalSAXHandler {
+    template <typename W = weight<void>, bool use_state_names = true, bool embedded_parser = false>
+    class PdaSaxHandler : public SAXHandlerBase {
     public:
         using pda_t = std::conditional_t<use_state_names,
                 PDA<std::string, W, fut::type::vector, std::string>,
@@ -92,8 +93,21 @@ namespace pdaaal {
             }
             return s;
         }
-        struct context {
-            enum class context_type : uint32_t { unknown, initial, pda, state_array, states_object, state, rule_array, rule };
+        struct context : public SAXHandlerContext<3> {
+            using parent_t = SAXHandlerContext<3>;
+            using key_flag = parent_t::flag_t;
+            using parent_t::flag;
+            using parent_t::fill;
+            using parent_t::is_single_flag;
+            static constexpr auto FLAG_1 = flag<1>();
+            static constexpr auto FLAG_2 = flag<2>();
+            static constexpr auto FLAG_3 = flag<3>();
+            static constexpr auto NO_FLAGS = fill<0>();
+            static constexpr auto REQUIRES_1 = fill<1>();
+            static constexpr auto REQUIRES_2 = fill<2>();
+            static constexpr auto REQUIRES_3 = fill<3>();
+
+            enum class context_type : uint8_t { unknown, initial, pda, state_array, states_object, state, rule_array, rule };
             friend constexpr std::ostream& operator<<(std::ostream& s, context_type t) {
                 switch (t) {
                     case context_type::unknown:
@@ -123,60 +137,39 @@ namespace pdaaal {
                 }
                 return s;
             }
-            enum key_flag : uint32_t {
-                NO_FLAGS = 0,
-                FLAG_1 = 1,
-                FLAG_2 = 2,
-                FLAG_3 = 4,
-                // Required values for each object type.
-                REQUIRES_0 = NO_FLAGS,
-                REQUIRES_1 = FLAG_1,
-                REQUIRES_2 = FLAG_1 | FLAG_2,
-                REQUIRES_3 = FLAG_1 | FLAG_2 | FLAG_3
-            };
-            static constexpr std::array<key_flag,3> all_flags{key_flag::FLAG_1, key_flag::FLAG_2, key_flag::FLAG_3};
+
+            constexpr context(context_type type, key_flag flags) noexcept : parent_t(flags), type(type) {};
 
             context_type type;
-            key_flag values_left;
-
-            constexpr void got_value(key_flag value) {
-                values_left = static_cast<context::key_flag>(static_cast<uint32_t>(values_left) & ~static_cast<uint32_t>(value));
-            }
-            [[nodiscard]] constexpr bool needs_value(key_flag value) const {
-                return static_cast<uint32_t>(value) == (static_cast<uint32_t>(values_left) & static_cast<uint32_t>(value));
-            }
-            [[nodiscard]] constexpr bool missing_keys() const {
-                return values_left != NO_FLAGS;
-            }
             static constexpr keys get_key(context_type context_type, key_flag flag) {
                 switch (context_type) {
                     case context_type::initial:
-                        if (flag == context::key_flag::FLAG_1) {
+                        if (flag == FLAG_1) {
                             return keys::pda;
                         }
                         break;
                     case context_type::pda:
-                        if (flag == context::key_flag::FLAG_1) {
+                        if (flag == FLAG_1) {
                             return keys::states;
                         }
                         break;
                     case context_type::rule:
                         if constexpr (expect_weight) {
                             switch (flag) {
-                                case key_flag::FLAG_1:
+                                case FLAG_1:
                                     return keys::to;
-                                case key_flag::FLAG_2:
+                                case FLAG_2:
                                     return keys::pop; // NOTE: Also keys::swap and keys::push
-                                case key_flag::FLAG_3:
+                                case FLAG_3:
                                     return keys::weight;
                                 default:
                                     break;
                             }
                         } else {
                             switch (flag) {
-                                case key_flag::FLAG_1:
+                                case FLAG_1:
                                     return keys::to;
-                                case key_flag::FLAG_2:
+                                case FLAG_2:
                                     return keys::pop; // NOTE: Also keys::swap and keys::push
                                 default:
                                     break;
@@ -202,14 +195,13 @@ namespace pdaaal {
         template <typename context::context_type type, typename context::key_flag flag, keys current_key, keys... alternatives>
         // 'current_key' is the key to use. 'alternatives' are any other keys using the same flag in the same context (i.e. a one_of(current_key, alternatives...) requirement).
         bool handle_key() {
-            static_assert(flag == context::FLAG_1 || flag == context::FLAG_2 || flag == context::FLAG_3,
-                    "Template parameter flag must be a single key, not a union or empty.");
+            static_assert(context::is_single_flag(flag), "Template parameter flag must be a single key, not a union or empty.");
             static_assert(((context::get_key(type, flag) == current_key) || ... || (context::get_key(type, flag) == alternatives)),
                     "The result of get_key(type, flag) must match 'key' or one of the alternatives");
             if (!context_stack.top().needs_value(flag)) {
-                errors << "Duplicate definition of key: \"" << current_key;
-                ((errors << "\"/\"" << alternatives), ...);
-                errors << "\" in " << type << " object. " << std::endl;
+                errors() << "Duplicate definition of key: \"" << current_key;
+                ((errors() << "\"/\"" << alternatives), ...);
+                errors() << "\" in " << type << " object. " << std::endl;
                 return false;
             }
             context_stack.top().got_value(flag);
@@ -219,7 +211,6 @@ namespace pdaaal {
 
         std::stack<context> context_stack;
         keys last_key = keys::none;
-        std::ostream& errors;
 
         build_pda_t build_pda;
 
@@ -228,6 +219,12 @@ namespace pdaaal {
         bool current_wildcard = false;
         typename internal::PDA<W>::rule_t current_rule;
 
+        void init() {
+            if constexpr(embedded_parser) {
+                context_stack.push(initial_context);
+                last_key = keys::pda;
+            }
+        }
     public:
         using number_integer_t = typename json::number_integer_t;
         using number_unsigned_t = typename json::number_unsigned_t;
@@ -235,7 +232,8 @@ namespace pdaaal {
         using string_t = typename json::string_t;
         using binary_t = typename json::binary_t;
 
-        explicit PdaaalSAXHandler(std::ostream& errors = std::cerr) : errors(errors) {};
+        explicit PdaSaxHandler(std::ostream& errors = std::cerr) : SAXHandlerBase(errors) { init(); };
+        explicit PdaSaxHandler(const SAXHandlerBase& base) : SAXHandlerBase(base) { init(); };
 
         pda_t get_pda() {
             return pda_t(std::move(build_pda));
@@ -246,7 +244,7 @@ namespace pdaaal {
                 case keys::unknown:
                     break;
                 default:
-                    errors << "error: Unexpected null value after key: " << last_key << std::endl;
+                    errors() << "error: Unexpected null value after key: " << last_key << std::endl;
                     return false;
             }
             return true;
@@ -256,7 +254,7 @@ namespace pdaaal {
                 case keys::unknown:
                     break;
                 default:
-                    errors << "error: Unexpected boolean value: " << value << " after key: " << last_key << std::endl;
+                    errors() << "error: Unexpected boolean value: " << value << " after key: " << last_key << std::endl;
                     return false;
             }
             return true;
@@ -268,18 +266,18 @@ namespace pdaaal {
                 case keys::weight:
                     if constexpr (expect_weight && std::numeric_limits<typename W::type>::is_signed) {
                         if (value >= std::numeric_limits<typename W::type>::max()) {
-                            errors << "error: Integer value " << value << " is too large. Maximum value is: " << std::numeric_limits<typename W::type>::max()-1 << std::endl;
+                            errors() << "error: Integer value " << value << " is too large. Maximum value is: " << std::numeric_limits<typename W::type>::max()-1 << std::endl;
                             return false;
                         }
                         if (value <= std::numeric_limits<typename W::type>::min()) {
-                            errors << "error: Integer value " << value << " is too low. Minimum value is: " << std::numeric_limits<typename W::type>::min()+1 << std::endl;
+                            errors() << "error: Integer value " << value << " is too low. Minimum value is: " << std::numeric_limits<typename W::type>::min()+1 << std::endl;
                             return false;
                         }
                         current_rule._weight = value;
                         break;
                     }
                 default:
-                    errors << "error: Integer value: " << value << " found after key:" << last_key << std::endl;
+                    errors() << "error: Integer value: " << value << " found after key:" << last_key << std::endl;
                     return false;
             }
             return true;
@@ -288,7 +286,7 @@ namespace pdaaal {
             switch (last_key) {
                 case keys::to:
                     if constexpr(use_state_names) {
-                        errors << "error: Rule destination was numeric: " << value << ", but string state names are used." << std::endl;
+                        errors() << "error: Rule destination was numeric: " << value << ", but string state names are used." << std::endl;
                         return false;
                     } else {
                         current_rule._to = value;
@@ -297,7 +295,7 @@ namespace pdaaal {
                 case keys::weight:
                     if constexpr (expect_weight) { // TODO: Parameterize on weight type...
                         if (value >= std::numeric_limits<typename W::type>::max()) {
-                            errors << "error: Unsigned value " << value << " is too large. Maximum value is: " << std::numeric_limits<typename W::type>::max()-1 << std::endl;
+                            errors() << "error: Unsigned value " << value << " is too large. Maximum value is: " << std::numeric_limits<typename W::type>::max()-1 << std::endl;
                             return false;
                         }
                         current_rule._weight = value;
@@ -306,7 +304,7 @@ namespace pdaaal {
                 case keys::unknown:
                     break;
                 default:
-                    errors << "error: Unsigned value: " << value << " found after key: " << last_key << std::endl;
+                    errors() << "error: Unsigned value: " << value << " found after key: " << last_key << std::endl;
                     return false;
             }
             return true;
@@ -316,14 +314,14 @@ namespace pdaaal {
                 case keys::unknown:
                     break;
                 default:
-                    errors << "error: Float value: " << value << " comes after key: " << last_key << std::endl;
+                    errors() << "error: Float value: " << value << " comes after key: " << last_key << std::endl;
                     return false;
             }
             return true;
         }
         bool string(string_t& value) {
             if (context_stack.empty()) {
-                errors << "error: Unexpected string value: \"" << value << "\" outside of object." << std::endl;
+                errors() << "error: Unexpected string value: \"" << value << "\" outside of object." << std::endl;
                 return false;
             }
             switch (last_key) {
@@ -332,7 +330,7 @@ namespace pdaaal {
                         current_rule._to = build_pda.insert_state(value);
                         break;
                     } else {
-                        errors << "error: Rule \"to\" state was string: " << value << ", but state names are disabled in this setting. Try with --state-names" << std::endl;
+                        errors() << "error: Rule \"to\" state was string: " << value << ", but state names are disabled in this setting. Try with --state-names" << std::endl;
                         return false;
                     }
                 case keys::pop:
@@ -352,7 +350,7 @@ namespace pdaaal {
                     break;
                 default:
                 case keys::none:
-                    errors << "error: String value: " << value << " found after key:" << last_key << std::endl;
+                    errors() << "error: String value: " << value << " found after key:" << last_key << std::endl;
                     return false;
             }
             return true;
@@ -361,7 +359,7 @@ namespace pdaaal {
             if (last_key == keys::unknown) {
                 return true;
             }
-            errors << "error: Unexpected binary value found after key:" << last_key << std::endl;
+            errors() << "error: Unexpected binary value found after key:" << last_key << std::endl;
             return false;
         }
         bool start_object(std::size_t /*unused*/ = std::size_t(-1)) {
@@ -388,7 +386,7 @@ namespace pdaaal {
                         context_stack.push(states_object);
                         break;
                     } else {
-                        errors << "error: Found object after key: " << last_key << ", but state names are disabled in this setting. Try with --state-names." << std::endl;
+                        errors() << "error: Found object after key: " << last_key << ", but state names are disabled in this setting. Try with --state-names." << std::endl;
                         return false;
                     }
                 case keys::state_name:
@@ -401,14 +399,14 @@ namespace pdaaal {
                     context_stack.push(unknown_context);
                     break;
                 default:
-                    errors << "error: Found object after key: " << last_key << std::endl;
+                    errors() << "error: Found object after key: " << last_key << std::endl;
                     return false;
             }
             return true;
         }
         bool key(string_t& key) {
             if (context_stack.empty()) {
-                errors << "Expected the start of an object before key: " << key << std::endl;
+                errors() << "Expected the start of an object before key: " << key << std::endl;
                 return false;
             }
             switch (context_stack.top().type) {
@@ -432,7 +430,7 @@ namespace pdaaal {
                         current_from_state = build_pda.insert_state(key);
                         break;
                     } else {
-                        errors << "error: Encountered state name: \"" << key << "\" in context: " << context_stack.top().type << ", but state names are disabled in this setting." << std::endl;
+                        errors() << "error: Encountered state name: \"" << key << "\" in context: " << context_stack.top().type << ", but state names are disabled in this setting." << std::endl;
                         return false;
                     }
                 case context::context_type::state:
@@ -461,38 +459,36 @@ namespace pdaaal {
                                 break;
                             }
                         }
-                        errors << "Unexpected key in operation object: " << key << std::endl;
+                        errors() << "Unexpected key in operation object: " << key << std::endl;
                         return false;
                     }
                     break;
                 case context::context_type::unknown:
                     break;
                 default:
-                    errors << "error: Encountered unexpected key: \"" << key << "\" in context: " << context_stack.top().type << std::endl;
+                    errors() << "error: Encountered unexpected key: \"" << key << "\" in context: " << context_stack.top().type << std::endl;
                     return false;
             }
             return true;
         }
         bool end_object() {
             if (context_stack.empty()) {
-                errors << "error: Unexpected end of object." << std::endl;
+                errors() << "error: Unexpected end of object." << std::endl;
                 return false;
             }
             if (context_stack.top().missing_keys()) {
-                errors << "error: Missing key(s): ";
+                errors() << "error: Missing key(s): ";
                 bool first = true;
-                for (const auto& flag : context::all_flags) {
-                    if (context_stack.top().needs_value(flag)) {
-                        if (!first) errors << ", ";
-                        first = false;
-                        auto key = context::get_key(context_stack.top().type, flag);
-                        errors << key;
-                        if (key == keys::pop) {
-                            errors << "/" << keys::swap << "/" << keys::push;
-                        }
+                for (const auto& flag : context_stack.top().get_missing_flags()) {
+                    if (!first) errors() << ", ";
+                    first = false;
+                    auto key = context::get_key(context_stack.top().type, flag);
+                    errors() << key;
+                    if (key == keys::pop) {
+                        errors() << "/" << keys::swap << "/" << keys::push;
                     }
                 }
-                errors << " in object: " << context_stack.top().type << std::endl;
+                errors() << " in object: " << context_stack.top().type << std::endl;
                 return false;
             }
             switch (context_stack.top().type) {
@@ -508,17 +504,22 @@ namespace pdaaal {
                     break;
             }
             context_stack.pop();
+            if constexpr(embedded_parser) {
+                if (context_stack.top().type == context::context_type::initial) {
+                    return false; // Stop using this SAXHandler.
+                }
+            }
             return true;
         }
         bool start_array(std::size_t /*unused*/ = std::size_t(-1)) {
             if (context_stack.empty()) {
-                errors << "error: Encountered start of array, but must start with an object." << std::endl;
+                errors() << "error: Encountered start of array, but must start with an object." << std::endl;
                 return false;
             }
             switch (last_key) {
                 case keys::states:
                     if constexpr (use_state_names) {
-                        errors << "Unexpected start of array after key " << last_key << ". Note that state names are used in this setting." << std::endl;
+                        errors() << "Unexpected start of array after key " << last_key << ". Note that state names are used in this setting." << std::endl;
                         return false;
                     } else {
                         context_stack.push(state_array);
@@ -532,23 +533,18 @@ namespace pdaaal {
                     context_stack.push(unknown_context);
                     break;
                 default:
-                    errors << "Unexpected start of array after key " << last_key << std::endl;
+                    errors() << "Unexpected start of array after key " << last_key << std::endl;
                     return false;
             }
             return true;
         }
         bool end_array() {
             if (context_stack.empty()) {
-                errors << "error: Unexpected end of array." << std::endl;
+                errors() << "error: Unexpected end of array." << std::endl;
                 return false;
             }
             context_stack.pop();
             return true;
-        }
-        bool parse_error(std::size_t location, const std::string& last_token, const nlohmann::detail::exception& e) {
-            errors << "error at line " << location << " with last token " << last_token << ". " << std::endl;
-            errors << "\terror message: " << e.what() << std::endl;
-            return false;
         }
     };
 
@@ -557,7 +553,7 @@ namespace pdaaal {
         template <typename W = weight<void>, bool use_state_names = true>
         static auto parse(std::istream& stream, std::ostream& /*warnings*/, json::input_format_t format = json::input_format_t::json) {
             std::stringstream es; // For errors;
-            PdaaalSAXHandler<W,use_state_names> my_sax(es);
+            PdaSaxHandler<W,use_state_names> my_sax(es);
             if (!json::sax_parse(stream, &my_sax, format)) {
                 throw std::runtime_error(es.str());
             }
