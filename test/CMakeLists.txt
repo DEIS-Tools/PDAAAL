@@ -25,6 +25,7 @@ endforeach()
 # Tests for pdaaal-bin (stand-alone binary)
 if (PDAAAL_Build_Main) # We need the dependencies for pdaaal-bin to test it.
     set(PDAAAL_bin_test_sources
+            Parser_test.cpp
             Verification_test.cpp
     )
     foreach(test_source_file ${PDAAAL_bin_test_sources})
