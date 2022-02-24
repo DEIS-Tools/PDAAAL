@@ -29,7 +29,7 @@
 
 #include <pdaaal/PAutomaton.h>
 
-namespace pdaaal {
+namespace pdaaal::parsing {
 
     class PAutomatonJsonParser {
         public:

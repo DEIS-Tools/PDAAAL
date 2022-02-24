@@ -33,6 +33,7 @@
 #include <cstdint>
 
 namespace pdaaal::utils {
+
     template <std::size_t N> struct flags {
         static_assert(N <= 64, "At most 64 flags supported.");
         using flag_t = std::conditional_t<N<=8, uint8_t,
@@ -90,6 +91,33 @@ namespace pdaaal::utils {
             return flags;
         }
     };
+
+    template <std::size_t N>
+    class flag_mask : flags<N> {
+    public:
+        using flag_t = typename flags<N>::flag_t;
+        using flags<N>::flag;
+        using flags<N>::fill;
+        using flags<N>::is_single_flag;
+
+        explicit constexpr flag_mask(flag_t mask) noexcept : _mask(mask) {};
+
+        constexpr void got_flag(flag_t value) {
+            flags<N>::remove(_mask, value);
+        }
+        [[nodiscard]] constexpr bool needs_flag(flag_t value) const {
+            return flags<N>::contains(_mask, value);
+        }
+        [[nodiscard]] constexpr bool has_missing_flags() const {
+            return _mask != flags<N>::no_flags;
+        }
+        std::vector<flag_t> get_missing_flags() const {
+            return flags<N>::split_to_single_flags(_mask);
+        }
+//    private:
+        flag_t _mask;
+    };
+
 }
 
 #endif //PDAAAL_FLAGS_H

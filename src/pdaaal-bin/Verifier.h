@@ -88,11 +88,11 @@ namespace pdaaal {
         template <TraceInfoType trace_info_type = TraceInfoType::Single, typename PDA_T>
         auto get_product(PDA_T& pda) {
             auto initial_p_automaton = json_automata ?
-                                       PAutomatonJsonParser::parse<trace_info_type>(initial_pa_file, pda, "P-automaton") :
-                                       PAutomatonParser::parse_file<trace_info_type>(initial_pa_file, pda);
+                                       parsing::PAutomatonJsonParser::parse<trace_info_type>(initial_pa_file, pda, "P-automaton") :
+                                       parsing::PAutomatonParser::parse_file<trace_info_type>(initial_pa_file, pda);
             auto final_p_automaton = json_automata ?
-                                     PAutomatonJsonParser::parse<trace_info_type>(final_pa_file, pda, "P-automaton") :
-                                     PAutomatonParser::parse_file<trace_info_type>(final_pa_file, pda);
+                                     parsing::PAutomatonJsonParser::parse<trace_info_type>(final_pa_file, pda, "P-automaton") :
+                                     parsing::PAutomatonParser::parse_file<trace_info_type>(final_pa_file, pda);
             return PAutomatonProduct(pda, std::move(initial_p_automaton), std::move(final_p_automaton));
         }
 

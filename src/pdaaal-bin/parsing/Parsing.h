@@ -36,7 +36,7 @@
 
 namespace po = boost::program_options;
 
-namespace pdaaal {
+namespace pdaaal::parsing {
 
     class Parsing {
     public:

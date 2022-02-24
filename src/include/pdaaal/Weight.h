@@ -41,6 +41,7 @@ namespace pdaaal {
         struct weight_base {
             static constexpr bool is_weight = false;
             static constexpr bool is_signed = false;
+            static constexpr bool is_vector = false;
         };
     }
     template<typename W, typename = void> struct weight : public details::weight_base {
@@ -51,6 +52,7 @@ namespace pdaaal {
         using type = W;
         static constexpr bool is_weight = true;
         static constexpr bool is_signed = std::numeric_limits<W>::is_signed;
+        static constexpr bool is_vector = false;
         static constexpr auto zero = []() -> type { return static_cast<type>(0); };
     };
     template<typename Inner, std::size_t N>
@@ -58,6 +60,7 @@ namespace pdaaal {
         using type = std::array<Inner, N>;
         static constexpr bool is_weight = true;
         static constexpr bool is_signed = weight<Inner>::is_signed;
+        static constexpr bool is_vector = false;
         static constexpr auto zero = []() -> type {
             std::array<Inner, N> arr{};
             arr.fill(weight<Inner>::zero());
@@ -69,6 +72,7 @@ namespace pdaaal {
         using type = std::vector<Inner>;
         static constexpr bool is_weight = true;
         static constexpr bool is_signed = weight<Inner>::is_signed;
+        static constexpr bool is_vector = true;
         static constexpr auto zero = []() -> type { return type{}; }; // TODO: When C++20 arrives, use a constexpr vector instead
     };
 

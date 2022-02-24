@@ -41,7 +41,7 @@ int main(int argc, const char** argv) {
             ("help,h", "produce help message")
             ("version,v", "print version");
 
-    Parsing parsing("Input Options");
+    parsing::Parsing parsing("Input Options");
     Verifier verifier("Verification Options");
     po::options_description output("Output Options");
 

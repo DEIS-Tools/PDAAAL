@@ -39,7 +39,7 @@
 
 using json = nlohmann::json;
 
-namespace pdaaal {
+namespace pdaaal::parsing {
 
     template <typename W = weight<void>, bool use_state_names = true, bool embedded_parser = false>
     class PdaSaxHandler : public SAXHandlerBase {
@@ -93,118 +93,107 @@ namespace pdaaal {
             }
             return s;
         }
-        struct context : public SAXHandlerContext<3> {
-            using parent_t = SAXHandlerContext<3>;
-            using key_flag = parent_t::flag_t;
-            using parent_t::flag;
-            using parent_t::fill;
-            using parent_t::is_single_flag;
-            static constexpr auto FLAG_1 = flag<1>();
-            static constexpr auto FLAG_2 = flag<2>();
-            static constexpr auto FLAG_3 = flag<3>();
-            static constexpr auto NO_FLAGS = fill<0>();
-            static constexpr auto REQUIRES_1 = fill<1>();
-            static constexpr auto REQUIRES_2 = fill<2>();
-            static constexpr auto REQUIRES_3 = fill<3>();
-
-            enum class context_type : uint8_t { unknown, initial, pda, state_array, states_object, state, rule_array, rule };
-            friend constexpr std::ostream& operator<<(std::ostream& s, context_type t) {
-                switch (t) {
-                    case context_type::unknown:
-                        s << "<unknown>";
-                        break;
-                    case context_type::initial:
-                        s << "initial";
-                        break;
-                    case context_type::pda:
-                        s << "pda";
-                        break;
-                    case context_type::state_array:
-                        s << "states array";
-                        break;
-                    case context_type::states_object:
-                        s << "states object";
-                        break;
-                    case context_type::state:
-                        s << "state";
-                        break;
-                    case context_type::rule_array:
-                        s << "rule array";
-                        break;
-                    case context_type::rule:
-                        s << "rule";
-                        break;
-                }
-                return s;
+        enum class context_type : uint8_t { unknown, initial, pda, state_array, states_object, state, rule_array, rule };
+        friend constexpr std::ostream& operator<<(std::ostream& s, context_type t) {
+            switch (t) {
+                case context_type::unknown:
+                    s << "<unknown>";
+                    break;
+                case context_type::initial:
+                    s << "initial";
+                    break;
+                case context_type::pda:
+                    s << "pda";
+                    break;
+                case context_type::state_array:
+                    s << "states array";
+                    break;
+                case context_type::states_object:
+                    s << "states object";
+                    break;
+                case context_type::state:
+                    s << "state";
+                    break;
+                case context_type::rule_array:
+                    s << "rule array";
+                    break;
+                case context_type::rule:
+                    s << "rule";
+                    break;
             }
-
-            constexpr context(context_type type, key_flag flags) noexcept : parent_t(flags), type(type) {};
-
-            context_type type;
-            static constexpr keys get_key(context_type context_type, key_flag flag) {
-                switch (context_type) {
-                    case context_type::initial:
-                        if (flag == FLAG_1) {
-                            return keys::pda;
+            return s;
+        }
+        using context = parser_object_context<context_type,3>;
+        using key_flag = typename context::key_flag;
+        static constexpr auto FLAG_1 = context::template flag<1>();
+        static constexpr auto FLAG_2 = context::template flag<2>();
+        static constexpr auto FLAG_3 = context::template flag<3>();
+        template<context_type type, size_t n_flags> static constexpr context make_context() {
+            return make_object_context<context,type,n_flags>();
+        }
+        static constexpr keys get_key(context_type context_type, key_flag flag) {
+            switch (context_type) {
+                case context_type::initial:
+                    if (flag == FLAG_1) {
+                        return keys::pda;
+                    }
+                    break;
+                case context_type::pda:
+                    if (flag == FLAG_1) {
+                        return keys::states;
+                    }
+                    break;
+                case context_type::rule:
+                    if constexpr (expect_weight) {
+                        switch (flag) {
+                            case FLAG_1:
+                                return keys::to;
+                            case FLAG_2:
+                                return keys::pop; // NOTE: Also keys::swap and keys::push
+                            case FLAG_3:
+                                return keys::weight;
+                            default:
+                                break;
                         }
-                        break;
-                    case context_type::pda:
-                        if (flag == FLAG_1) {
-                            return keys::states;
+                    } else {
+                        switch (flag) {
+                            case FLAG_1:
+                                return keys::to;
+                            case FLAG_2:
+                                return keys::pop; // NOTE: Also keys::swap and keys::push
+                            default:
+                                break;
                         }
-                        break;
-                    case context_type::rule:
-                        if constexpr (expect_weight) {
-                            switch (flag) {
-                                case FLAG_1:
-                                    return keys::to;
-                                case FLAG_2:
-                                    return keys::pop; // NOTE: Also keys::swap and keys::push
-                                case FLAG_3:
-                                    return keys::weight;
-                                default:
-                                    break;
-                            }
-                        } else {
-                            switch (flag) {
-                                case FLAG_1:
-                                    return keys::to;
-                                case FLAG_2:
-                                    return keys::pop; // NOTE: Also keys::swap and keys::push
-                                default:
-                                    break;
-                            }
-                        }
-                        break;
-                    default:
-                        break;
-                }
-                assert(false);
-                return keys::unknown;
+                    }
+                    break;
+                default:
+                    break;
             }
-        };
-        constexpr static context unknown_context = {context::context_type::unknown, context::NO_FLAGS };
-        constexpr static context initial_context = {context::context_type::initial, context::REQUIRES_1 };
-        constexpr static context pda_context = {context::context_type::pda, context::REQUIRES_1 };
-        constexpr static context state_array = {context::context_type::state_array, context::NO_FLAGS };
-        constexpr static context states_object = {context::context_type::states_object, context::NO_FLAGS };
-        constexpr static context state_context = {context::context_type::state, context::NO_FLAGS };
-        constexpr static context rule_array = {context::context_type::rule_array, context::NO_FLAGS };
-        constexpr static context rule_context = {context::context_type::rule, is_weighted<W> ? context::REQUIRES_3 : context::REQUIRES_2 };
+            assert(false);
+            return keys::unknown;
+        }
+        constexpr static context unknown_context = make_context<context_type::unknown, 0>();
+        constexpr static context initial_context = make_context<context_type::initial, 1>();
+        constexpr static context pda_context = make_context<context_type::pda, 1>();
+        constexpr static context state_array = make_context<context_type::state_array, 0>();
+        constexpr static context states_object = make_context<context_type::states_object, 0>();
+        constexpr static context state_context = make_context<context_type::state, 0>();
+        constexpr static context rule_array = make_context<context_type::rule_array, 0>();
+        constexpr static context rule_context = make_context<context_type::rule, W::is_weight?3:2>();
 
-        template <typename context::context_type type, typename context::key_flag flag, keys current_key, keys... alternatives>
+        template <context_type type, key_flag flag, keys current_key, keys... alternatives>
         // 'current_key' is the key to use. 'alternatives' are any other keys using the same flag in the same context (i.e. a one_of(current_key, alternatives...) requirement).
         bool handle_key() {
             static_assert(context::is_single_flag(flag), "Template parameter flag must be a single key, not a union or empty.");
-            static_assert(((context::get_key(type, flag) == current_key) || ... || (context::get_key(type, flag) == alternatives)),
+            static_assert(((get_key(type, flag) == current_key) || ... || (get_key(type, flag) == alternatives)),
                     "The result of get_key(type, flag) must match 'key' or one of the alternatives");
-            if (!context_stack.top().needs_value(flag)) {
+            if (!context_stack.top().needs_flag(flag)) {
                 errors() << "Duplicate definition of key: \"" << current_key;
                 ((errors() << "\"/\"" << alternatives), ...);
                 errors() << "\" in " << type << " object. " << std::endl;
                 return false;
             }
-            context_stack.top().got_value(flag);
+            context_stack.top().got_flag(flag);
             last_key = current_key;
             return true;
         }
@@ -293,7 +282,7 @@ namespace pdaaal {
                         break;
                     }
                 case keys::weight:
-                    if constexpr (expect_weight) { // TODO: Parameterize on weight type...
+                    if constexpr (expect_weight && !W::is_vector) { // TODO: Parameterize on weight type...
                         if (value >= std::numeric_limits<typename W::type>::max()) {
                             errors() << "error: Unsigned value " << value << " is too large. Maximum value is: " << std::numeric_limits<typename W::type>::max()-1 << std::endl;
                             return false;
@@ -368,10 +357,10 @@ namespace pdaaal {
                 return true;
             }
             switch (context_stack.top().type) {
-                case context::context_type::state_array:
+                case context_type::state_array:
                     context_stack.push(state_context);
                     return true;
-                case context::context_type::rule_array:
+                case context_type::rule_array:
                     context_stack.push(rule_context);
                     return true;
                 default:
@@ -410,21 +399,21 @@ namespace pdaaal {
                 return false;
             }
             switch (context_stack.top().type) {
-                case context::context_type::initial:
+                case context_type::initial:
                     if (key == "pda") {
-                        if (!handle_key<context::context_type::initial,context::FLAG_1,keys::pda>()) return false;
+                        if (!handle_key<context_type::initial,FLAG_1,keys::pda>()) return false;
                     } else {
                         last_key = keys::unknown;
                     }
                     break;
-                case context::context_type::pda:
+                case context_type::pda:
                     if (key == "states") {
-                        if (!handle_key<context::context_type::pda,context::FLAG_1,keys::states>()) return false;
+                        if (!handle_key<context_type::pda,FLAG_1,keys::states>()) return false;
                     } else { // "additionalProperties": true
                         last_key = keys::unknown;
                     }
                     break;
-                case context::context_type::states_object:
+                case context_type::states_object:
                     if constexpr(use_state_names) {
                         last_key = keys::state_name;
                         current_from_state = build_pda.insert_state(key);
@@ -433,7 +422,7 @@ namespace pdaaal {
                         errors() << "error: Encountered state name: \"" << key << "\" in context: " << context_stack.top().type << ", but state names are disabled in this setting." << std::endl;
                         return false;
                     }
-                case context::context_type::state:
+                case context_type::state:
                     last_key = keys::from_label;
                     if (key == "*") {
                         current_pre = std::vector<uint32_t>{};
@@ -443,19 +432,19 @@ namespace pdaaal {
                         current_wildcard = false;
                     }
                     break;
-                case context::context_type::rule:
+                case context_type::rule:
                     if (key == "to") {
-                        if (!handle_key<context::context_type::rule,context::FLAG_1,keys::to>()) return false;
+                        if (!handle_key<context_type::rule,FLAG_1,keys::to>()) return false;
                     } else if (key == "pop") {
-                        if (!handle_key<context::context_type::rule,context::FLAG_2,keys::pop, keys::swap, keys::push>()) return false;
+                        if (!handle_key<context_type::rule,FLAG_2,keys::pop, keys::swap, keys::push>()) return false;
                     } else if (key == "swap") {
-                        if (!handle_key<context::context_type::rule,context::FLAG_2,keys::swap, keys::pop, keys::push>()) return false;
+                        if (!handle_key<context_type::rule,FLAG_2,keys::swap, keys::pop, keys::push>()) return false;
                     } else if (key == "push") {
-                        if (!handle_key<context::context_type::rule,context::FLAG_2,keys::push, keys::pop, keys::swap>()) return false;
+                        if (!handle_key<context_type::rule,FLAG_2,keys::push, keys::pop, keys::swap>()) return false;
                     } else {
                         if constexpr (expect_weight) {
                             if (key == "weight") {
-                                if (!handle_key<context::context_type::rule,context::FLAG_3,keys::weight>()) return false;
+                                if (!handle_key<context_type::rule,FLAG_3,keys::weight>()) return false;
                                 break;
                             }
                         }
@@ -463,7 +452,7 @@ namespace pdaaal {
                         return false;
                     }
                     break;
-                case context::context_type::unknown:
+                case context_type::unknown:
                     break;
                 default:
                     errors() << "error: Encountered unexpected key: \"" << key << "\" in context: " << context_stack.top().type << std::endl;
@@ -476,13 +465,13 @@ namespace pdaaal {
                 errors() << "error: Unexpected end of object." << std::endl;
                 return false;
             }
-            if (context_stack.top().missing_keys()) {
+            if (context_stack.top().has_missing_flags()) {
                 errors() << "error: Missing key(s): ";
                 bool first = true;
                 for (const auto& flag : context_stack.top().get_missing_flags()) {
                     if (!first) errors() << ", ";
                     first = false;
-                    auto key = context::get_key(context_stack.top().type, flag);
+                    auto key = get_key(context_stack.top().type, flag);
                     errors() << key;
                     if (key == keys::pop) {
                         errors() << "/" << keys::swap << "/" << keys::push;
@@ -492,12 +481,12 @@ namespace pdaaal {
                 return false;
             }
             switch (context_stack.top().type) {
-                case context::context_type::state:
+                case context_type::state:
                     if constexpr (!use_state_names) {
                         ++current_from_state;
                     }
                     break;
-                case context::context_type::rule:
+                case context_type::rule:
                     build_pda.add_rule_detail(current_from_state, current_rule, current_wildcard, current_pre);
                     break;
                 default:
@@ -505,7 +494,7 @@ namespace pdaaal {
             }
             context_stack.pop();
             if constexpr(embedded_parser) {
-                if (context_stack.top().type == context::context_type::initial) {
+                if (context_stack.top().type == context_type::initial) {
                     return false; // Stop using this SAXHandler.
                 }
             }
@@ -548,7 +537,7 @@ namespace pdaaal {
         }
     };
 
-    class PdaJSONParser {
+    class PdaJsonParser {
     public:
         template <typename W = weight<void>, bool use_state_names = true>
         static auto parse(std::istream& stream, std::ostream& /*warnings*/, json::input_format_t format = json::input_format_t::json) {

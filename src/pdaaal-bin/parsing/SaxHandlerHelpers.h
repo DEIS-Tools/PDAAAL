@@ -35,7 +35,7 @@
 
 //using json = nlohmann::json;
 
-namespace pdaaal {
+namespace pdaaal::parsing {
 
     // We wish to be able to stop parsing before the end of input, but still handle errors correctly.
     // Keep track of whether the error stream was used, and this way distinguish between error and early return.
@@ -60,33 +60,21 @@ namespace pdaaal {
         bool _errored = false;
     };
 
-    template <size_t N>
-    class SAXHandlerContext : utils::flags<N> {
-        using parent_t = utils::flags<N>;
-    public:
-        using flag_t = typename parent_t::flag_t;
+    template<typename context_type, std::size_t N>
+    struct parser_object_context : public utils::flag_mask<N> {
+        using type_t = context_type; // Expose template parameter.
+        using parent_t = utils::flag_mask<N>;
+        using key_flag = typename parent_t::flag_t;
         using parent_t::flag;
         using parent_t::fill;
         using parent_t::is_single_flag;
-
-        explicit constexpr SAXHandlerContext(flag_t flags) noexcept : values_left(flags) {};
-
-        flag_t values_left;
-        constexpr void got_value(flag_t value) {
-            parent_t::remove(values_left, value);
-        }
-        [[nodiscard]] constexpr bool needs_value(flag_t value) const {
-            return parent_t::contains(values_left, value);
-        }
-        [[nodiscard]] constexpr bool missing_keys() const {
-            return values_left != parent_t::no_flags;
-        }
-        std::vector<flag_t> get_missing_flags() const {
-            return parent_t::split_to_single_flags(values_left);
-        }
-
+        constexpr parser_object_context(context_type type, key_flag flags) noexcept : parent_t(flags), type(type) {};
+        const context_type type;
     };
-
+    template<typename context, typename context::type_t type, size_t n_flags>
+    static constexpr context make_object_context() {
+        return context(type, context::template fill<n_flags>());
+    }
 
 }
 
