@@ -28,6 +28,7 @@
 #define PDAAAL_VERIFIER_H
 
 #include "parsing/PAutomatonParser.h"
+#include "parsing/PAutomatonJsonParser.h"
 #include <pdaaal/Solver.h>
 
 namespace pdaaal {
@@ -84,6 +85,17 @@ namespace pdaaal {
         }
         [[nodiscard]] const po::options_description& options() const { return verification_options; }
 
+        template <TraceInfoType trace_info_type = TraceInfoType::Single, typename PDA_T>
+        auto get_product(PDA_T& pda) {
+            auto initial_p_automaton = json_automata ?
+                                       PAutomatonJsonParser::parse<trace_info_type>(initial_pa_file, pda, "P-automaton") :
+                                       PAutomatonParser::parse_file<trace_info_type>(initial_pa_file, pda);
+            auto final_p_automaton = json_automata ?
+                                     PAutomatonJsonParser::parse<trace_info_type>(final_pa_file, pda, "P-automaton") :
+                                     PAutomatonParser::parse_file<trace_info_type>(final_pa_file, pda);
+            return PAutomatonProduct(pda, std::move(initial_p_automaton), std::move(final_p_automaton));
+        }
+
         template <typename PDA_T>
         void verify(PDA_T& pda) {
             using pda_t = std20::remove_cvref_t<PDA_T>;
@@ -94,13 +106,7 @@ namespace pdaaal {
                 case Trace_Type::None:
                 case Trace_Type::Any:
                 case Trace_Type::Shortest: {
-                    auto initial_p_automaton = json_automata ?
-                                               PAutomatonJsonParser::parse(initial_pa_file, pda, "P-automaton") :
-                                               PAutomatonParser::parse_file(initial_pa_file, pda);
-                    auto final_p_automaton = json_automata ?
-                                             PAutomatonJsonParser::parse(final_pa_file, pda, "P-automaton") :
-                                             PAutomatonParser::parse_file(final_pa_file, pda);
-                    PAutomatonProduct instance(pda, std::move(initial_p_automaton), std::move(final_p_automaton));
+                    auto instance = get_product(pda);
                     switch (engine) {
                         case 1: {
                             std::cout << "Using post*" << std::endl;
@@ -188,13 +194,7 @@ namespace pdaaal {
                 }
                 case Trace_Type::Longest:
                 case Trace_Type::ShortestFixedPoint: {
-                    auto initial_p_automaton = json_automata ?
-                                               PAutomatonJsonParser::parse<TraceInfoType::Pair>(initial_pa_file, pda, "P-automaton") :
-                                               PAutomatonParser::parse_file<TraceInfoType::Pair>(initial_pa_file, pda);
-                    auto final_p_automaton = json_automata ?
-                                             PAutomatonJsonParser::parse<TraceInfoType::Pair>(final_pa_file, pda, "P-automaton") :
-                                             PAutomatonParser::parse_file<TraceInfoType::Pair>(final_pa_file, pda);
-                    PAutomatonProduct instance(pda, std::move(initial_p_automaton), std::move(final_p_automaton));
+                    auto instance = get_product<TraceInfoType::Pair>(pda);
                     switch (engine) {
                         case 1:
                         case 3: {

@@ -202,7 +202,7 @@ namespace pdaaal {
         template <typename context::context_type type, typename context::key_flag flag, keys current_key, keys... alternatives>
         // 'current_key' is the key to use. 'alternatives' are any other keys using the same flag in the same context (i.e. a one_of(current_key, alternatives...) requirement).
         bool handle_key() {
-            static_assert(flag == context::FLAG_1 || flag == context::FLAG_2 || flag == PdaaalSAXHandler::context::FLAG_3,
+            static_assert(flag == context::FLAG_1 || flag == context::FLAG_2 || flag == context::FLAG_3,
                     "Template parameter flag must be a single key, not a union or empty.");
             static_assert(((context::get_key(type, flag) == current_key) || ... || (context::get_key(type, flag) == alternatives)),
                     "The result of get_key(type, flag) must match 'key' or one of the alternatives");
@@ -242,7 +242,7 @@ namespace pdaaal {
         }
 
         bool null() {
-            switch (this->last_key) {
+            switch (last_key) {
                 case keys::unknown:
                     break;
                 default:

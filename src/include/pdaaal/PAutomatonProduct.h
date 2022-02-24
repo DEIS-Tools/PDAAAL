@@ -151,6 +151,12 @@ namespace pdaaal {
             }
         }
 
+        [[nodiscard]] nlohmann::json to_json() const {
+            nlohmann::json j;
+            j = *this;
+            return j;
+        }
+
     private:
         template<bool edge_in_first = true, bool needs_back_lookup = false>
         bool add_edge(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace,
@@ -372,8 +378,25 @@ namespace pdaaal {
 
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
     PAutomatonProduct(const PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
+                      PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>&& initial,
+                      PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>&& final)
+      -> PAutomatonProduct<PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>,PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>,W,trace_info_type>;
+
+    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
+    PAutomatonProduct(const PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
                       internal::PAutomaton<W,trace_info_type> initial, internal::PAutomaton<W,trace_info_type> final)
       -> PAutomatonProduct<PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>,internal::PAutomaton<W,trace_info_type>,W,trace_info_type>;
+
+    template<typename label_t, typename W, fut::type Container, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
+    void to_json(json& j, const PAutomatonProduct<PDA<label_t,W,Container,state_t,skip_state_mapping>,PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>, W, trace_info_type>& instance) {
+        j = json::array();
+        j.emplace_back(json::object());
+        details::params_state_names(j.back(), instance.pda());
+        details::params_weight_type(j.back(), instance.pda());
+        j.emplace_back(instance.pda());
+        j.emplace_back(instance.initial_automaton());
+        j.emplace_back(instance.final_automaton());
+    }
 
 }
 
