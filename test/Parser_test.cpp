@@ -50,7 +50,7 @@ BOOST_AUTO_TEST_CASE(PAutomatonFromJson_OldFormat_Test)
     BOOST_CHECK(result);
 }
 
-BOOST_AUTO_TEST_CASE(PAutomatonFromJson_NewFormat_Test_Fails)
+BOOST_AUTO_TEST_CASE(PAutomatonFromJson_NewFormat_Test)
 {
     std::unordered_set<std::string> labels{"A"};
     PDA<std::string> pda(labels);
@@ -63,7 +63,7 @@ BOOST_AUTO_TEST_CASE(PAutomatonFromJson_NewFormat_Test_Fails)
             [1,"A",2]
         ]
     }})");
-    auto automaton = parsing::PAutomatonJsonParser::parse<>(automaton_stream, pda);
+    auto automaton = parsing::PAutomatonJsonParser_New::parse<>(automaton_stream, pda);
     std::vector<uint32_t> stack; stack.emplace_back(0);
     bool result = Solver::post_star_accepts(automaton, 0, stack);
     BOOST_CHECK(result);

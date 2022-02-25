@@ -87,7 +87,7 @@ namespace pdaaal {
         }
         size_t insert_state(const state_t& state) {
             if constexpr (skip_state_mapping) {
-                return state; // + this->pda().states().size();
+                return state;
             } else {
                 return this->_state_map.insert(state).second + _pda.states().size();
             }
@@ -121,6 +121,17 @@ namespace pdaaal {
     PAutomaton(const PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const NFA<uint32_t>&, const std::vector<size_t>&) -> PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>;
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type = TraceInfoType::Single>
     PAutomaton(const PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const std::vector<size_t>&, bool special_accepting = true) -> PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>;
+
+    // Simplify type deduction elsewhere.
+    namespace details {
+        template<typename pda_t, TraceInfoType trace_info_type> struct pda_to_pautomaton;
+        template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
+        struct pda_to_pautomaton<PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>, trace_info_type> {
+            using type = PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>;
+        };
+    }
+    template<typename pda_t, TraceInfoType trace_info_type = TraceInfoType::Single>
+    using pda_to_pautomaton_t = typename details::pda_to_pautomaton<pda_t,trace_info_type>::type;
 
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
     void to_json(json& j, const PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>& automaton) {

@@ -61,6 +61,8 @@ namespace pdaaal {
     class PDA : public internal::PDA<W, Container>, public std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
     public:
         using parent_t = internal::PDA<W, Container>;
+        using expose_state_t = state_t; // Expose template parameter as dependent name.
+        static constexpr bool expose_skip_state_mapping = skip_state_mapping;
     protected:
         using impl_rule_t = typename internal::PDA<W, Container>::rule_t; // This rule type is used internally.
         static_assert(!skip_state_mapping || std::is_same_v<state_t,size_t>, "When skip_state_mapping==true, you must use state_t=size_t");

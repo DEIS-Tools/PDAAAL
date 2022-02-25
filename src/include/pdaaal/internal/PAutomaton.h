@@ -628,6 +628,13 @@ namespace pdaaal::internal {
             }
             return id;
         }
+        void set_state_accepting(size_t id) {
+            assert(id < _states.size());
+            if (!_states[id]->_accepting) {
+                _states[id]->_accepting = true;
+                _accepting.push_back(_states[id].get());
+            }
+        }
         [[nodiscard]] size_t next_state_id() const {
             return _states.size();
         }
