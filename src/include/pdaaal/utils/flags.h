@@ -84,7 +84,7 @@ namespace pdaaal::utils {
             std::vector<flag_t> flags;
             for (std::size_t i = 0; i < N; ++i) {
                 flag_t f = (flag_t)1<<i;
-                if (mask == select(f, mask)) {
+                if (contains(mask,f)) {
                     flags.emplace_back(f);
                 }
             }

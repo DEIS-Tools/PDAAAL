@@ -193,26 +193,10 @@ namespace pdaaal::parsing {
         }
 
         bool null() {
-            switch (last_key) {
-                case keys::unknown:
-                    break;
-                default:
-                    error_unexpected("null value");
-                    return false;
-            }
-            element_done();
-            return true;
+            return last_key == keys::unknown ? element_done() : error_unexpected("null value");
         }
         bool boolean(bool value) {
-            switch (last_key) {
-                case keys::unknown:
-                    break;
-                default:
-                    error_unexpected("boolean", value);
-                    return false;
-            }
-            element_done();
-            return true;
+            return last_key == keys::unknown ? element_done() : error_unexpected("boolean", value);
         }
         bool number_integer(number_integer_t value) {
             switch (last_key) {
@@ -232,11 +216,9 @@ namespace pdaaal::parsing {
                         break;
                     }
                 default:
-                    error_unexpected("integer", value);
-                    return false;
+                    return error_unexpected("integer", value);
             }
-            element_done();
-            return true;
+            return element_done();
         }
         bool number_unsigned(number_unsigned_t value) {
             switch (last_key) {
@@ -260,27 +242,16 @@ namespace pdaaal::parsing {
                 case keys::unknown:
                     break;
                 default:
-                    error_unexpected("unsigned", value);
-                    return false;
+                    return error_unexpected("unsigned", value);
             }
-            element_done();
-            return true;
+            return element_done();
         }
         bool number_float(number_float_t value, const string_t& /*unused*/) {
-            switch (last_key) {
-                case keys::unknown:
-                    break;
-                default:
-                    error_unexpected("float", value);
-                    return false;
-            }
-            element_done();
-            return true;
+            return last_key == keys::unknown ? element_done() : error_unexpected("float", value);
         }
         bool string(string_t& value) {
             if (no_context()) {
-                error_unexpected("string", value);
-                return false;
+                return error_unexpected("string", value);
             }
             switch (last_key) {
                 case keys::to:
@@ -308,18 +279,12 @@ namespace pdaaal::parsing {
                     break;
                 default:
                 case keys::none:
-                    error_unexpected("string", value);
-                    return false;
+                    return error_unexpected("string", value);
             }
-            return true;
+            return element_done();
         }
         bool binary(binary_t& /*val*/) {
-            if (last_key == keys::unknown) {
-                element_done();
-                return true;
-            }
-            error_unexpected("binary value");
-            return false;
+            return last_key == keys::unknown ? element_done() : error_unexpected("binary value");
         }
         bool start_object(std::size_t /*unused*/ = std::size_t(-1)) {
             if (no_context()) {
@@ -365,20 +330,19 @@ namespace pdaaal::parsing {
         }
         bool key(string_t& key) {
             if (no_context()) {
-                errors() << "Expected the start of an object before key: " << key << std::endl;
-                return false;
+                return error_unexpected_key(key);
             }
             switch (current_context_type()) {
                 case context_type::initial:
                     if (key == "pda") {
-                        if (!handle_key<context_type::initial,FLAG_1,keys::pda>()) return false;
-                    } else {
+                        return handle_key<context_type::initial,FLAG_1,keys::pda>();
+                    } else { // "additionalProperties": true
                         last_key = keys::unknown;
                     }
                     break;
                 case context_type::pda:
                     if (key == "states") {
-                        if (!handle_key<context_type::pda,FLAG_1,keys::states>()) return false;
+                        return handle_key<context_type::pda,FLAG_1,keys::states>();
                     } else { // "additionalProperties": true
                         last_key = keys::unknown;
                     }
@@ -404,29 +368,26 @@ namespace pdaaal::parsing {
                     break;
                 case context_type::rule:
                     if (key == "to") {
-                        if (!handle_key<context_type::rule,FLAG_1,keys::to>()) return false;
+                        return handle_key<context_type::rule,FLAG_1,keys::to>();
                     } else if (key == "pop") {
-                        if (!handle_key<context_type::rule,FLAG_2,keys::pop, keys::swap, keys::push>()) return false;
+                        return handle_key<context_type::rule,FLAG_2,keys::pop, keys::swap, keys::push>();
                     } else if (key == "swap") {
-                        if (!handle_key<context_type::rule,FLAG_2,keys::swap, keys::pop, keys::push>()) return false;
+                        return handle_key<context_type::rule,FLAG_2,keys::swap, keys::pop, keys::push>();
                     } else if (key == "push") {
-                        if (!handle_key<context_type::rule,FLAG_2,keys::push, keys::pop, keys::swap>()) return false;
+                        return handle_key<context_type::rule,FLAG_2,keys::push, keys::pop, keys::swap>();
                     } else {
                         if constexpr (expect_weight) {
                             if (key == "weight") {
-                                if (!handle_key<context_type::rule,FLAG_3,keys::weight>()) return false;
-                                break;
+                                return handle_key<context_type::rule,FLAG_3,keys::weight>();
                             }
                         }
-                        errors() << "Unexpected key in operation object: " << key << std::endl;
-                        return false;
+                        return error_unexpected_key(key);
                     }
                     break;
                 case context_type::unknown:
                     break;
                 default:
-                    errors() << "error: Encountered unexpected key: \"" << key << "\" in context: " << current_context_type() << std::endl;
-                    return false;
+                    return error_unexpected_key(key);
             }
             return true;
         }
@@ -436,19 +397,7 @@ namespace pdaaal::parsing {
                 return false;
             }
             if (current_context().has_missing_flags()) {
-                auto& s = (errors() << "error: Missing key(s): ");
-                bool first = true;
-                for (const auto& flag : current_context().get_missing_flags()) {
-                    if (!first) s << ", ";
-                    first = false;
-                    auto key = get_key(current_context_type(), flag);
-                    s << key;
-                    if (key == keys::pop) {
-                        s << "/" << keys::swap << "/" << keys::push;
-                    }
-                }
-                s << " in object: " << current_context_type() << std::endl;
-                return false;
+                return error_missing_keys<keys::pop,keys::swap,keys::push>();
             }
             switch (current_context_type()) {
                 case context_type::state:
@@ -468,8 +417,7 @@ namespace pdaaal::parsing {
                     return false; // Stop using this SAXHandler.
                 }
             }
-            element_done();
-            return true;
+            return element_done();
         }
         bool start_array(std::size_t /*unused*/ = std::size_t(-1)) {
             if (no_context()) {
@@ -493,8 +441,7 @@ namespace pdaaal::parsing {
                     push_context(unknown_context);
                     break;
                 default:
-                    error_unexpected("start of array");
-                    return false;
+                    return error_unexpected("start of array");
             }
             return true;
         }
@@ -504,8 +451,7 @@ namespace pdaaal::parsing {
                 return false;
             }
             pop_context();
-            element_done();
-            return true;
+            return element_done();
         }
     };
 
@@ -513,12 +459,12 @@ namespace pdaaal::parsing {
     public:
         template <typename W = weight<void>, bool use_state_names = true>
         static auto parse(std::istream& stream, std::ostream& /*warnings*/, json::input_format_t format = json::input_format_t::json) {
-            std::stringstream es; // For errors;
-            PdaSaxHandler<W,use_state_names> my_sax(es);
-            if (!json::sax_parse(stream, &my_sax, format)) {
-                throw std::runtime_error(es.str());
+            std::stringstream error_stream;
+            PdaSaxHandler<W,use_state_names> pda_sax(error_stream);
+            if (!json::sax_parse(stream, &pda_sax, format)) {
+                throw std::runtime_error(error_stream.str());
             }
-            return my_sax.get_pda();
+            return pda_sax.get_pda();
         }
     };
 }

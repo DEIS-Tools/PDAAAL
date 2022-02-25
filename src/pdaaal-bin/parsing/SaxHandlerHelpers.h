@@ -141,9 +141,8 @@ namespace pdaaal::parsing {
                           "The result of get_key(type, flag) must match 'key' or one of the alternatives");
             assert(current_context().is_object());
             if (!current_context().needs_flag(flag)) {
-                auto& s = (errors() << "Duplicate definition of key: \"" << current_key);
-                ((s << "\"/\"" << alternatives), ...);
-                s << "\" in " << type << " object. " << std::endl;
+                auto& s = (errors() << "Duplicate definition of key: ");
+                print_keys<current_key,alternatives...>(s) << " in " << type << " object." << std::endl;
                 return false;
             }
             current_context().got_flag(flag);
@@ -151,23 +150,60 @@ namespace pdaaal::parsing {
             return true;
         }
 
-        void element_done() {
-            if (no_context()) return;
-            if (current_context().is_array()) {
+        bool element_done() {
+            if (!no_context() && current_context().is_array()) {
                 current_context().increment_index();
             } else {
                 last_key = keys::none;
             }
+            return true; // Allows for nice code at the use site.
         }
 
-        void error_unexpected(const std::string& what) {
+        bool error_unexpected(const std::string& what) {
             auto& s = (errors() << "error: Unexpected " << what);
-            describe_context(s) << std::endl;
+            describe_context(s) << "." << std::endl;
+            return false; // Allows for nice code at the use site.
         }
-        template<typename value_t> void error_unexpected(const std::string& what, const value_t& value) {
+        template<typename value_t> bool error_unexpected(const std::string& what, const value_t& value, const std::string& explanation = "") {
             auto& s = (errors() << "error: Unexpected " << what << " value ");
             print_value(s, value);
-            describe_context(s) << "." << std::endl;
+            describe_context(s) << ".";
+            if (!explanation.empty()) {
+                s << " " << explanation;
+            }
+            s << std::endl;
+            return false; // Allows for nice code at the use site.
+        }
+        bool error_unexpected_key(const string_t& key) {
+            auto& s = (errors() << "error: Unexpected key ");
+            print_value(s, key);
+            if (no_context()) {
+                s << " before the start of an object." << std::endl;
+            } else {
+                s << " in " << current_context_type() << " object." << std::endl;
+            }
+            return false; // Allows for nice code at the use site.
+        }
+        template<keys... alternatives> // If one out of multiple alternative keys are required, we can specify it here. (only supports one such set)
+        bool error_missing_keys() {
+            auto& s = (errors() << "error: Missing key(s): ");
+            bool first = true;
+            for (const auto& flag : current_context().get_missing_flags()) {
+                if (!first) s << ", ";
+                first = false;
+                if constexpr (sizeof...(alternatives) == 0) {
+                    s << "\"" << Helper::get_key(current_context_type(), flag) << "\"";
+                } else {
+                    auto key = Helper::get_key(current_context_type(), flag);
+                    if (((key == alternatives) || ...)) {
+                        print_keys<alternatives...>(s);
+                    } else {
+                        s << "\"" << key << "\"";
+                    }
+                }
+            }
+            s << " in " << current_context_type() << " object." << std::endl;
+            return false;
         }
         template<typename value_t> static std::ostream& print_value(std::ostream& s, const value_t& value) {
             if constexpr(std::is_same_v<value_t,string_t>) {
@@ -194,6 +230,13 @@ namespace pdaaal::parsing {
         }
         keys last_key = keys::none;
     private:
+        template<keys key, keys... alternatives>
+        static constexpr std::ostream& print_keys(std::ostream& s) {
+            s << "\"" << key;
+            ((s << "\"/\"" << alternatives), ...);
+            return s << "\"";
+        }
+
         std::stack<context_t> _context_stack;
     };
 
