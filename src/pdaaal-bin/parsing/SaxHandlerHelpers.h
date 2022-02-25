@@ -31,9 +31,10 @@
 #include <nlohmann/json.hpp>
 #include <iostream>
 #include <fstream>
+#include <variant>
+#include <optional>
 #include <cassert>
-
-//using json = nlohmann::json;
+#include <stack>
 
 namespace pdaaal::parsing {
 
@@ -60,21 +61,141 @@ namespace pdaaal::parsing {
         bool _errored = false;
     };
 
+    // Object used when parsing JSON files with some required format.
+    // A context can either be an object (where we keep track of the required keys)
+    // or an array (where we keep track of the current index). Used by SAXHandlerContextStack.
     template<typename context_type, std::size_t N>
-    struct parser_object_context : public utils::flag_mask<N> {
+    struct JsonParserContext {
         using type_t = context_type; // Expose template parameter.
-        using parent_t = utils::flag_mask<N>;
-        using key_flag = typename parent_t::flag_t;
-        using parent_t::flag;
-        using parent_t::fill;
-        using parent_t::is_single_flag;
-        constexpr parser_object_context(context_type type, key_flag flags) noexcept : parent_t(flags), type(type) {};
+        using mask_t = utils::flag_mask<N>;
+        using flag_t = typename mask_t::flag_t;
+        using array_size_t = flag_t;
+
+        template<std::size_t variant_index = 0>
+        constexpr JsonParserContext(context_type type, flag_t flags, std::in_place_index_t<variant_index>) noexcept
+        : type(type), _v(std::in_place_index<variant_index>, flags) {};
+
+        [[nodiscard]] constexpr bool is_object() const { return _v.index() == 0; }
+        [[nodiscard]] constexpr bool is_array() const { return _v.index() == 1; }
+
+        constexpr void got_flag(flag_t value) { std::get<0>(_v).got_flag(value); }
+        [[nodiscard]] constexpr bool needs_flag(flag_t value) const { return std::get<0>(_v).needs_flag(value); }
+        [[nodiscard]] constexpr bool has_missing_flags() const { return std::get<0>(_v).has_missing_flags(); }
+        std::vector<flag_t> get_missing_flags() const { return std::get<0>(_v).get_missing_flags(); }
+
+        [[nodiscard]] constexpr array_size_t get_index() const { return std::get<1>(_v); }
+        constexpr void increment_index() { ++std::get<1>(_v); }
+
         const context_type type;
+    private:
+        std::variant<mask_t, array_size_t> _v;
     };
-    template<typename context, typename context::type_t type, size_t n_flags>
-    static constexpr context make_object_context() {
-        return context(type, context::template fill<n_flags>());
-    }
+    template<typename context, typename context::type_t type, size_t n_flags> inline constexpr context make_context_object() {
+        return context(type, context::mask_t::template fill<n_flags>(), std::in_place_index<0>);
+    };
+    template<typename context, typename context::type_t type> inline constexpr context make_context_array() {
+        return context(type, 0, std::in_place_index<1>);
+    };
+
+    // This class provides functionality for SAXHandlers (JSON parsers) that need to keep track of a context stack,
+    // where contexts can have some required keys. Supports descriptive error messages.
+    // The template <helper> class should provide the following:
+    //   - 'enum class keys' with printing 'ostream& operator<<(ostream&,keys)'.
+    //   - 'enum class context_type' with printing 'ostream& operator<<(ostream&,context_type)'.
+    //   - 'static constexpr size_t N', which is the largest number of keys needed. (N also determines to uint size for keeping track of array index).
+    //   - 'static constexpr keys get_key(context_type,flag)' that for object contexts map the type and flag to the corresponding key (only needed if handle_key is used).
+    template<typename Helper>
+    struct SAXHandlerContextStack : public SAXHandlerBase, public Helper {
+        using keys = typename Helper::keys;
+        using context_type = typename Helper::context_type;
+        static constexpr std::size_t N = Helper::N;
+        using context_t = JsonParserContext<context_type,N>;
+
+        using number_integer_t = typename nlohmann::json::number_integer_t;
+        using number_unsigned_t = typename nlohmann::json::number_unsigned_t;
+        using number_float_t = typename nlohmann::json::number_float_t;
+        using string_t = typename nlohmann::json::string_t;
+        using binary_t = typename nlohmann::json::binary_t;
+
+        explicit SAXHandlerContextStack(std::ostream& errors) : SAXHandlerBase(errors) {};
+        explicit SAXHandlerContextStack(const SAXHandlerBase& base) : SAXHandlerBase(base) {};
+
+        template<context_type type, size_t n_flags> static constexpr context_t context_object() {
+            return make_context_object<context_t,type,n_flags>();
+        }
+        template<context_type type> static constexpr context_t context_array() {
+            return make_context_array<context_t,type>();
+        }
+
+        void pop_context() { _context_stack.pop(); }
+        void push_context(const context_t& c) { _context_stack.push(c); }
+        [[nodiscard]] bool no_context() const { return _context_stack.empty(); }
+        [[nodiscard]] const context_t& current_context() const { return _context_stack.top(); }
+        [[nodiscard]] context_t& current_context() { return _context_stack.top(); }
+        [[nodiscard]] context_type current_context_type() const { return _context_stack.top().type; }
+
+        template <context_type type, typename context_t::flag_t flag, keys current_key, keys... alternatives>
+        bool handle_key() {
+            static_assert(context_t::mask_t::is_single_flag(flag), "Template parameter flag must be a single key, not a union or empty.");
+            static_assert(((Helper::get_key(type, flag) == current_key) || ... || (Helper::get_key(type, flag) == alternatives)),
+                          "The result of get_key(type, flag) must match 'key' or one of the alternatives");
+            assert(current_context().is_object());
+            if (!current_context().needs_flag(flag)) {
+                auto& s = (errors() << "Duplicate definition of key: \"" << current_key);
+                ((s << "\"/\"" << alternatives), ...);
+                s << "\" in " << type << " object. " << std::endl;
+                return false;
+            }
+            current_context().got_flag(flag);
+            last_key = current_key;
+            return true;
+        }
+
+        void element_done() {
+            if (no_context()) return;
+            if (current_context().is_array()) {
+                current_context().increment_index();
+            } else {
+                last_key = keys::none;
+            }
+        }
+
+        void error_unexpected(const std::string& what) {
+            auto& s = (errors() << "error: Unexpected " << what);
+            describe_context(s) << std::endl;
+        }
+        template<typename value_t> void error_unexpected(const std::string& what, const value_t& value) {
+            auto& s = (errors() << "error: Unexpected " << what << " value ");
+            print_value(s, value);
+            describe_context(s) << "." << std::endl;
+        }
+        template<typename value_t> static std::ostream& print_value(std::ostream& s, const value_t& value) {
+            if constexpr(std::is_same_v<value_t,string_t>) {
+                s << "\"" << value << "\"";
+            } else if constexpr(std::is_same_v<value_t,bool>) {
+                s << std::boolalpha << value;
+            } else {
+                s << value;
+            }
+            return s;
+        }
+        std::ostream& describe_context(std::ostream& s) const {
+            if (no_context()) {
+                s << " outside of object";
+            } else {
+                if (current_context().is_object()) {
+                    s << " after key \"" << last_key << "\" in " << current_context_type();
+                } else {
+                    assert(current_context().is_array());
+                    s << " in " << current_context_type() << " at index " << current_context().get_index();
+                }
+            }
+            return s;
+        }
+        keys last_key = keys::none;
+    private:
+        std::stack<context_t> _context_stack;
+    };
 
 }
 

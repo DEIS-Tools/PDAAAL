@@ -114,7 +114,7 @@ namespace pdaaal::utils {
         std::vector<flag_t> get_missing_flags() const {
             return flags<N>::split_to_single_flags(_mask);
         }
-//    private:
+    private:
         flag_t _mask;
     };
 
