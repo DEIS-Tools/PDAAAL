@@ -153,7 +153,7 @@ namespace pdaaal {
 
         [[nodiscard]] nlohmann::json to_json() const {
             nlohmann::json j;
-            j = *this;
+            j["instance"] = *this;
             return j;
         }
 

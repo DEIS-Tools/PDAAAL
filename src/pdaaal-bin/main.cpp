@@ -24,6 +24,7 @@
  * Created on 11-06-2021.
  */
 
+#include "parsing/SolverInstanceJsonParser.h"
 #include "parsing/Parsing.h"
 #include "Verifier.h"
 
@@ -48,12 +49,13 @@ int main(int argc, const char** argv) {
     bool no_parser_warnings = false;
     bool silent = false;
     bool print_pda_json = false;
-    std::string solver_instance_file;
+    std::string solver_instance_file, solver_instance_input;
     output.add_options()
             ("disable-parser-warnings,W", po::bool_switch(&no_parser_warnings), "Disable warnings from parser.")
             ("silent,s", po::bool_switch(&silent), "Disables non-essential output (implies -W).")
             ("print-pda-json", po::bool_switch(&print_pda_json), "Print PDA in JSON format to terminal.")  // TODO: This is currently mostly a debug option. Make it useful!
             ("print-solver-instance", po::value<std::string>(&solver_instance_file), "Print SolverInstance in JSON format to file.")
+            ("input-solver-instance", po::value<std::string>(&solver_instance_input), "Print SolverInstance in JSON format to file.") // TODO: Move option to Input Options...
             ;
     opts.add(parsing.options());
     opts.add(verifier.options());
@@ -77,6 +79,20 @@ int main(int argc, const char** argv) {
     }
 
     if (silent) { no_parser_warnings = true; }
+    if (!solver_instance_input.empty()) {
+        std::ifstream input_stream(solver_instance_input);
+        if (!input_stream.is_open()) {
+            std::stringstream es;
+            es << "error: Could not open file: " << solver_instance_input << std::endl;
+            throw std::runtime_error(es.str());
+        }
+        std::stringstream dummy;
+        auto solver_instance = parsing::SolverInstanceJsonParser::parse<>(input_stream, no_parser_warnings ? dummy : std::cerr);
+        std::visit([](auto&& solver_instance){
+            std::cout << solver_instance->to_json().dump() << std::endl;
+        }, solver_instance);
+        return 0;
+    }
 
     auto pda_variant = parsing.parse(no_parser_warnings);
     if (!silent) {

@@ -467,6 +467,239 @@ namespace pdaaal::parsing {
             return pda_sax.get_pda();
         }
     };
+
+
+    struct PdaTypeSaxHelper {
+        enum class keys : uint32_t { none, state_names, weight_type };
+        friend constexpr std::ostream& operator<<(std::ostream& s, keys key) {
+            switch (key) {
+                case keys::none:
+                    s << "<initial>";
+                    break;
+                case keys::state_names:
+                    s << "state-names";
+                    break;
+                case keys::weight_type:
+                    s << "weight-type";
+                    break;
+            }
+            return s;
+        }
+        enum class context_type : uint8_t { initial, weight_array };
+        friend constexpr std::ostream& operator<<(std::ostream& s, context_type type) {
+            switch (type) {
+                case context_type::initial:
+                    s << "<pda-type>";
+                    break;
+                case context_type::weight_array:
+                    s << "weight-type array";
+                    break;
+            }
+            return s;
+        }
+        static constexpr std::size_t N = 2;
+        static constexpr auto FLAG_1 = utils::flag_mask<N>::template flag<1>();
+        static constexpr auto FLAG_2 = utils::flag_mask<N>::template flag<2>();
+        static constexpr keys get_key(context_type type, typename utils::flag_mask<N>::flag_t flag) {
+            switch (type) {
+                case context_type::initial:
+                    if (flag == FLAG_1) {
+                        return keys::state_names;
+                    }
+                    if (flag == FLAG_2) {
+                        return keys::weight_type;
+                    }
+                    break;
+                default:
+                    break;
+            }
+            assert(false);
+            return keys::none;
+        }
+    };
+
+    class PdaTypeSaxHandler : public SAXHandlerContextStack<PdaTypeSaxHelper> {
+        using parent_t = SAXHandlerContextStack<PdaTypeSaxHelper>;
+
+        constexpr static context_t initial_context = context_object<context_type::initial,2>();
+        constexpr static context_t weight_array_context = context_array<context_type::weight_array>();
+
+        template <context_type type, size_t index, typename value_t>
+        bool handle_index(const value_t& value) {
+            if (current_context().get_index() != index) {
+                auto& s = (errors() << "error: value ");
+                print_value(s, value) << "at index " << current_context().get_index() << " in " << type << " was expected to be at index " << index << "." << std::endl;
+                return false;
+            }
+            current_context().increment_index();
+            return true;
+        }
+
+        template<typename T> struct weight_to_pda_sax_handler;
+        template<typename... Args> struct weight_to_pda_sax_handler<std::tuple<Args...>> {
+            using type = std::variant<PdaSaxHandler<weight<Args>, true, true>...,
+                    PdaSaxHandler<weight<Args>, false, true>...>;
+        };
+        template<typename T> using weight_to_pda_sax_handler_t = typename weight_to_pda_sax_handler<T>::type;
+        template<typename T> struct get_pda;
+        template<typename... Args> struct get_pda<std::variant<Args...>> {
+            using type = std::variant<decltype(std::declval<Args>().get_pda())...>;
+        };
+        template<typename T> using get_pda_t = typename get_pda<T>::type;
+
+        using weight_types = std::tuple<void,uint32_t,int32_t,std::vector<uint32_t>,std::vector<int32_t>>;
+    public:
+        using pda_sax_variant_t = weight_to_pda_sax_handler_t<weight_types>;
+        using pda_variant_t = get_pda_t<pda_sax_variant_t>;
+    private:
+        template <typename W>
+        pda_sax_variant_t get_pda_sax_handler_w() {
+            if (use_state_names) {
+                return PdaSaxHandler<W, true, true>(static_cast<const SAXHandlerBase&>(*this));
+            } else {
+                return PdaSaxHandler<W, false, true>(static_cast<const SAXHandlerBase&>(*this));
+            }
+        }
+        template <typename T>
+        pda_sax_variant_t get_pda_sax_handler_a() {
+            if (use_weight_array) {
+                if (weight_array_size) {
+                    switch (weight_array_size.value()) { // TODO: Should we just ignore fixed size std::array to limit the amount of different types the compiler needs to deal with.?
+//                        case 2:
+//                            return get_pda_sax_handler_w<weight<std::array<T,2>>>();
+//                        case 3:
+//                            return get_pda_sax_handler_w<weight<std::array<T,3>>>();
+//                        case 4:
+//                            return get_pda_sax_handler_w<weight<std::array<T,4>>>();
+                        default:
+                            return get_pda_sax_handler_w<weight<std::vector<T>>>();
+                    }
+                } else {
+                    return get_pda_sax_handler_w<weight<std::vector<T>>>();
+                }
+            } else {
+                return get_pda_sax_handler_w<weight<T>>();
+            }
+        }
+
+        std::string weight_str;
+        bool use_state_names = false;
+        bool use_weight_array = false;
+        std::optional<size_t> weight_array_size;
+
+    public:
+        explicit PdaTypeSaxHandler(std::ostream& errors) : parent_t(errors) {};
+        explicit PdaTypeSaxHandler(const SAXHandlerBase& base) : parent_t(base) {};
+
+        pda_sax_variant_t get_pda_sax_handler() {
+            if (weight_str == "UINT") {
+                return get_pda_sax_handler_a<uint32_t>();
+            } else if (weight_str == "INT") {
+                return get_pda_sax_handler_a<int32_t>();
+            } else {
+                return get_pda_sax_handler_w<weight<void>>();
+            }
+        }
+
+        bool null() {
+            return error_unexpected("null value");
+        }
+        bool boolean(bool value) {
+            if (last_key == keys::state_names) {
+                use_state_names = value;
+                return element_done();
+            } else {
+                return error_unexpected("boolean", value);
+            }
+        }
+        bool number_integer(number_integer_t value) {
+            return error_unexpected("integer", value);
+        }
+        bool number_unsigned(number_unsigned_t value) {
+            if (current_context_type() == context_type::weight_array) {
+                if (!handle_index<context_type::weight_array,1>(value)) return false;
+                weight_array_size.emplace(value);
+                return element_done();
+            }
+            return error_unexpected("unsigned", value);
+        }
+        bool number_float(number_float_t value, const string_t& /*unused*/) {
+            return error_unexpected("float", value);
+        }
+        bool string(string_t& value) {
+            if (no_context()) {
+                return error_unexpected("string", value);
+            }
+            if (current_context_type() == context_type::weight_array) {
+                if (!handle_index<context_type::weight_array,0>(value)) return false;
+                weight_str = value;
+                return element_done();
+            }
+            if (last_key == keys::weight_type) {
+                weight_str = value;
+                return element_done();
+            }
+            return error_unexpected("string", value);
+        }
+        bool binary(binary_t& /*val*/) {
+            return error_unexpected("binary value");
+        }
+        bool start_object(std::size_t /*unused*/ = std::size_t(-1)) {
+            if (no_context()) {
+                push_context(initial_context);
+                return true;
+            }
+            return error_unexpected("start of object");
+        }
+        bool key(string_t& key) {
+            if (no_context()) {
+                return error_unexpected_key(key);
+            }
+            if (current_context_type() == context_type::initial) {
+                if (key == "state-names") {
+                    return handle_key<context_type::initial,FLAG_1,keys::state_names>();
+                } else if (key == "weight-type") {
+                    return handle_key<context_type::initial,FLAG_2,keys::weight_type>();
+                }
+            }
+            return error_unexpected_key(key);
+        }
+        bool end_object() {
+            if (no_context()) {
+                errors() << "error: Unexpected end of object." << std::endl;
+                return false;
+            }
+            if (current_context().has_missing_flags()) {
+                return error_missing_keys();
+            }
+            pop_context();
+            if (no_context()) {
+                return false; // Stop using this SAXHandler.
+            }
+            return element_done();
+        }
+        bool start_array(std::size_t /*unused*/ = std::size_t(-1)) {
+            if (no_context()) {
+                errors() << "error: Encountered start of array, but must start with an object." << std::endl;
+                return false;
+            }
+            if (last_key == keys::weight_type) {
+                push_context(weight_array_context);
+                use_weight_array = true;
+                return true;
+            }
+            return error_unexpected("start of array");
+        }
+        bool end_array() {
+            if (no_context()) {
+                errors() << "error: Unexpected end of array." << std::endl;
+                return false;
+            }
+            pop_context();
+            return element_done();
+        }
+    };
+
 }
 
 #endif //PDAAAL_PDAJSONPARSER_H
