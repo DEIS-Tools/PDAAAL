@@ -109,14 +109,14 @@ namespace pdaaal::parsing {
         }
     }
 
-    Parsing::pda_variant_t Parsing::parse(bool no_warnings) {
+    Parsing::pda_variant_t Parsing::parse_pda(bool no_warnings) {
         std::stringstream dummy;
         parsing_options_t parse_opts(no_warnings ? dummy : std::cerr, get_format(input_format),
                                      get_weight_type(weight_type), use_state_names);
         parsing_stopwatch.start();
-        auto value = (input_file.empty() || input_file == "-")
+        auto value = (pda_file.empty() || pda_file == "-")
                      ? parse_stream(std::cin, parse_opts)
-                     : parse_file(input_file, parse_opts);
+                     : parse_file(pda_file, parse_opts);
         parsing_stopwatch.stop();
         return value;
     }

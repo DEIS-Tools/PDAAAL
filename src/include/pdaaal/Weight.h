@@ -35,6 +35,7 @@
 #include <vector>
 #include <optional>
 #include <functional>
+#include <iostream>
 
 namespace pdaaal {
     namespace details {
@@ -54,6 +55,10 @@ namespace pdaaal {
         static constexpr bool is_signed = std::numeric_limits<W>::is_signed;
         static constexpr bool is_vector = false;
         static constexpr auto zero = []() -> type { return static_cast<type>(0); };
+        static constexpr std::ostream& print(std::ostream& s, const type& w) {
+            s << w;
+            return s;
+        }
     };
     template<typename Inner, std::size_t N>
     struct weight<std::array<Inner, N>, std::enable_if_t<std::is_arithmetic_v<Inner> && std::numeric_limits<Inner>::is_specialized>> {
@@ -66,6 +71,17 @@ namespace pdaaal {
             arr.fill(weight<Inner>::zero());
             return arr;
         };
+        static constexpr std::ostream& print(std::ostream& s, const type& w) {
+            bool first = true;
+            s << "[";
+            for (const auto& elem : w) {
+                if (!first) s << ",";
+                first = false;
+                s << elem;
+            }
+            s << "]";
+            return s;
+        }
     };
     template<typename Inner>
     struct weight<std::vector<Inner>, std::enable_if_t<std::is_arithmetic_v<Inner> && std::numeric_limits<Inner>::is_specialized>> {
@@ -74,6 +90,17 @@ namespace pdaaal {
         static constexpr bool is_signed = weight<Inner>::is_signed;
         static constexpr bool is_vector = true;
         static constexpr auto zero = []() -> type { return type{}; }; // TODO: When C++20 arrives, use a constexpr vector instead
+        static constexpr std::ostream& print(std::ostream& s, const type& w) {
+            bool first = true;
+            s << "[";
+            for (const auto& elem : w) {
+                if (!first) s << ",";
+                first = false;
+                s << elem;
+            }
+            s << "]";
+            return s;
+        }
     };
 
     namespace details {

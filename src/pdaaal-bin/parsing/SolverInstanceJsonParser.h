@@ -97,12 +97,6 @@ namespace pdaaal::parsing {
         template<typename... Args> struct pda_to_automaton_sax<std::variant<Args...>> {
             using type = std::variant<PAutomatonSaxHandler<Args, trace_info_type, true>...>;
         };
-        template<typename T> using pda_to_automaton_sax_t = typename pda_to_automaton_sax<T>::type;
-        template<typename T> struct get_automaton;
-        template<typename... Args> struct get_automaton<std::variant<Args...>> {
-            using type = std::variant<decltype(std::declval<Args>().get_automaton())...>;
-        };
-        template<typename T> using get_automaton_t = typename get_automaton<T>::type;
         template<typename T> struct deduce_solver_instance;
         template<typename... Args> struct deduce_solver_instance<std::variant<Args...>> {
             using type = std::variant<decltype(SolverInstance(std::declval<Args&&>(),
@@ -111,9 +105,9 @@ namespace pdaaal::parsing {
         };
 
         using automaton_sax_variant_t = typename pda_to_automaton_sax<pda_variant_t>::type;
-        using automaton_variant_t = typename get_automaton<automaton_sax_variant_t>::type;
+    public:
         using solver_instance_variant_t = typename deduce_solver_instance<pda_variant_t>::type;
-
+    private:
         PdaTypeSaxHandler pda_type_sax_handler;
         std::optional<pda_sax_variant_t> pda_sax_handler;
         std::optional<pda_variant_t> pda_variant;

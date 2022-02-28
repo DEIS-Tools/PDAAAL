@@ -36,6 +36,44 @@
 namespace po = boost::program_options;
 using namespace pdaaal;
 
+class main_output {
+public:
+    main_output(const std::string& caption = "Output Options") : output_options(caption) {
+        output_options.add_options()
+                ("silent,s", po::bool_switch(&silent), "Disables non-essential output.")
+                ("print-pda-json", po::value<std::string>(&pda_json_output), "Print PDA in JSON format to terminal.")
+                ("print-solver-instance", po::value<std::string>(&solver_instance_output), "Print SolverInstance in JSON format to file.")
+                ;
+    }
+    [[nodiscard]] const po::options_description& options() const { return output_options; }
+
+    template<typename instance_t>
+    void do_output(instance_t&& instance) {
+        if (!pda_json_output.empty()) {
+            std::ofstream out(pda_json_output);
+            if (!out.is_open()) {
+                std::cerr << "Could not open --print-pda-json \"" << pda_json_output << "\" for writing" << std::endl;
+                exit(-1);
+            }
+            out << instance->pda().to_json().dump() << std::endl;
+        }
+        if (!solver_instance_output.empty()) {
+            std::ofstream out(solver_instance_output);
+            if (!out.is_open()) {
+                std::cerr << "Could not open --print-solver-instance \"" << solver_instance_output << "\" for writing" << std::endl;
+                exit(-1);
+            }
+            out << instance->to_json().dump() << std::endl;
+        }
+    }
+
+    bool silent = false;
+private:
+    po::options_description output_options;
+    std::string solver_instance_output, pda_json_output;
+};
+
+
 int main(int argc, const char** argv) {
     po::options_description opts;
     opts.add_options()
@@ -44,22 +82,11 @@ int main(int argc, const char** argv) {
 
     parsing::Parsing parsing("Input Options");
     Verifier verifier("Verification Options");
-    po::options_description output("Output Options");
+    main_output output("Output Options");
 
-    bool no_parser_warnings = false;
-    bool silent = false;
-    bool print_pda_json = false;
-    std::string solver_instance_output, solver_instance_input;
-    output.add_options()
-            ("disable-parser-warnings,W", po::bool_switch(&no_parser_warnings), "Disable warnings from parser.")
-            ("silent,s", po::bool_switch(&silent), "Disables non-essential output (implies -W).")
-            ("print-pda-json", po::bool_switch(&print_pda_json), "Print PDA in JSON format to terminal.")  // TODO: This is currently mostly a debug option. Make it useful!
-            ("print-solver-instance", po::value<std::string>(&solver_instance_output), "Print SolverInstance in JSON format to file.")
-            ("input-solver-instance", po::value<std::string>(&solver_instance_input), "Print SolverInstance in JSON format to file.") // TODO: Move option to Input Options...
-            ;
     opts.add(parsing.options());
     opts.add(verifier.options());
-    opts.add(output);
+    opts.add(output.options());
 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, opts), vm);
@@ -78,52 +105,21 @@ int main(int argc, const char** argv) {
         return 1;
     }
 
-    if (silent) { no_parser_warnings = true; }
-    if (!solver_instance_input.empty()) {
-        std::ifstream input_stream(solver_instance_input);
-        if (!input_stream.is_open()) {
-            std::stringstream es;
-            es << "error: Could not open file: " << solver_instance_input << std::endl;
-            throw std::runtime_error(es.str());
-        }
-        auto solver_instance = parsing::SolverInstanceJsonParser::parse<>(input_stream);
-        // TODO: Make Verifier work with this solver_instance. (for now we just print it to console)
-        std::visit([](auto&& solver_instance){
-            std::cout << solver_instance->to_json().dump() << std::endl;
-        }, solver_instance);
-        return 0;
+    if (verifier.needs_trace_info_pair()) {
+        auto instance_variant = parsing.parse_instance<TraceInfoType::Pair>();
+        if (!output.silent) { std::cout << "Parsing duration: " << parsing.duration() << std::endl; }
+        std::visit([&verifier,&output](auto&& instance) {
+            output.do_output(instance);
+            verifier.verify<TraceInfoType::Pair>(*instance);
+        }, instance_variant);
+    } else {
+        auto instance_variant = parsing.parse_instance<>();
+        if (!output.silent) { std::cout << "Parsing duration: " << parsing.duration() << std::endl; }
+        std::visit([&verifier,&output](auto&& instance) {
+            output.do_output(instance);
+            verifier.verify<>(*instance);
+        }, instance_variant);
     }
-
-    auto pda_variant = parsing.parse(no_parser_warnings);
-    if (!silent) {
-        std::cout << "Parsing duration: " << parsing.duration() << std::endl;
-    }
-    if (print_pda_json) {
-        std::visit([](auto&& pda){
-            std::cout << pda.to_json().dump() << std::endl;
-        }, pda_variant);
-        return 0; // TODO: What else.?
-    }
-    if (!solver_instance_output.empty()) {
-        std::ofstream out(solver_instance_output);
-        if (out.is_open()) {
-            std::visit([&out,&verifier](auto&& pda){
-                auto instance = verifier.get_product(std::forward<decltype(pda)>(pda));
-                out << instance.to_json().dump() << std::endl;
-            }, pda_variant);
-        } else {
-            std::cerr << "Could not open --print-solver-instance\"" << solver_instance_output << "\" for writing" << std::endl;
-            exit(-1);
-        }
-        return 0;
-    }
-    std::visit([](auto&& pda){
-        std::cout << "States: " << pda.states().size() << ". Labels: " << pda.number_of_labels() << std::endl;
-    }, pda_variant);
-
-    std::visit([&verifier](auto&& pda) {
-        verifier.verify(std::forward<decltype(pda)>(pda));
-    }, pda_variant);
 
     return 0;
 }
