@@ -43,9 +43,8 @@ namespace pdaaal::parsing {
         template <typename> struct tag { };
         template <typename T, typename... Ts> constexpr std::size_t variant_index() { return std::variant<tag<Ts>...>(tag<T>()).index(); }
         template <typename T, typename V> struct get_index;
-        template <typename T, typename... Ts>
-        struct get_index<T, std::variant<Ts...>> : std::integral_constant<size_t, variant_index<T, Ts...>()> { };
-        template <typename T, typename V> constexpr size_t get_index_v = get_index<T,V>::value;
+        template <typename T, typename... Ts> struct get_index<T, std::variant<Ts...>> : std::integral_constant<std::size_t, variant_index<T, Ts...>()> { };
+        template <typename T, typename V> constexpr std::size_t get_index_v = get_index<T,V>::value;
     }
 
     struct SolverInstanceSaxHelper {
@@ -239,7 +238,7 @@ namespace pdaaal::parsing {
     class SolverInstanceJsonParser {
     public:
         template <TraceInfoType trace_info_type = TraceInfoType::Single>
-        static auto parse(std::istream& stream, std::ostream& /*warnings*/, nlohmann::json::input_format_t format = nlohmann::json::input_format_t::json) {
+        static auto parse(std::istream& stream, nlohmann::json::input_format_t format = nlohmann::json::input_format_t::json) {
             std::stringstream error_stream;
             SolverInstanceSaxHandler<trace_info_type> solver_instance_sax(error_stream);
             SAXHandlerDispatch my_sax(solver_instance_sax, [&solver_instance_sax](SAXHandlerDispatch& dispatch_handler){

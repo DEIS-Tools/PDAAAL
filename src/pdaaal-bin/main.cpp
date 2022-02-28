@@ -49,12 +49,12 @@ int main(int argc, const char** argv) {
     bool no_parser_warnings = false;
     bool silent = false;
     bool print_pda_json = false;
-    std::string solver_instance_file, solver_instance_input;
+    std::string solver_instance_output, solver_instance_input;
     output.add_options()
             ("disable-parser-warnings,W", po::bool_switch(&no_parser_warnings), "Disable warnings from parser.")
             ("silent,s", po::bool_switch(&silent), "Disables non-essential output (implies -W).")
             ("print-pda-json", po::bool_switch(&print_pda_json), "Print PDA in JSON format to terminal.")  // TODO: This is currently mostly a debug option. Make it useful!
-            ("print-solver-instance", po::value<std::string>(&solver_instance_file), "Print SolverInstance in JSON format to file.")
+            ("print-solver-instance", po::value<std::string>(&solver_instance_output), "Print SolverInstance in JSON format to file.")
             ("input-solver-instance", po::value<std::string>(&solver_instance_input), "Print SolverInstance in JSON format to file.") // TODO: Move option to Input Options...
             ;
     opts.add(parsing.options());
@@ -86,8 +86,8 @@ int main(int argc, const char** argv) {
             es << "error: Could not open file: " << solver_instance_input << std::endl;
             throw std::runtime_error(es.str());
         }
-        std::stringstream dummy;
-        auto solver_instance = parsing::SolverInstanceJsonParser::parse<>(input_stream, no_parser_warnings ? dummy : std::cerr);
+        auto solver_instance = parsing::SolverInstanceJsonParser::parse<>(input_stream);
+        // TODO: Make Verifier work with this solver_instance. (for now we just print it to console)
         std::visit([](auto&& solver_instance){
             std::cout << solver_instance->to_json().dump() << std::endl;
         }, solver_instance);
@@ -104,15 +104,15 @@ int main(int argc, const char** argv) {
         }, pda_variant);
         return 0; // TODO: What else.?
     }
-    if (!solver_instance_file.empty()) {
-        std::ofstream out(solver_instance_file);
+    if (!solver_instance_output.empty()) {
+        std::ofstream out(solver_instance_output);
         if (out.is_open()) {
             std::visit([&out,&verifier](auto&& pda){
                 auto instance = verifier.get_product(std::forward<decltype(pda)>(pda));
                 out << instance.to_json().dump() << std::endl;
             }, pda_variant);
         } else {
-            std::cerr << "Could not open --print-solver-instance\"" << solver_instance_file << "\" for writing" << std::endl;
+            std::cerr << "Could not open --print-solver-instance\"" << solver_instance_output << "\" for writing" << std::endl;
             exit(-1);
         }
         return 0;

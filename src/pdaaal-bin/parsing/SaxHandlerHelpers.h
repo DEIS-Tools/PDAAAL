@@ -69,11 +69,12 @@ namespace pdaaal::parsing {
         using type_t = context_type; // Expose template parameter.
         using mask_t = utils::flag_mask<N>;
         using flag_t = typename mask_t::flag_t;
-        using array_size_t = flag_t;
+        using array_size_t = size_t;
 
-        template<std::size_t variant_index = 0>
-        constexpr JsonParserContext(context_type type, flag_t flags, std::in_place_index_t<variant_index>) noexcept
-        : type(type), _v(std::in_place_index<variant_index>, flags) {};
+        constexpr JsonParserContext(context_type type, flag_t flags, std::in_place_index_t<0>) noexcept
+        : type(type), _v(std::in_place_index<0>, flags) {};
+        constexpr JsonParserContext(context_type type, array_size_t flags, std::in_place_index_t<1>) noexcept
+        : type(type), _v(std::in_place_index<1>, flags) {};
 
         [[nodiscard]] constexpr bool is_object() const { return _v.index() == 0; }
         [[nodiscard]] constexpr bool is_array() const { return _v.index() == 1; }
@@ -240,6 +241,12 @@ namespace pdaaal::parsing {
         std::stack<context_t> _context_stack;
     };
 
+    // This class allows combining multiple SAX handlers by providing SAXHandlerDispatch to nlohmann::json::sax_parse,
+    // and using the _callback function to change the SAX handler dispatch functions during parsing.
+    // The _callback function is called, when the internal SAX handler function returns false, but has not used the error stream.
+    // This indirect approach is not the most efficient, but nlohmann/json does not support combining SAX handlers
+    // (at least not in the public interface), so this is good enough for now.
+    // An alternative could be to use a different JSON library, but the maturity of nlohmann/json is currently preferred.
     class SAXHandlerDispatch {
     public:
         using number_integer_t = typename nlohmann::json::number_integer_t;
@@ -250,7 +257,8 @@ namespace pdaaal::parsing {
 
         template<typename other_handler_t, typename CallbackFn>
         SAXHandlerDispatch(other_handler_t& other_handler, CallbackFn&& callback) : _callback(std::forward<CallbackFn>(callback)) {
-            static_assert(std::is_base_of_v<SAXHandlerBase,other_handler_t>);
+            static_assert(std::is_base_of_v<SAXHandlerBase,other_handler_t>,
+                    "The SAX handler needs to derive from SAXHandlerBase to allow checking if an error occurred when returning false.");
             set_dispatch(other_handler);
         }
         template<typename other_handler_t>
