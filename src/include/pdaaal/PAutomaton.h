@@ -39,6 +39,7 @@ namespace pdaaal {
     class PAutomaton : public internal::PAutomaton<W,trace_info_type>, private std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
         static_assert(!skip_state_mapping || std::is_same_v<state_t,size_t>, "When skip_state_mapping==true, you must use state_t=size_t");
         using parent_t = internal::PAutomaton<W,trace_info_type>;
+        using parent2_t = std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>>;
         using pda_t = PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>;
         using internal_pda_t = typename pda_t::parent_t;
     public:
@@ -61,7 +62,7 @@ namespace pdaaal {
         : parent_t(static_cast<const internal_pda_t&>(pda), special_initial_states, special_accepting), _pda(pda) { };
 
         PAutomaton(PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>&& other, const pda_t& pda) noexcept // Move constructor, but update reference to PDA.
-        : parent_t(std::move(other), static_cast<const internal_pda_t&>(pda)), _pda(pda) {};
+        : parent_t(std::move(other), static_cast<const internal_pda_t&>(pda)), parent2_t(std::move(other)), _pda(pda) {};
 
         [[nodiscard]] nlohmann::json to_json(const std::string& name = "P-automaton") const {
             nlohmann::json j;

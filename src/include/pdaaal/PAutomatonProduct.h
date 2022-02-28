@@ -51,6 +51,11 @@ namespace pdaaal {
           _initial(std::move(initial), _pda), _final(std::move(final), _pda),
           _product(_pda, get_initial_accepting(_initial, _final), true) {};
 
+        PAutomatonProduct(PAutomatonProduct&& other, const pda_t& pda) noexcept // Move constructor, but update reference to PDA.
+        : _pda(pda), _pda_size(_pda.states().size()), _initial(std::move(other._initial), _pda), _final(std::move(other._final), _pda),
+          _product(std::move(other._product), _pda), _swap_initial_final(other._swap_initial_final), _id_map(std::move(other._id_map)),
+          _id_fast_lookup(std::move(other._id_fast_lookup)), _id_fast_lookup_back(std::move(other._id_fast_lookup_back)) {};
+
         // Returns whether an accepting state in the product automaton was reached.
         template<bool needs_back_lookup = false, bool ET = true>
         bool initialize_product() {
