@@ -51,6 +51,11 @@ namespace pdaaal {
           _initial(std::move(initial), _pda), _final(std::move(final), _pda),
           _product(_pda, get_initial_accepting(_initial, _final), true) {};
 
+        PAutomatonProduct(PAutomatonProduct&& other, const pda_t& pda) noexcept // Move constructor, but update reference to PDA.
+        : _pda(pda), _pda_size(_pda.states().size()), _initial(std::move(other._initial), _pda), _final(std::move(other._final), _pda),
+          _product(std::move(other._product), _pda), _swap_initial_final(other._swap_initial_final), _id_map(std::move(other._id_map)),
+          _id_fast_lookup(std::move(other._id_fast_lookup)), _id_fast_lookup_back(std::move(other._id_fast_lookup_back)) {};
+
         // Returns whether an accepting state in the product automaton was reached.
         template<bool needs_back_lookup = false, bool ET = true>
         bool initialize_product() {
@@ -149,6 +154,12 @@ namespace pdaaal {
             } else {
                 return _product.find_path([this](size_t s){ return get_original<state_pair>(s); });
             }
+        }
+
+        [[nodiscard]] nlohmann::json to_json() const {
+            nlohmann::json j;
+            j["instance"] = *this;
+            return j;
         }
 
     private:
@@ -372,8 +383,25 @@ namespace pdaaal {
 
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
     PAutomatonProduct(const PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
+                      PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>&& initial,
+                      PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>&& final)
+      -> PAutomatonProduct<PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>,PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>,W,trace_info_type>;
+
+    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
+    PAutomatonProduct(const PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>& pda,
                       internal::PAutomaton<W,trace_info_type> initial, internal::PAutomaton<W,trace_info_type> final)
       -> PAutomatonProduct<PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>,internal::PAutomaton<W,trace_info_type>,W,trace_info_type>;
+
+    template<typename label_t, typename W, fut::type Container, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
+    void to_json(json& j, const PAutomatonProduct<PDA<label_t,W,Container,state_t,skip_state_mapping>,PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>, W, trace_info_type>& instance) {
+        j = json::array();
+        j.emplace_back(json::object());
+        details::params_state_names(j.back(), instance.pda());
+        details::params_weight_type(j.back(), instance.pda());
+        j.emplace_back(instance.pda());
+        j.emplace_back(); to_json_impl<false>(j.back(),instance.initial_automaton()); // Don't print initial states in P-automata,
+        j.emplace_back(); to_json_impl<false>(j.back(),instance.final_automaton());   // since they are derived from the PDA.
+    }
 
 }
 

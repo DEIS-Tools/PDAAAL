@@ -50,6 +50,16 @@ namespace pdaaal {
         SolverInstance(pda_t&& pda, pautomaton_t&& initial, pautomaton_t&& final)
         : _pda(std::move(pda)), _product(_pda, std::move(initial), std::move(final)) {};
 
+        SolverInstance(SolverInstance&& other) noexcept
+        : _pda(std::move(other._pda)), _product(std::move(other._product), _pda) {};
+        SolverInstance& operator=(SolverInstance&& other) noexcept {
+            if (this != &other) {
+                _pda = std::move(other._pda);
+                _product = product_t(std::move(other._product), _pda);
+            }
+            return *this;
+        }
+
         product_t* operator->() {
             return &_product;
         }

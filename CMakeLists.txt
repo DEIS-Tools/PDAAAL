@@ -60,6 +60,7 @@ if(BUILD_TESTING AND PDAAAL_BuildTests)
     add_test(NAME AutomatonPath_test        COMMAND AutomatonPath_test)
 
     if (PDAAAL_Build_Main) # We need the dependencies for pdaaal-bin to test it.
+        add_test(NAME Parser_test               COMMAND Parser_test)
         add_test(NAME Verification_test         COMMAND Verification_test)
     endif()
 

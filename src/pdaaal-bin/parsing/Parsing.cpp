@@ -27,7 +27,7 @@
 #include "Parsing.h"
 #include <algorithm>
 
-namespace pdaaal {
+namespace pdaaal::parsing {
 
     enum class input_format {PDAAAL, MOPED};
     enum class weight_type {NONE, UINT, INT};
@@ -44,9 +44,9 @@ namespace pdaaal {
     template <typename W>
     Parsing::pda_variant_t parse_stream_json_w(std::istream& stream, const parsing_options_t& parse_opts) {
         if (parse_opts.use_state_names) {
-            return PdaJSONParser::parse<W,true>(stream, parse_opts.warnings);
+            return PdaJsonParser::parse<W,true>(stream, parse_opts.warnings);
         } else {
-            return PdaJSONParser::parse<W,false>(stream, parse_opts.warnings);
+            return PdaJsonParser::parse<W,false>(stream, parse_opts.warnings);
         }
     }
     Parsing::pda_variant_t parse_stream_json(std::istream& stream, const parsing_options_t& parse_opts) {
@@ -109,14 +109,14 @@ namespace pdaaal {
         }
     }
 
-    Parsing::pda_variant_t Parsing::parse(bool no_warnings) {
+    Parsing::pda_variant_t Parsing::parse_pda(bool no_warnings) {
         std::stringstream dummy;
         parsing_options_t parse_opts(no_warnings ? dummy : std::cerr, get_format(input_format),
                                      get_weight_type(weight_type), use_state_names);
         parsing_stopwatch.start();
-        auto value = (input_file.empty() || input_file == "-")
+        auto value = (pda_file.empty() || pda_file == "-")
                      ? parse_stream(std::cin, parse_opts)
-                     : parse_file(input_file, parse_opts);
+                     : parse_file(pda_file, parse_opts);
         parsing_stopwatch.stop();
         return value;
     }

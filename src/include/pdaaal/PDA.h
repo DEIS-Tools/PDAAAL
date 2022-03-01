@@ -61,6 +61,8 @@ namespace pdaaal {
     class PDA : public internal::PDA<W, Container>, public std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
     public:
         using parent_t = internal::PDA<W, Container>;
+        using expose_state_t = state_t; // Expose template parameter as dependent name.
+        static constexpr bool expose_skip_state_mapping = skip_state_mapping;
     protected:
         using impl_rule_t = typename internal::PDA<W, Container>::rule_t; // This rule type is used internally.
         static_assert(!skip_state_mapping || std::is_same_v<state_t,size_t>, "When skip_state_mapping==true, you must use state_t=size_t");
@@ -381,6 +383,52 @@ namespace pdaaal {
             ++state_i;
         }
         j["states"] = j_states;
+    }
+
+    namespace details {
+        template<typename label_t, typename W>
+        void params_state_names(nlohmann::json& j, const PDA<label_t,W,fut::type::vector,size_t,true>&) {
+            j["state-names"] = false;
+        }
+        template<typename label_t, typename W, typename state_t>
+        void params_state_names(nlohmann::json& j, const PDA<label_t,W,fut::type::vector,state_t,false>&) {
+            j["state-names"] = true;
+        }
+        template<typename label_t, typename state_t, bool skip_state_mapping>
+        void params_weight_type(nlohmann::json& j, const PDA<label_t,weight<void>,fut::type::vector,state_t,skip_state_mapping>&) {
+            j["weight-type"] = "none";
+        }
+        template<typename Inner, std::size_t N, typename label_t, typename state_t, bool skip_state_mapping>
+        void params_weight_type(nlohmann::json& j, const PDA<label_t,weight<std::array<Inner,N>>,fut::type::vector,state_t,skip_state_mapping>&) {
+            static_assert(weight<std::array<Inner,N>>::is_weight);
+            j["weight-type"] = json::array();
+            if constexpr(weight<std::array<Inner,N>>::is_signed) {
+                j["weight-type"].emplace_back("int");
+            } else {
+                j["weight-type"].emplace_back("uint");
+            }
+            j["weight-type"].emplace_back(N);
+        }
+        template<typename Inner, typename label_t, typename state_t, bool skip_state_mapping>
+        void params_weight_type(nlohmann::json& j, const PDA<label_t,weight<std::vector<Inner>>,fut::type::vector,state_t,skip_state_mapping>&) {
+            static_assert(weight<std::vector<Inner>>::is_weight);
+            j["weight-type"] = json::array();
+            if constexpr(weight<std::vector<Inner>>::is_signed) {
+                j["weight-type"].emplace_back("int");
+            } else {
+                j["weight-type"].emplace_back("uint");
+            }
+        }
+        template<typename label_t, typename W, typename state_t, bool skip_state_mapping>
+        void params_weight_type(nlohmann::json& j, const PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&) {
+            if constexpr(W::is_weight) {
+                if constexpr(W::is_signed) {
+                    j["weight-type"] = "int";
+                } else {
+                    j["weight-type"] = "uint";
+                }
+            }
+        }
     }
 
 }

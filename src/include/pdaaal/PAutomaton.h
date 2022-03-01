@@ -39,6 +39,7 @@ namespace pdaaal {
     class PAutomaton : public internal::PAutomaton<W,trace_info_type>, private std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
         static_assert(!skip_state_mapping || std::is_same_v<state_t,size_t>, "When skip_state_mapping==true, you must use state_t=size_t");
         using parent_t = internal::PAutomaton<W,trace_info_type>;
+        using parent2_t = std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>>;
         using pda_t = PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>;
         using internal_pda_t = typename pda_t::parent_t;
     public:
@@ -59,6 +60,9 @@ namespace pdaaal {
 
         PAutomaton(const pda_t& pda, const std::vector<size_t>& special_initial_states, bool special_accepting = true)
         : parent_t(static_cast<const internal_pda_t&>(pda), special_initial_states, special_accepting), _pda(pda) { };
+
+        PAutomaton(PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>&& other, const pda_t& pda) noexcept // Move constructor, but update reference to PDA.
+        : parent_t(std::move(other), static_cast<const internal_pda_t&>(pda)), parent2_t(std::move(other)), _pda(pda) {};
 
         [[nodiscard]] nlohmann::json to_json(const std::string& name = "P-automaton") const {
             nlohmann::json j;
@@ -84,20 +88,25 @@ namespace pdaaal {
         }
         size_t insert_state(const state_t& state) {
             if constexpr (skip_state_mapping) {
-                return state; // + this->pda().states().size();
+                return state;
             } else {
                 return this->_state_map.insert(state).second + _pda.states().size();
             }
         }
 
-        [[nodiscard]] state_t get_state(size_t id) const {
+        [[nodiscard]] std::optional<state_t> get_state_optional(size_t id) const {
             if constexpr (skip_state_mapping) {
                 return id;
             } else {
                 if (id < _pda.states().size()) {
                     return _pda.get_state(id);
                 } else {
-                    return static_cast<const state_mapping<state_t>*>(this)->get_state(id - _pda.states().size());
+                    auto offset = id - _pda.states().size();
+                    if (offset < this->state_map_size()) {
+                        return static_cast<const state_mapping<state_t>*>(this)->get_state(offset);
+                    } else {
+                        return std::nullopt;
+                    }
                 }
             }
         }
@@ -114,142 +123,56 @@ namespace pdaaal {
     template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type = TraceInfoType::Single>
     PAutomaton(const PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&, const std::vector<size_t>&, bool special_accepting = true) -> PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>;
 
-    class PAutomatonJsonParser {
-    public:
-        template <TraceInfoType trace_info_type = TraceInfoType::Single, typename pda_t>
-        static auto parse(const std::string& file, pda_t& pda, const std::string& name = "P-automaton") {
-            std::ifstream file_stream(file);
-            if (!file_stream.is_open()) {
-                std::stringstream error;
-                error << "Could not open " << name << " file: " << file << std::endl;
-                throw std::runtime_error(error.str());
-            }
-            return parse<trace_info_type>(file_stream, pda, name);
-        }
-        template <TraceInfoType trace_info_type = TraceInfoType::Single, typename pda_t>
-        static auto parse(std::istream& istream, pda_t& pda, const std::string& name = "P-automaton") {
-            json j;
-            istream >> j;
-            return from_json<trace_info_type>(j[name], pda);
-        }
-        template <TraceInfoType trace_info_type, typename W>
-        static auto from_json(const json& j, PDA<std::string,W,fut::type::vector, std::string>& pda) {
-            return from_json<trace_info_type, std::string>(j, pda, [](const std::string& s) { return s; });
-        }
-        template <TraceInfoType trace_info_type, typename W, bool ssm>
-        static auto from_json(const json& j, PDA<std::string,W,fut::type::vector, size_t, ssm>& pda) {
-            return from_json<trace_info_type, size_t>(j, pda, [](const std::string& s) -> size_t { return std::stoul(s); });
-        }
-    private:
-        template <TraceInfoType trace_info_type, typename state_t, typename W, bool skip_state_mapping>
-        static auto from_json(const json& j,
-                              PDA<std::string,W,fut::type::vector,state_t,skip_state_mapping>& pda,
-                              const std::function<state_t(const std::string&)>& state_mapping) {
-            // TODO: Proper error checking and handling.!
-            auto iterate_states = [&j,&state_mapping](const std::function<void(const state_t&,const json&)>& fn) {
-                if constexpr (skip_state_mapping) {
-                    assert(j["states"].is_array());
-                    size_t i = 0;
-                    for (const auto& j_state : j["states"]) {
-                        fn(i, j_state);
-                        ++i;
-                    }
-                } else {
-                    assert(j["states"].is_object());
-                    for (const auto& [name,j_state] : j["states"].items()) {
-                        fn(state_mapping(name), j_state);
-                    }
-                }
-            };
-            std::vector<size_t> accepting_initial_states;
-            std20::unordered_set<state_t> accepting_extra_states;
-            iterate_states([&pda,&accepting_initial_states,&accepting_extra_states](const state_t& state, const json& j_state){
-                auto [exists, id] = pda.exists_state(state);
-                if (exists) {
-                    if (j_state.contains("accepting") && j_state["accepting"].get<bool>()) {
-                        accepting_initial_states.emplace_back(id);
-                    }
-                    assert(j_state.contains("initial") && j_state["initial"].get<bool>());
-                } else {
-                    if (j_state.contains("accepting") && j_state["accepting"].get<bool>()) {
-                        accepting_extra_states.emplace(state);
-                    }
-                    assert(!(j_state.contains("initial") && j_state["initial"].get<bool>()));
-                }
-            });
-            std::sort(accepting_initial_states.begin(), accepting_initial_states.end());
-            accepting_initial_states.erase(std::unique(accepting_initial_states.begin(), accepting_initial_states.end()), accepting_initial_states.end());
-            PAutomaton<std::string, W, state_t, skip_state_mapping, trace_info_type> automaton(pda, accepting_initial_states, true);
+    // Simplify type deduction elsewhere.
+    namespace details {
+        template<typename pda_t, TraceInfoType trace_info_type> struct pda_to_pautomaton;
+        template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
+        struct pda_to_pautomaton<PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>, trace_info_type> {
+            using type = PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>;
+        };
+    }
+    template<typename pda_t, TraceInfoType trace_info_type = TraceInfoType::Single>
+    using pda_to_pautomaton_t = typename details::pda_to_pautomaton<pda_t,trace_info_type>::type;
 
-            auto state_to_id = [&automaton,&accepting_extra_states](const state_t& state){
-                auto [exists, id] = automaton.exists_state(state);
-                if (!exists) {
-                    id = automaton.add_state(false, accepting_extra_states.contains(state));
-                    auto id2 = automaton.insert_state(state);
-                    assert(id == id2);
-                }
-                return id;
-            };
-
-            iterate_states([&state_to_id,&automaton,&state_mapping,&pda](const state_t& state, const json& j_state){
-                size_t from = state_to_id(state);
-                for (const auto& edge : j_state["edges"]) {
-                    size_t to;
-                    if constexpr (skip_state_mapping) {
-                        assert(edge["to"].is_number_unsigned());
-                        to = state_to_id(edge["to"].get<size_t>());
-                    } else {
-                        assert(edge["to"].is_string());
-                        to = state_to_id(state_mapping(edge["to"].get<std::string>()));
-                    }
-                    auto label_string = edge["label"].get<std::string>();
-                    if (label_string.empty()) {
-                        automaton.add_epsilon_edge(from,to);
-                    } else {
-                        automaton.add_edge(from,to,pda.insert_label(label_string));
-                    }
-                }
-            });
-            return automaton;
-        }
-    };
-
-    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
-    void to_json(json& j, const PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>& automaton) {
+    template<bool with_initial = true, typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
+    void to_json_impl(json& j, const PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>& automaton) {
         j = json::object();
         size_t num_pda_states = automaton.pda().states().size();
-        auto state_to_string = [&automaton](size_t state){
-            return details::label_to_string(automaton.get_state(state));
+        auto state_to_json_value = [&automaton](size_t state) -> json {
+            if constexpr(skip_state_mapping) {
+                return state;
+            } else {
+                if (auto s = automaton.get_state_optional(state); s) {
+                    return details::label_to_string(s.value());
+                }
+                return state;
+            }
         };
-        json j_states;
+        json j_edges = json::array();
         for (const auto& state : automaton.states()) {
-            auto j_state = json::object();
-            if (state->_id < num_pda_states) {
-                j_state["initial"] = true;
-            }
-            if (state->_accepting) {
-                j_state["accepting"] = true;
-            }
-            j_state["edges"] = json::array();
-            for (const auto& [to, labels] : state->_edges) {
-                for (const auto& [label,tw] : labels) {
-                    json edge;
-                    if constexpr (skip_state_mapping) {
-                        edge["to"] = to;
-                    } else {
-                        edge["to"] = state_to_string(to);
-                    }
-                    edge["label"] = label == automaton.epsilon ? "" : details::label_to_string(automaton.get_symbol(label));
-                    j_state["edges"].emplace_back(edge);
+            auto j_from = state_to_json_value(state->_id);
+            if constexpr(with_initial) {
+                if (state->_id < num_pda_states) {
+                    j["initial"].emplace_back(j_from);
                 }
             }
-            if constexpr (skip_state_mapping) {
-                j_states.emplace_back(j_state);
-            } else {
-                j_states[state_to_string(state->_id)] = j_state;
+            if (state->_accepting) {
+                j["accepting"].emplace_back(j_from);
+            }
+            for (const auto& [to, labels] : state->_edges) {
+                for (const auto& [label,tw] : labels) {
+                    j_edges.emplace_back(json::array(
+                            {j_from,
+                             label == automaton.epsilon ? "" : details::label_to_string(automaton.get_symbol(label)),
+                             state_to_json_value(to)}));
+                }
             }
         }
-        j["states"] = j_states;
+        j["edges"] = j_edges;
+    }
+    template<typename label_t, typename W, typename state_t, bool skip_state_mapping, TraceInfoType trace_info_type>
+    void to_json(json& j, const PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>& automaton) {
+        to_json_impl(j,automaton);
     }
 
 }
