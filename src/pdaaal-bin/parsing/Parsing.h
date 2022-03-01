@@ -117,7 +117,7 @@ namespace pdaaal::parsing {
         std::string weight_type = "none";
         bool use_state_names = false;
         bool msgpack = false;
-        std::string pda_file, initial_pa_file, final_pa_file, solver_instance_input;
+        std::string pda_file, initial_pa_file, final_pa_file;
         bool json_automata = false;
         stopwatch parsing_stopwatch{false};
     };

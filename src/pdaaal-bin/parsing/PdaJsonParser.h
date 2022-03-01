@@ -468,7 +468,8 @@ namespace pdaaal::parsing {
         }
     };
 
-
+    // The PDA-type can be prepended to the PDA JSON structure to indicate the parameters
+    // (weight type and whether states are named) for the PDA parser. 
     struct PdaTypeSaxHelper {
         enum class keys : uint32_t { none, state_names, weight_type };
         friend constexpr std::ostream& operator<<(std::ostream& s, keys key) {

@@ -66,7 +66,7 @@ namespace pdaaal::parsing {
         using type_t = context_type; // Expose template parameter.
         using mask_t = utils::flag_mask<N>;
         using flag_t = typename mask_t::flag_t;
-        using array_size_t = size_t;
+        using array_size_t = std::size_t;
 
         constexpr JsonParserContext(context_type type, flag_t flags, std::in_place_index_t<0>) noexcept
         : type(type), _v(std::in_place_index<0>, flags) {};
@@ -100,8 +100,8 @@ namespace pdaaal::parsing {
     // The template <helper> class should provide the following:
     //   - 'enum class keys' with printing 'ostream& operator<<(ostream&,keys)'.
     //   - 'enum class context_type' with printing 'ostream& operator<<(ostream&,context_type)'.
-    //   - 'static constexpr size_t N', which is the largest number of keys needed. (N also determines to uint size for keeping track of array index).
-    //   - 'static constexpr keys get_key(context_type,flag)' that for object contexts map the type and flag to the corresponding key (only needed if handle_key is used).
+    //   - 'static constexpr size_t N', which is the largest number of keys needed.
+    //   - 'static constexpr keys get_key(context_type,flag)' that for object contexts map the type and flag to the corresponding key (only needed if handle_key or error_missing_keys are used).
     template<typename Helper>
     struct SAXHandlerContextStack : public SAXHandlerBase, public Helper {
         using keys = typename Helper::keys;
@@ -127,6 +127,7 @@ namespace pdaaal::parsing {
 
         void pop_context() { _context_stack.pop(); }
         void push_context(const context_t& c) { _context_stack.push(c); }
+        void push_context(context_t&& c) { _context_stack.push(std::move(c)); }
         [[nodiscard]] bool no_context() const { return _context_stack.empty(); }
         [[nodiscard]] const context_t& current_context() const { return _context_stack.top(); }
         [[nodiscard]] context_t& current_context() { return _context_stack.top(); }
