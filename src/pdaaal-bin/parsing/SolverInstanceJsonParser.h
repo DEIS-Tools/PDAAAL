@@ -29,6 +29,7 @@
 
 #include "PdaJsonParser.h"
 #include "PAutomatonJsonParser.h"
+#include "SaxHandlerDispatch.h"
 #include <pdaaal/PDA.h>
 #include <pdaaal/SolverInstance.h>
 

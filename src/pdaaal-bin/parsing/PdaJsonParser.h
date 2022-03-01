@@ -27,7 +27,7 @@
 #ifndef PDAAAL_PDAJSONPARSER_H
 #define PDAAAL_PDAJSONPARSER_H
 
-#include "SaxHandlerHelpers.h"
+#include <pdaaal/utils/SaxHandlerHelpers.h>
 #include <pdaaal/PDA.h>
 #include <nlohmann/json.hpp>
 #include <iostream>

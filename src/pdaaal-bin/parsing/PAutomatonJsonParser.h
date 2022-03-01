@@ -27,7 +27,7 @@
 #ifndef PDAAAL_PAUTOMATONJSONPARSER_H
 #define PDAAAL_PAUTOMATONJSONPARSER_H
 
-#include "SaxHandlerHelpers.h"
+#include <pdaaal/utils/SaxHandlerHelpers.h>
 #include <pdaaal/PAutomaton.h>
 
 namespace pdaaal::parsing {
