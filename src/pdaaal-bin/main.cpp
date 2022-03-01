@@ -38,7 +38,7 @@ using namespace pdaaal;
 
 class main_output {
 public:
-    main_output(const std::string& caption = "Output Options") : output_options(caption) {
+    explicit main_output(const std::string& caption = "Output Options") : output_options(caption) {
         output_options.add_options()
                 ("silent,s", po::bool_switch(&silent), "Disables non-essential output.")
                 ("print-pda-json", po::value<std::string>(&pda_json_output), "Print PDA in JSON format to terminal.")
@@ -73,6 +73,15 @@ private:
     std::string solver_instance_output, pda_json_output;
 };
 
+template<TraceInfoType traceInfoType>
+void run(parsing::Parsing& parsing, Verifier& verifier, main_output& output) {
+    auto instance_variant = parsing.parse_instance<traceInfoType>();
+    if (!output.silent) { std::cout << "Parsing duration: " << parsing.duration() << std::endl; }
+    std::visit([&verifier,&output](auto&& instance) {
+        output.do_output(instance);
+        verifier.verify<traceInfoType>(*instance);
+    }, instance_variant);
+}
 
 int main(int argc, const char** argv) {
     po::options_description opts;
@@ -105,20 +114,10 @@ int main(int argc, const char** argv) {
         return 1;
     }
 
-    if (verifier.needs_trace_info_pair()) {
-        auto instance_variant = parsing.parse_instance<TraceInfoType::Pair>();
-        if (!output.silent) { std::cout << "Parsing duration: " << parsing.duration() << std::endl; }
-        std::visit([&verifier,&output](auto&& instance) {
-            output.do_output(instance);
-            verifier.verify<TraceInfoType::Pair>(*instance);
-        }, instance_variant);
+    if (verifier.needs_trace_info_pair()) { // Currently, we need to differentiate between these cases at top level.
+        run<TraceInfoType::Pair>(parsing, verifier, output);
     } else {
-        auto instance_variant = parsing.parse_instance<>();
-        if (!output.silent) { std::cout << "Parsing duration: " << parsing.duration() << std::endl; }
-        std::visit([&verifier,&output](auto&& instance) {
-            output.do_output(instance);
-            verifier.verify<>(*instance);
-        }, instance_variant);
+        run<TraceInfoType::Single>(parsing, verifier, output);
     }
 
     return 0;

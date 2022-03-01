@@ -90,6 +90,8 @@ namespace pdaaal {
         void verify(instance_t& instance) {
             using pda_t = std20::remove_cvref_t<decltype(instance.pda())>;
 
+            if (engine == 0) return; // No verification if not specified.
+
             bool result = false;
             std::vector<typename pda_t::tracestate_t> trace;
             if constexpr (trace_info_type == TraceInfoType::Single) {
@@ -176,6 +178,11 @@ namespace pdaaal {
                         }
                         break;
                     }
+                    default: {
+                        std::stringstream error;
+                        error << "error: Unsupported option value --engine " << engine << std::endl;
+                        throw std::runtime_error(error.str());
+                    }
                 }
             } else {
                 switch (engine) {
@@ -217,6 +224,11 @@ namespace pdaaal {
                             throw std::runtime_error("Cannot use fixed-point (longest or shortest) trace option for unweighted PDA.");
                         }
                     }
+                    default: {
+                        std::stringstream error;
+                        error << "error: Unsupported option value --engine " << engine << std::endl;
+                        throw std::runtime_error(error.str());
+                    }
                 }
             }
 
@@ -241,7 +253,6 @@ namespace pdaaal {
         po::options_description verification_options;
         size_t engine = 0;
         Trace_Type trace_type = Trace_Type::None;
-        //bool print_trace = false;
     };
 }
 
