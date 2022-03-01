@@ -77,10 +77,10 @@ namespace pdaaal::parsing {
                 auto pda = parse_pda();
                 auto value = std::visit([this](auto&& pda){
                     auto initial_p_automaton = json_automata ?
-                                               PAutomatonJsonParser::parse<trace_info_type>(initial_pa_file, pda, "P-automaton") :
+                                               PAutomatonJsonParser::parse<trace_info_type>(initial_pa_file, pda) :
                                                PAutomatonParser::parse_file<trace_info_type>(initial_pa_file, pda);
                     auto final_p_automaton = json_automata ?
-                                             PAutomatonJsonParser::parse<trace_info_type>(final_pa_file, pda, "P-automaton") :
+                                             PAutomatonJsonParser::parse<trace_info_type>(final_pa_file, pda) :
                                              PAutomatonParser::parse_file<trace_info_type>(final_pa_file, pda);
                     return solver_instance_variant_t<trace_info_type>(SolverInstance(std::forward<decltype(pda)>(pda), std::move(initial_p_automaton), std::move(final_p_automaton)));
                 }, std::move(pda));

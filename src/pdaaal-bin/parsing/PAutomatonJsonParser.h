@@ -391,8 +391,18 @@ namespace pdaaal::parsing {
         }
     };
 
-    class PAutomatonJsonParser_New {
+    class PAutomatonJsonParser {
     public:
+        template <TraceInfoType trace_info_type = TraceInfoType::Single, typename pda_t>
+        static auto parse(const std::string& file, pda_t& pda) {
+            std::ifstream file_stream(file);
+            if (!file_stream.is_open()) {
+                std::stringstream error;
+                error << "Could not open P-automaton file: " << file << std::endl;
+                throw std::runtime_error(error.str());
+            }
+            return parse<trace_info_type>(file_stream, pda);
+        }
         template <TraceInfoType trace_info_type = TraceInfoType::Single, typename pda_t>
         static auto parse(std::istream& stream, pda_t& pda, json::input_format_t format = json::input_format_t::json) {
             std::stringstream error_stream;
@@ -404,7 +414,7 @@ namespace pdaaal::parsing {
         }
     };
 
-    class PAutomatonJsonParser {
+    class PAutomatonJsonParser_Old {
         public:
         template <TraceInfoType trace_info_type = TraceInfoType::Single, typename pda_t>
         static auto parse(const std::string& file, pda_t& pda, const std::string& name = "P-automaton") {
