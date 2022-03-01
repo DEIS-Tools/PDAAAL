@@ -92,11 +92,11 @@ namespace pdaaal::parsing {
                 case context_type::p_automaton:
                     switch (flag) {
                         case FLAG_1:
-                            return keys::initial;
-                        case FLAG_2:
                             return keys::accepting;
-                        case FLAG_3:
+                        case FLAG_2:
                             return keys::edges;
+                        case FLAG_3:
+                            return keys::initial;
                         default:
                             break;
                     }
@@ -109,7 +109,7 @@ namespace pdaaal::parsing {
         }
     };
 
-    template <typename pda_t, TraceInfoType trace_info_type = TraceInfoType::Single, bool embedded_parser = false>
+    template <typename pda_t, TraceInfoType trace_info_type = TraceInfoType::Single, bool embedded_parser = false, bool require_initial = !embedded_parser>
     class PAutomatonSaxHandler : public SAXHandlerContextStack<PAutomatonSaxHelper> {
         using parent_t = SAXHandlerContextStack<PAutomatonSaxHelper>;
 
@@ -119,7 +119,7 @@ namespace pdaaal::parsing {
         static constexpr bool skip_state_mapping = pda_t::expose_skip_state_mapping;
 
         constexpr static context_t initial_context = context_object<context_type::initial, 1>();
-        constexpr static context_t p_automaton = context_object<context_type::p_automaton, 3>(); // TODO: Consider making "initial" optional (since it can be derived from the PDA).
+        constexpr static context_t p_automaton = context_object<context_type::p_automaton, require_initial ? 3 : 2>();
         constexpr static context_t initial_array = context_array<context_type::initial_array>();
         constexpr static context_t accepting_array = context_array<context_type::accepting_array>();
         constexpr static context_t edges_array = context_array<context_type::edges_array>();
@@ -299,18 +299,22 @@ namespace pdaaal::parsing {
             switch (current_context_type()) {
                 case context_type::initial:
                     if (key == "P-automaton") {
-                        if (!handle_key<context_type::initial,FLAG_1,keys::p_automaton>()) return false;
+                        return handle_key<context_type::initial,FLAG_1,keys::p_automaton>();
                     } else {
                         return error_unexpected_key(key);
                     }
                     break;
                 case context_type::p_automaton:
-                    if (key == "initial") {
-                        if (!handle_key<context_type::p_automaton,FLAG_1,keys::initial>()) return false;
-                    } else if (key == "accepting") {
-                        if (!handle_key<context_type::p_automaton,FLAG_2,keys::accepting>()) return false;
+                    if (key == "accepting") {
+                        return handle_key<context_type::p_automaton,FLAG_1,keys::accepting>();
                     } else if (key == "edges"){
-                        if (!handle_key<context_type::p_automaton,FLAG_3,keys::edges>()) return false;
+                        return handle_key<context_type::p_automaton,FLAG_2,keys::edges>();
+                    } else if (key == "initial") {
+                        if constexpr(require_initial) {
+                            return handle_key<context_type::p_automaton,FLAG_3,keys::initial>();
+                        } else {
+                            last_key = keys::initial;
+                        }
                     } else {
                         return error_unexpected_key(key);
                     }

@@ -399,8 +399,8 @@ namespace pdaaal {
         details::params_state_names(j.back(), instance.pda());
         details::params_weight_type(j.back(), instance.pda());
         j.emplace_back(instance.pda());
-        j.emplace_back(instance.initial_automaton());
-        j.emplace_back(instance.final_automaton());
+        j.emplace_back(); to_json_impl<false>(j.back(),instance.initial_automaton()); // Don't print initial states in P-automata,
+        j.emplace_back(); to_json_impl<false>(j.back(),instance.final_automaton());   // since they are derived from the PDA.
     }
 
 }
