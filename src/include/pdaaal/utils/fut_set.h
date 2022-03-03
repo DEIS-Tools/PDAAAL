@@ -29,7 +29,7 @@
 
 #include "std20.h"
 #include "vector_set.h"
-#include <absl/hash/hash.h>
+#include "absl_hash.h"
 
 namespace pdaaal::fut {
 
