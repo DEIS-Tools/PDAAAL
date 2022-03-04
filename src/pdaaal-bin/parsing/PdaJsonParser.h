@@ -268,8 +268,13 @@ namespace pdaaal::parsing {
                     current_rule._op_label = std::numeric_limits<uint32_t>::max();
                     break;
                 case keys::swap:
-                    current_rule._operation = op_t::SWAP;
-                    current_rule._op_label = build_pda.insert_label(value);
+                    if (current_wildcard && value == "*") { // Allow wildcard-noop as "*":{"swap":"*",...}. This gives for all labels "l" a rule "l":{"swap":"l",...}.
+                        current_rule._operation = op_t::NOOP;
+                        current_rule._op_label = std::numeric_limits<uint32_t>::max();
+                    } else {
+                        current_rule._operation = op_t::SWAP;
+                        current_rule._op_label = build_pda.insert_label(value);
+                    }
                     break;
                 case keys::push:
                     current_rule._operation = op_t::PUSH;
