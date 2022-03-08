@@ -23,14 +23,10 @@ option(PDAAAL_Build_Main "Build the stand-alone PDAAAL binary." ${PDAAAL_MAIN_PR
 option(PDAAAL_AddressSanitizer "Enables address sanitization during compilation." OFF)
 option(PDAAAL_GetDependencies "Fetch external dependencies from web." ON)
 
-
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -Wall")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2 -Wall -Wpedantic")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lstdc++")
 
 if(PDAAAL_AddressSanitizer)
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}  -fno-omit-frame-pointer -fsanitize=address")
+    add_compile_options(-fno-omit-frame-pointer -fsanitize=address)
 endif(PDAAAL_AddressSanitizer)
 
 find_package(Boost 1.70 CONFIG REQUIRED COMPONENTS headers program_options unit_test_framework)

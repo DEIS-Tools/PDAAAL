@@ -113,7 +113,7 @@ namespace pdaaal::internal {
         if (!dual_stack) {
             if (_tos.size() != all_labels) {
                 _tos.resize(all_labels);
-                for (size_t i = 0; i < all_labels; ++i) _tos[i] = i;
+                for (uint32_t i = 0; i < all_labels; ++i) _tos[i] = i;
                 changed = true;
             }
         }

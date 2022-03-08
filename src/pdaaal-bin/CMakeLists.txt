@@ -45,7 +45,16 @@ target_link_libraries(pdaaal-bin
         PRIVATE pdaaal
                 Boost::program_options
 )
+if (MSVC)
+    target_compile_options(pdaaal-bin PRIVATE /W4)
+else()
+    target_compile_options(pdaaal-bin PRIVATE -Wall -Wextra -Wpedantic)
+endif()
 target_include_directories(pdaaal-bin PRIVATE ${CMAKE_CURRENT_BINARY_DIR}) # version.h is located here
 target_include_directories(pdaaal-bin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_dependencies(pdaaal-bin pdaaal_generate_version)
-set_target_properties(pdaaal-bin PROPERTIES OUTPUT_NAME pdaaal) # Name the executable file pdaaal.
+set_target_properties(pdaaal-bin PROPERTIES
+        OUTPUT_NAME pdaaal # Name the executable file pdaaal.
+        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")

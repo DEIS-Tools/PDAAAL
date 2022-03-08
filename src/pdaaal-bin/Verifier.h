@@ -223,6 +223,7 @@ namespace pdaaal {
                             assert(false);
                             throw std::runtime_error("Cannot use fixed-point (longest or shortest) trace option for unweighted PDA.");
                         }
+                        break;
                     }
                     default: {
                         std::stringstream error;

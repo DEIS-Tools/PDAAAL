@@ -134,7 +134,7 @@ namespace pdaaal::utils {
     template <typename KEY>
     struct byte_vector_converter<KEY, std::enable_if_t<has_byte_iterator_v<KEY>>> {
         using T = KEY;
-        static constexpr size_t size(const T& data) {
+        static constexpr size_t size(const T&) {
             return ptrie::byte_iterator<KEY>::element_size();
         }
         static constexpr void push_back_bytes(std::vector<std::byte>& result, const T& data){

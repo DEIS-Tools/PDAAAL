@@ -17,7 +17,11 @@ target_sources(pdaaal
     PUBLIC  ${HEADER_FILES}
 )
 target_compile_features(pdaaal PUBLIC cxx_std_17) # Require C++17 features.
-target_compile_definitions(pdaaal PUBLIC $<$<CONFIG:Release>:NDEBUG>) # We can use "#ifndef NDEBUG\n <debug only code> \n#endif" to define code that is only used in debug mode.
+if (MSVC)
+    target_compile_options(pdaaal PRIVATE /W4)
+else()
+    target_compile_options(pdaaal PRIVATE -Wall -Wextra -Wpedantic)
+endif()
 target_include_directories(pdaaal PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
