@@ -209,20 +209,6 @@ namespace pdaaal {
             this->add_untyped_rule_impl(from, r, wildcard, pre_labels);
         }
 
-        std::vector<label_t> get_labels(const internal::labels_t& labels) const { // TODO: Support lazy iteration. Maybe with C++20 ranges..?
-            std::vector<label_t> result;
-            if (labels.wildcard()) {
-                result.reserve(_label_map.size());
-                for (size_t i = 0; i < _label_map.size(); ++i) {
-                    result.emplace_back(get_symbol(i));
-                }
-            } else {
-                for (auto label : labels.labels()) {
-                    result.emplace_back(get_symbol(label));
-                }
-            }
-            return result;
-        }
         [[nodiscard]] nlohmann::json to_json() const {
             nlohmann::json j;
             j["pda"] = *this;
@@ -303,10 +289,9 @@ namespace pdaaal {
         }
 
         template<typename label_t, typename W, fut::type Container, typename state_t, bool ssm>
-        void pda_rule_to_json(json& j_state, json& j_rule, const label_t& pre_label,
+        void pda_rule_to_json(json& j_state, json& j_rule, const std::string& pre_label,
                               const typename internal::PDA<W, Container>::rule_t& rule,
                               const PDA<label_t, W, Container, state_t, ssm>& pda) {
-            auto label_s = label_to_string(pre_label);
             switch (rule._operation) {
                 case POP:
                     j_rule["pop"] = "";
@@ -315,7 +300,7 @@ namespace pdaaal {
                     j_rule["swap"] = label_to_string(pda.get_symbol(rule._op_label));
                     break;
                 case NOOP:
-                    j_rule["swap"] = label_s;
+                    j_rule["swap"] = pre_label;
                     break;
                 case PUSH:
                     j_rule["push"] = label_to_string(pda.get_symbol(rule._op_label));
@@ -326,15 +311,15 @@ namespace pdaaal {
             if constexpr (W::is_weight) {
                 j_rule["weight"] = rule._weight;
             }
-            if (j_state.contains(label_s)) {
-                if (!j_state[label_s].is_array()) {
-                    auto temp_rule = j_state[label_s];
-                    j_state[label_s] = json::array();
-                    j_state[label_s].emplace_back(temp_rule);
+            if (j_state.contains(pre_label)) {
+                if (!j_state[pre_label].is_array()) {
+                    auto temp_rule = j_state[pre_label];
+                    j_state[pre_label] = json::array();
+                    j_state[pre_label].emplace_back(temp_rule);
                 }
-                j_state[label_s].emplace_back(j_rule);
+                j_state[pre_label].emplace_back(j_rule);
             } else {
-                j_state[label_s] = j_rule;
+                j_state[pre_label] = j_rule;
             }
         }
     }
@@ -345,10 +330,16 @@ namespace pdaaal {
         for (const auto& state : pda.states()) {
             auto j_state = json::object();
             for (const auto& [rule, labels] : state._rules) {
-                for (const auto& label : pda.get_labels(labels)) {
+                if (labels.wildcard()) {
                     auto j_rule = json::object();
                     j_rule["to"] = rule._to;
-                    details::pda_rule_to_json(j_state, j_rule, label, rule, pda);
+                    details::pda_rule_to_json(j_state, j_rule, "*", rule, pda);
+                } else {
+                    for (auto label : labels.labels()) {
+                        auto j_rule = json::object();
+                        j_rule["to"] = rule._to;
+                        details::pda_rule_to_json(j_state, j_rule, details::label_to_string(pda.get_symbol(label)), rule, pda);
+                    }
                 }
             }
             j_states.emplace_back(j_state);
@@ -363,12 +354,18 @@ namespace pdaaal {
         for (const auto& state : pda.states()) {
             auto j_state = json::object();
             for (const auto& [rule, labels] : state._rules) {
-                for (const auto& label : pda.get_labels(labels)) {
+                std::stringstream ss;
+                ss << pda.get_state(rule._to);
+                if (labels.wildcard()) {
                     auto j_rule = json::object();
-                    std::stringstream ss;
-                    ss << pda.get_state(rule._to);
                     j_rule["to"] = ss.str();
-                    details::pda_rule_to_json(j_state, j_rule, label, rule, pda);
+                    details::pda_rule_to_json(j_state, j_rule, "*", rule, pda);
+                } else {
+                    for (const auto& label : labels.labels()) {
+                        auto j_rule = json::object();
+                        j_rule["to"] = ss.str();
+                        details::pda_rule_to_json(j_state, j_rule, details::label_to_string(pda.get_symbol(label)), rule, pda);
+                    }
                 }
             }
             std::stringstream ss;
