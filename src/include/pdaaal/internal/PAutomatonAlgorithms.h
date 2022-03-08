@@ -177,6 +177,14 @@ namespace pdaaal::internal {
                 return _path;
             }
         };
+        // Deduction guide is needed for Clang, but not supported by GCC before 12.
+        // TODO: This deduction guide should always work.
+        //  Related GCC compiler bug is fixed in GCC 12. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=79501
+        //  Remove #if, when upgrading to GCC 12.
+        #if __clang__
+        template<typename MapFn>
+        AutomatonTraceBack(const PAutomatonFixedPoint<W,trace_type>& fp, MapFn&& state_map) -> AutomatonTraceBack<MapFn>;
+        #endif
 
         [[nodiscard]] auto get_path_with_loop() {
             return get_path_with_loop([](size_t s){ return s; });
