@@ -1,4 +1,4 @@
-name: Build Linux
+name: Build Linux gcc
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: build-Linux-${{ github.head_ref }}
+  group: build-Linux-gcc-${{ github.head_ref }}
   cancel-in-progress: true
 
 jobs:
