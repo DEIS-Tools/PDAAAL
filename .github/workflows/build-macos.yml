@@ -1,0 +1,35 @@
+name: Build MacOS
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+concurrency:
+  group: build-MacOS-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.event.pull_request.draft == false
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      # Install boost
+      - name: Install depends
+        run: |
+          brew install boost
+      # Build PDAAAL
+      - name: Build
+        run: |
+          mkdir -p build
+          cd build
+          CC=clang CXX=clang++ cmake -DCMAKE_BUILD_TYPE=Debug ..
+          make
+      # Test PDAAAL
+      - name: Test
+        run: |
+          cd build
+          make test
