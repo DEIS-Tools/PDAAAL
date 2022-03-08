@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: build-Linux-${{ github.head_ref }}
+  group: build-Linux-Clang-${{ github.head_ref }}
   cancel-in-progress: true
 
 jobs:
@@ -39,7 +39,7 @@ jobs:
         run: |
           mkdir -p build
           cd build
-          CC=gcc-10 CXX=g++-10 cmake -DCMAKE_BUILD_TYPE=Debug ..
+          CC=clang-12 CXX=clang++-12 cmake -DCMAKE_BUILD_TYPE=Debug ..
           make -j2
         env:
           Boost_DIR: ${{ steps.install-boost.outputs.BOOST_ROOT }}/lib/cmake/Boost-1.78.0/
