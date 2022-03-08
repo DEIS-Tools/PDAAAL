@@ -67,7 +67,7 @@ namespace pdaaal::internal {
         using edge_anno_t = edge_annotation_t<W,TraceInfoType::Single>;
         using p_automaton_t = PAutomaton<W>;
     public:
-        explicit PreStarSaturation(PAutomaton<W> &automaton, const early_termination_fn<W>& early_termination = [](size_t f, uint32_t l, size_t t, edge_anno_t trace) -> bool { return false; })
+        explicit PreStarSaturation(PAutomaton<W> &automaton, const early_termination_fn<W>& early_termination = [](size_t, uint32_t, size_t, edge_anno_t) -> bool { return false; })
                 : _automaton(automaton), _early_termination(early_termination), _pda_states(_automaton.pda().states()),
                   _n_pda_states(_pda_states.size()), _n_automaton_states(_automaton.states().size()),
                   _n_pda_labels(_automaton.number_of_labels()), _rel(_n_automaton_states), _delta_prime(_n_automaton_states) {
@@ -206,7 +206,7 @@ namespace pdaaal::internal {
         using edge_anno_t = edge_annotation_t<W,TraceInfoType::Single>;
         using p_automaton_t = PAutomaton<W>;
     public:
-        explicit PostStarSaturation(p_automaton_t& automaton, const early_termination_fn<W>& early_termination = [](size_t f, uint32_t l, size_t t, edge_anno_t trace) -> bool { return false; })
+        explicit PostStarSaturation(p_automaton_t& automaton, const early_termination_fn<W>& early_termination = [](size_t, uint32_t, size_t, edge_anno_t) -> bool { return false; }
                 : _automaton(automaton), _early_termination(early_termination), _pda_states(_automaton.pda().states()),
                   _n_pda_states(_pda_states.size()), _n_Q(_automaton.states().size()) {
             initialize();
