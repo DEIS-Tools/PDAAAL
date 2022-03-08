@@ -39,7 +39,7 @@ jobs:
         run: |
           mkdir -p build
           cd build
-          CC=gcc-10 CXX=g++-10 cmake -DCMAKE_BUILD_TYPE=Debug -DPDAAAL_BuildTests=ON -DBUILD_TESTING=ON ..
+          CC=gcc-10 CXX=g++-10 cmake -DCMAKE_BUILD_TYPE=Debug ..
           make
         env:
           Boost_DIR: ${{ steps.install-boost.outputs.BOOST_ROOT }}/lib/cmake/Boost-1.78.0/
