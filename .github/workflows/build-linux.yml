@@ -1,0 +1,33 @@
+name: Build Linux
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+concurrency:
+  group: build-Linux-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Packages
+        run: |
+          sudo apt-get update
+      - name: Build
+        run: |
+          mkdir -p build
+          cd build
+          CC=gcc-10 CXX=g++-10 cmake -DCMAKE_BUILD_TYPE=Debug -DPDAAAL_BuildTests=ON -DBUILD_TESTING=ON ..
+          make
+      - name: Test
+        run: |
+          cd build
+          make test
