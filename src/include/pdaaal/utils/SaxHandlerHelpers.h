@@ -90,10 +90,10 @@ namespace pdaaal::parsing {
     };
     template<typename context, typename context::type_t type, size_t n_flags> inline constexpr context make_context_object() {
         return context(type, context::mask_t::template fill<n_flags>(), std::in_place_index<0>);
-    };
+    }
     template<typename context, typename context::type_t type> inline constexpr context make_context_array() {
         return context(type, 0, std::in_place_index<1>);
-    };
+    }
 
     // This class provides functionality for SAXHandlers (JSON parsers) that need to keep track of a context stack,
     // where contexts can have some required keys. Supports descriptive error messages.
