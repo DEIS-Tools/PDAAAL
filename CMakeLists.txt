@@ -18,7 +18,7 @@ if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(PDAAAL_MAIN_PROJECT ON)
 endif()
 
-option(PDAAAL_BuildTests "Build the unit tests when BUILD_TESTING is enabled." ${PDAAAL_MAIN_PROJECT})
+option(PDAAAL_BuildTests "Build the unit tests of PDAAAL." ${PDAAAL_MAIN_PROJECT})
 option(PDAAAL_Build_Main "Build the stand-alone PDAAAL binary." ${PDAAAL_MAIN_PROJECT})
 option(PDAAAL_AddressSanitizer "Enables address sanitization during compilation." OFF)
 option(PDAAAL_GetDependencies "Fetch external dependencies from web." ON)
@@ -34,9 +34,7 @@ find_package(Boost 1.70 CONFIG REQUIRED COMPONENTS headers program_options unit_
 #actual library
 add_subdirectory(src)
 
-set(BUILD_TESTING ON)
-
-if(BUILD_TESTING AND PDAAAL_BuildTests)
+if(PDAAAL_BuildTests)
     #benchmark
     add_subdirectory(benchmark)
 
