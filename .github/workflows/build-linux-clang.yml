@@ -1,0 +1,50 @@
+name: Build Linux clang
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+concurrency:
+  group: build-Linux-Clang-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Packages
+        run: |
+          sudo apt-get update
+
+      # Install boost
+      - name: Install boost
+        uses: MarkusJx/install-boost@v2.1.0
+        id: install-boost
+        with:
+          # Set the boost version (required)
+          boost_version: 1.78.0
+          # OPTIONAL: Specify a platform version
+          platform_version: 20.04
+          # OPTIONAL: Specify a toolset
+          toolset: gcc
+
+      # Build PDAAAL
+      - name: Build
+        run: |
+          mkdir -p build
+          cd build
+          CC=clang-12 CXX=clang++-12 cmake -DCMAKE_BUILD_TYPE=Debug ..
+          make -j2
+        env:
+          Boost_DIR: ${{ steps.install-boost.outputs.BOOST_ROOT }}/lib/cmake/Boost-1.78.0/
+      # Test PDAAAL
+      - name: Test
+        run: |
+          cd build
+          make test

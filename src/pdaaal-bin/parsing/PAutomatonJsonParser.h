@@ -513,6 +513,6 @@ namespace pdaaal::parsing {
             return automaton;
         }
     };
-};
+}
 
 #endif //PDAAAL_PAUTOMATONJSONPARSER_H

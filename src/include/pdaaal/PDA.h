@@ -137,6 +137,7 @@ namespace pdaaal {
             }
         }
         PDA() = default;
+        virtual ~PDA() = default;
 
         auto move_label_map() { return std::move(_label_map); }
 
