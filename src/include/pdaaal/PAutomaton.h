@@ -63,6 +63,7 @@ namespace pdaaal {
 
         PAutomaton(PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>&& other, const pda_t& pda) noexcept // Move constructor, but update reference to PDA.
         : parent_t(std::move(other), static_cast<const internal_pda_t&>(pda)), parent2_t(std::move(other)), _pda(pda) {};
+        virtual ~PAutomaton() = default;
 
         [[nodiscard]] nlohmann::json to_json(const std::string& name = "P-automaton") const {
             nlohmann::json j;
