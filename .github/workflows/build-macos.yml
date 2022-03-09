@@ -18,18 +18,28 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       # Install boost
-      - name: Install depends
+      - name: Install boost
         run: |
           brew install boost
-      # Build PDAAAL
-      - name: Build
+      # Build and test in debug mode
+      - name: Build debug
         run: |
-          mkdir -p build
-          cd build
+          mkdir -p build-debug
+          cd build-debug
           CC=clang CXX=clang++ cmake -DCMAKE_BUILD_TYPE=Debug ..
           make -j
-      # Test PDAAAL
-      - name: Test
+      - name: Test debug
         run: |
-          cd build
+          cd build-debug
+          make test
+      # Build and test in release mode
+      - name: Build release
+        run: |
+          mkdir -p build-release
+          cd build-release
+          CC=clang CXX=clang++ cmake -DCMAKE_BUILD_TYPE=Release ..
+          make -j
+      - name: Test release
+        run: |
+          cd build-release
           make test
