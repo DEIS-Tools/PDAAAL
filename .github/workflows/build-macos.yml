@@ -27,7 +27,7 @@ jobs:
           mkdir -p build
           cd build
           CC=clang CXX=clang++ cmake -DCMAKE_BUILD_TYPE=Debug ..
-          make
+          make -j
       # Test PDAAAL
       - name: Test
         run: |
