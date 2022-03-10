@@ -63,6 +63,7 @@ namespace pdaaal {
 
         PAutomaton(PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>&& other, const pda_t& pda) noexcept // Move constructor, but update reference to PDA.
         : parent_t(std::move(other), static_cast<const internal_pda_t&>(pda)), parent2_t(std::move(other)), _pda(pda) {};
+        virtual ~PAutomaton() = default;
 
         [[nodiscard]] nlohmann::json to_json(const std::string& name = "P-automaton") const {
             nlohmann::json j;
@@ -138,19 +139,18 @@ namespace pdaaal {
     void to_json_impl(json& j, const PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type>& automaton) {
         j = json::object();
         size_t num_pda_states = automaton.pda().states().size();
-        auto state_to_json_value = [&automaton](size_t state) -> json {
-            if constexpr(skip_state_mapping) {
-                return state;
-            } else {
-                if (auto s = automaton.get_state_optional(state); s) {
-                    return details::label_to_string(s.value());
-                }
-                return state;
-            }
-        };
         json j_edges = json::array();
         for (const auto& state : automaton.states()) {
-            auto j_from = state_to_json_value(state->_id);
+            json j_from;
+            if constexpr (skip_state_mapping) {
+                j_from = state->_id;
+            } else {
+                if (auto s = automaton.get_state_optional(state->_id); s) {
+                    j_from = details::label_to_string(s.value());
+                } else {
+                    j_from = state->_id;
+                }
+            }
             if constexpr(with_initial) {
                 if (state->_id < num_pda_states) {
                     j["initial"].emplace_back(j_from);
@@ -160,11 +160,21 @@ namespace pdaaal {
                 j["accepting"].emplace_back(j_from);
             }
             for (const auto& [to, labels] : state->_edges) {
+                json j_to;
+                if constexpr (skip_state_mapping) {
+                    j_to = to;
+                } else {
+                    if (auto s = automaton.get_state_optional(to); s) {
+                        j_to = details::label_to_string(s.value());
+                    } else {
+                        j_to = to;
+                    }
+                }
                 for (const auto& [label,tw] : labels) {
                     j_edges.emplace_back(json::array(
                             {j_from,
                              label == automaton.epsilon ? "" : details::label_to_string(automaton.get_symbol(label)),
-                             state_to_json_value(to)}));
+                             j_to}));
                 }
             }
         }

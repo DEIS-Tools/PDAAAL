@@ -1,5 +1,8 @@
 add_definitions (-DBOOST_TEST_DYN_LINK)
 
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN YES)
+
 # Tests for pdaaal (library)
 set(PDAAAL_test_sources
     Weight_test.cpp
