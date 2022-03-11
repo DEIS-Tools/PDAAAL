@@ -43,3 +43,10 @@ jobs:
         run: |
           cd build-release
           make test
+
+      # Upload artifact
+      - name: Upload artifact pdaaal
+        uses: actions/upload-artifact@v3
+        with:
+          name: pdaaal-macos
+          path: build-release/bin/pdaaal
