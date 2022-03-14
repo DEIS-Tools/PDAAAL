@@ -111,6 +111,17 @@ jobs:
           cd build
           ctest
 
+      # For Ubuntu, we build new artifact with PDAAAL_BuildBundle=ON to make the binary (mostly) independent of shared libs.
+      - name: Build Artifact
+        if: (matrix.build_type == 'Release') && (matrix.config.name == 'Ubuntu-gcc')
+        shell: bash
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }} -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -G "${{ matrix.config.generators }}" -DPDAAAL_BuildBundle=ON ..
+          cmake --build . -- pdaaal-bin
+        env:
+          Boost_DIR: ${{ steps.install-boost.outputs.BOOST_ROOT }}${{ matrix.config.boost_dir }}
       # Upload artifact
       - name: Upload artifact pdaaal
         if: (matrix.build_type == 'Release') && (matrix.config.name != 'Ubuntu-clang')
