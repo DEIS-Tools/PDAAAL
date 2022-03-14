@@ -33,6 +33,7 @@
 #include <unordered_map>
 #include <ostream>
 #include <functional>
+#include <algorithm>
 #include <iostream>
 #include <cassert>
 

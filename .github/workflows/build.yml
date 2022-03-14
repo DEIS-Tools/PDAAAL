@@ -1,0 +1,120 @@
+name: Build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.config.name }}-${{ matrix.build_type }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {
+            name: "Ubuntu-gcc",
+            os: ubuntu-latest,
+            cxx: "g++-10",
+            generators: "Ninja",
+            boost_dir: "/lib/cmake/Boost-1.78.0/",
+            boost_platform_version: "20.04",
+            boost_toolset: "gcc"
+          }
+          - {
+            name: "Ubuntu-clang",
+            os: ubuntu-latest,
+            cxx: "clang++-12",
+            generators: "Ninja",
+            boost_dir: "/lib/cmake/Boost-1.78.0/",
+            boost_platform_version: "20.04",
+            boost_toolset: "gcc"
+          }
+          - {
+            name: "Macos-clang",
+            os: macos-latest,
+            cxx: "clang++",
+            generators: "Ninja",
+            boost_dir: ""
+          }
+#          - {
+#            name: "Windows-msvc",
+#            os: windows-latest,
+#            cxx: "cl",
+#            generators: "Visual Studio 17 2022",
+#            boost_dir: "/lib/cmake/Boost-1.78.0/",
+#            boost_platform_version: "2019",
+#            boost_toolset: "msvc"
+#          }
+        build_type: ["Debug","Release"]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install dependencies on macos
+        if: startsWith(matrix.config.os, 'macos')
+        run: |
+          brew install boost ninja
+          ninja --version
+          cmake --version
+
+#      - name: Install dependencies on windows
+#        if: startsWith(matrix.config.os, 'windows')
+#        run: |
+#          choco install ninja cmake
+#          ninja --version
+#          cmake --version
+
+      - name: Install dependencies on ubuntu
+        if: startsWith(matrix.config.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install ninja-build
+          ninja --version
+          cmake --version
+
+      - name: Install boost (ubuntu or windows)
+        if: startsWith(matrix.config.os, 'ubuntu') || startsWith(matrix.config.os, 'windows')
+        uses: MarkusJx/install-boost@v2.1.0
+        id: install-boost
+        with:
+          # Set the boost version (required)
+          boost_version: 1.78.0
+          # OPTIONAL: Specify a platform version
+          platform_version: ${{ matrix.config.boost_platform_version }}
+          # OPTIONAL: Specify a toolset
+          toolset: ${{ matrix.config.boost_toolset }}
+
+      # Configure cmake to build with Ninja Multi-Config
+      - name: Configure
+        shell: bash
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }} -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -G "${{ matrix.config.generators }}" ..
+        env:
+          Boost_DIR: ${{ steps.install-boost.outputs.BOOST_ROOT }}${{ matrix.config.boost_dir }}
+      # Build and test
+      - name: Build
+        run: |
+          cd build
+          cmake --build .
+      - name: Test
+        run: |
+          cd build
+          ctest
+
+      # Upload artifact
+      - name: Upload artifact pdaaal
+        if: (matrix.build_type == 'Release') && (matrix.config.name != 'Ubuntu-clang')
+        uses: actions/upload-artifact@v3
+        with:
+          name: pdaaal-${{ matrix.config.os }}
+          path: build/bin/pdaaal

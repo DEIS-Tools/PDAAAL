@@ -33,6 +33,7 @@
 #include <cassert>
 #include <limits>
 #include <unordered_set>
+#include <iterator>
 
 namespace pdaaal {
 
