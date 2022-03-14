@@ -98,7 +98,7 @@ jobs:
         run: |
           mkdir -p build
           cd build
-          cmake -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }} -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -G "${{ matrix.config.generators }}" ..
+          cmake -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }} -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -G "${{ matrix.config.generators }}" -DPDAAAL_BuildBundle=ON ..
         env:
           Boost_DIR: ${{ steps.install-boost.outputs.BOOST_ROOT }}${{ matrix.config.boost_dir }}
       # Build and test

@@ -23,6 +23,20 @@ option(PDAAAL_Build_Main "Build the stand-alone PDAAAL binary." ${PDAAAL_MAIN_PR
 option(PDAAAL_AddressSanitizer "Enables address sanitization during compilation." OFF)
 option(PDAAAL_GetDependencies "Fetch external dependencies from web." ON)
 
+option(PDAAAL_BuildBundle "Includes all but system libraries within the binary." OFF)
+if (PDAAAL_BuildBundle)
+    set(BUILD_SHARED_LIBS OFF)
+    set(Boost_USE_STATIC_LIBS ON)
+    set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
+endif (PDAAAL_BuildBundle)
+option(PDAAAL_BuildStatic "Includes all (incl. system libraries) within the binary." OFF)
+if (PDAAAL_BuildStatic)
+    set(BUILD_SHARED_LIBS OFF)
+    set(Boost_USE_STATIC_LIBS ON)
+    set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
+    set(CMAKE_EXE_LINKER_FLAGS "-static")
+endif (PDAAAL_BuildStatic)
+
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lstdc++")
 
 if(PDAAAL_AddressSanitizer)
