@@ -113,7 +113,7 @@ jobs:
 
       # Upload artifact
       - name: Upload artifact pdaaal
-        if: (matrix.build_type == 'Release') && (matrix.config.name != 'Ubuntu_clang')
+        if: (matrix.build_type == 'Release') && (matrix.config.name != 'Ubuntu-clang')
         uses: actions/upload-artifact@v3
         with:
           name: pdaaal-${{ matrix.config.os }}
