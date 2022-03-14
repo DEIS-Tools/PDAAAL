@@ -32,7 +32,7 @@ if (PDAAAL_GetDependencies)
     include(FetchContent)
     FetchContent_Declare(ptrie
         GIT_REPOSITORY https://github.com/petergjoel/ptrie.git
-        GIT_TAG main
+        GIT_TAG f45e1a39524a95a28684aa75b169afa476ac025c
     )
     FetchContent_MakeAvailable(ptrie)
 
