@@ -598,9 +598,9 @@ namespace pdaaal::parsing {
         explicit PdaTypeSaxHandler(const SAXHandlerBase& base) : parent_t(base) {};
 
         pda_sax_variant_t get_pda_sax_handler() {
-            if (weight_str == "UINT") {
+            if (weight_str == "uint") {
                 return get_pda_sax_handler_a<uint32_t>();
-            } else if (weight_str == "INT") {
+            } else if (weight_str == "int") {
                 return get_pda_sax_handler_a<int32_t>();
             } else {
                 return get_pda_sax_handler_w<weight<void>>();
