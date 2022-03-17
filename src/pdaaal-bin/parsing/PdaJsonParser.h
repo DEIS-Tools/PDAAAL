@@ -81,7 +81,7 @@ namespace pdaaal::parsing {
             }
             return s;
         }
-        enum class context_type : uint8_t { unknown, initial, pda, state_array, states_object, state, rule_array, rule };
+        enum class context_type : uint8_t { unknown, initial, pda, state_array, states_object, state, rule_array, rule, weight_array };
         friend constexpr std::ostream& operator<<(std::ostream& s, context_type type) {
             switch (type) {
                 case context_type::unknown:
@@ -107,6 +107,9 @@ namespace pdaaal::parsing {
                     break;
                 case context_type::rule:
                     s << "rule";
+                    break;
+                case context_type::weight_array:
+                    s << "weight array";
                     break;
             }
             return s;
@@ -169,6 +172,7 @@ namespace pdaaal::parsing {
         static constexpr context_t state_context = context_object<context_type::state, 0>();
         static constexpr context_t rule_array = context_array<context_type::rule_array>();
         static constexpr context_t rule_context = context_object<context_type::rule, W::is_weight?3:2>();
+        static constexpr context_t weight_array = context_array<context_type::weight_array>();
 
         build_pda_t build_pda;
 
@@ -199,11 +203,25 @@ namespace pdaaal::parsing {
             return last_key == keys::unknown ? element_done() : error_unexpected("boolean", value);
         }
         bool number_integer(number_integer_t value) {
+            if constexpr (expect_weight && W::is_vector && W::is_signed) {
+                if (!no_context() && current_context_type() == context_type::weight_array) {
+                    if (value >= std::numeric_limits<typename W::type::value_type>::max()) {
+                        errors() << "error: Integer value " << value << " is too large. Maximum value is: " << std::numeric_limits<typename W::type::value_type>::max()-1 << std::endl;
+                        return false;
+                    }
+                    if (value <= std::numeric_limits<typename W::type::value_type>::min()) {
+                        errors() << "error: Integer value " << value << " is too low. Minimum value is: " << std::numeric_limits<typename W::type::value_type>::min()+1 << std::endl;
+                        return false;
+                    }
+                    current_rule._weight.emplace_back(value);
+                    return element_done();
+                }
+            }
             switch (last_key) {
                 case keys::unknown:
                     break;
                 case keys::weight:
-                    if constexpr (expect_weight && std::numeric_limits<typename W::type>::is_signed) {
+                    if constexpr (expect_weight && !W::is_vector && W::is_signed) {
                         if (value >= std::numeric_limits<typename W::type>::max()) {
                             errors() << "error: Integer value " << value << " is too large. Maximum value is: " << std::numeric_limits<typename W::type>::max()-1 << std::endl;
                             return false;
@@ -221,6 +239,16 @@ namespace pdaaal::parsing {
             return element_done();
         }
         bool number_unsigned(number_unsigned_t value) {
+            if constexpr (expect_weight && W::is_vector) {
+                if (!no_context() && current_context_type() == context_type::weight_array) {
+                    if (value >= std::numeric_limits<typename W::type::value_type>::max()) {
+                        errors() << "error: Unsigned value " << value << " is too large. Maximum value is: " << std::numeric_limits<typename W::type::value_type>::max()-1 << std::endl;
+                        return false;
+                    }
+                    current_rule._weight.emplace_back(value);
+                    return element_done();
+                }
+            }
             switch (last_key) {
                 case keys::to:
                     if constexpr(use_state_names) {
@@ -231,7 +259,7 @@ namespace pdaaal::parsing {
                         break;
                     }
                 case keys::weight:
-                    if constexpr (expect_weight && !W::is_vector) { // TODO: Parameterize on weight type...
+                    if constexpr (expect_weight && !W::is_vector) {
                         if (value >= std::numeric_limits<typename W::type>::max()) {
                             errors() << "error: Unsigned value " << value << " is too large. Maximum value is: " << std::numeric_limits<typename W::type>::max()-1 << std::endl;
                             return false;
@@ -445,6 +473,11 @@ namespace pdaaal::parsing {
                 case keys::unknown:
                     push_context(unknown_context);
                     break;
+                case keys::weight:
+                    if constexpr (expect_weight && W::is_vector) {
+                        push_context(weight_array);
+                        break;
+                    }
                 default:
                     return error_unexpected("start of array");
             }
