@@ -440,6 +440,7 @@ namespace pdaaal::parsing {
                     break;
                 case context_type::rule:
                     build_pda.add_rule_detail(current_from_state, current_rule, current_wildcard, current_pre);
+                    current_rule = {};
                     break;
                 default:
                     break;
