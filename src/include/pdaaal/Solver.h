@@ -135,7 +135,7 @@ namespace pdaaal {
         static bool post_star_accepts(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             return instance.initialize_product() ||
                    post_star<trace_type,W,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) -> bool {
-                       return instance.add_edge_product(from, label, to, trace);
+                       return instance.template add_edge_product<trace_type != Trace_Type::Shortest>(from, label, to, trace);
                    });
         }
 
