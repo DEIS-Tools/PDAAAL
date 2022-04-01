@@ -647,6 +647,12 @@ namespace pdaaal::internal {
             assert(label < std::numeric_limits<uint32_t>::max() - 1);
             _states[from]->_edges.emplace(to, label, trace);
         }
+        auto get_edge(size_t from, uint32_t label, size_t to) {
+            return _states[from]->_edges.get(to, label);
+        }
+        auto emplace_edge(size_t from, uint32_t label, size_t to, edge_anno_t trace = edge_anno::make_default()) {
+            return _states[from]->_edges.emplace(to, label, trace);
+        }
         void update_edge(size_t from, size_t to, uint32_t label, edge_annotation_t<W,TraceInfoType::Single> trace) {
             auto ptr = _states[from]->_edges.get(to, label);
             assert(ptr != nullptr);
