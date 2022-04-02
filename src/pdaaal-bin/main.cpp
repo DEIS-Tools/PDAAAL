@@ -27,6 +27,7 @@
 #include "parsing/SolverInstanceJsonParser.h"
 #include "parsing/Parsing.h"
 #include "Verifier.h"
+#include "utils/json_stream.h"
 
 #include "version.h" // Generated at build time. Defines PDAAAL_GIT_HASH, PDAAAL_GIT_HASH_STR, PDAAAL_VERSION and PDAAAL_VERSION_STR
 
@@ -76,10 +77,11 @@ private:
 template<TraceInfoType traceInfoType>
 void run(parsing::Parsing& parsing, Verifier& verifier, main_output& output) {
     auto instance_variant = parsing.parse_instance<traceInfoType>();
-    if (!output.silent) { std::cout << "Parsing duration: " << parsing.duration() << std::endl; }
-    std::visit([&verifier,&output](auto&& instance) {
+    json_stream json_out;
+    if (!output.silent) { json_out.entry("parsing-duration", parsing.duration()); }
+    std::visit([&verifier,&output,&json_out](auto&& instance) {
         output.do_output(instance);
-        verifier.verify<traceInfoType>(*instance);
+        verifier.verify<traceInfoType>(*instance, json_out);
     }, instance_variant);
 }
 
