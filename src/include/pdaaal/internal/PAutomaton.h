@@ -190,7 +190,7 @@ namespace pdaaal::internal {
         // Construct a PAutomaton that accepts a configuration <p,w> iff states contains p and nfa accepts w.
         PAutomaton(const PDA<W>& pda, const NFA<uint32_t>& nfa, const std::vector<size_t>& states)
         : PAutomaton(pda, states, nfa.empty_accept()) {
-            construct<uint32_t,false>(nfa, states, [](const auto& v){ return v; });
+            construct<uint32_t,false>(nfa, states, [](const auto& e){ return e._symbols; });
         }
 
         PAutomaton(const PDA<W>& pda, const std::vector<size_t>& special_initial_states, bool special_accepting = true) : _pda(pda) {
@@ -731,12 +731,13 @@ namespace pdaaal::internal {
             return trace_t(epsilon_state);
         }
     protected:
-        template<typename T, bool use_mapping = true>
-        void construct(const NFA<T>& nfa, const std::vector<size_t>& states, const std::function<std::vector<uint32_t>(const std::vector<T>&)>& map_symbols) {
+        template<typename T, bool use_mapping = true, bool use_new_state_action = false>
+        void construct(const NFA<T>& nfa, const std::vector<size_t>& states, const std::function<std::vector<uint32_t>(const typename NFA<T>::edge_t&)>& map_edge,
+                       const std::function<void(const typename NFA<T>::state_t*,size_t)>& new_state_action = [](auto,auto){}) {
             using nfastate_t = typename NFA<T>::state_t;
             std::unordered_map<const nfastate_t*, size_t> nfastate_to_id;
             std::vector<std::pair<const nfastate_t*,size_t>> waiting;
-            auto get_nfastate_id = [this, &waiting, &nfastate_to_id](const nfastate_t* n) -> size_t {
+            auto get_nfastate_id = [this, &waiting, &nfastate_to_id,&new_state_action](const nfastate_t* n) -> size_t {
                 // Adds nfastate if not yet seen.
                 size_t n_id;
                 auto it = nfastate_to_id.find(n);
@@ -746,6 +747,9 @@ namespace pdaaal::internal {
                     n_id = add_state(false, n->_accepting);
                     nfastate_to_id.emplace(n, n_id);
                     waiting.emplace_back(n, n_id);
+                    if constexpr(use_new_state_action) {
+                        new_state_action(n,n_id); // Allows subclasses to do something for each new state. Defaults to no action.
+                    }
                 }
                 return n_id;
             };
@@ -755,7 +759,7 @@ namespace pdaaal::internal {
                     for (const nfastate_t* n : e.follow_epsilon()) {
                         size_t n_id = get_nfastate_id(n);
                         if constexpr(use_mapping) {
-                            add_edges(states, n_id, e._negated, map_symbols(e._symbols));
+                            add_edges(states, n_id, e._negated, map_edge(e));
                         } else {
                             add_edges(states, n_id, e._negated, e._symbols);
                         }
@@ -769,7 +773,7 @@ namespace pdaaal::internal {
                     for (const nfastate_t* n : e.follow_epsilon()) {
                         size_t n_id = get_nfastate_id(n);
                         if constexpr(use_mapping) {
-                            add_edges(top_id, n_id, e._negated, map_symbols(e._symbols));
+                            add_edges(top_id, n_id, e._negated, map_edge(e));
                         } else {
                             add_edges(top_id, n_id, e._negated, e._symbols);
                         }
