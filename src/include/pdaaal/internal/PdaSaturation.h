@@ -615,7 +615,7 @@ namespace pdaaal::internal {
                 for (auto &e : _rel3[i - _n_Q]) {
                     assert(e._label != epsilon);
                     _automaton.add_edge(i, e._to, e._label, std::make_pair(e._trace, e._weight));
-                    if constexpr (ET) { // TODO: We might need to do this in main loop (and update weights) to enable early termination in some cases..??
+                    if constexpr (ET) { // TODO: We might need to do this in main loop (and update weights) to enable early termination in some cases..?? <-- Yes, that is correct. Test case found.
                         _found |= _early_termination(i, e._label, e._to, std::make_pair(e._trace, e._weight));
                     }
                 }

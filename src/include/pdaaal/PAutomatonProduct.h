@@ -67,8 +67,9 @@ namespace pdaaal {
         }
 
         // Returns whether an accepting state in the product automaton was reached.
+        template<bool ET = true>
         bool add_edge_product(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) {
-            return add_edge(from, label, to, trace,
+            return add_edge<true,false,ET>(from, label, to, trace,
                             _swap_initial_final ? _final : _initial,
                             _swap_initial_final ? _initial : _final);
         }
@@ -163,7 +164,7 @@ namespace pdaaal {
         }
 
     private:
-        template<bool edge_in_first = true, bool needs_back_lookup = false>
+        template<bool edge_in_first = true, bool needs_back_lookup = false, bool ET = true>
         bool add_edge(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace,
                       const automaton_t& first, const automaton_t& second) { // States in first and second automaton corresponds to respectively first and second component of the states in product automaton.
             static_assert(edge_in_first || needs_back_lookup, "If you insert edge in the second automaton, then you must also enable using _id_fast_lookup_back to keep the relevant information.");
@@ -197,15 +198,17 @@ namespace pdaaal {
                     } else {
                         _product.add_edge(product_from, product_to, label, trace);
                     }
-                    if (_product.has_accepting_state()) {
-                        return true; // Early termination
+                    if constexpr(ET) {
+                        if (_product.has_accepting_state()) {
+                            return true; // Early termination
+                        }
                     }
                     if (fresh) {
                         waiting.push_back(product_to); // If the 'to-state' is new (was not previously reachable), we need to continue constructing from there.
                     }
                 }
             }
-            return construct_reachable<needs_back_lookup>(waiting, first, second);
+            return construct_reachable<needs_back_lookup,ET>(waiting, first, second);
         }
 
         // Returns whether an accepting state in the product automaton was reached.
