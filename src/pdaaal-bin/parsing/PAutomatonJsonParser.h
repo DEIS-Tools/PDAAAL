@@ -142,20 +142,12 @@ namespace pdaaal::parsing {
         }
 
         size_t number_state(number_unsigned_t state) {
-            if constexpr(std::is_same_v<pda_state_t,size_t>) {
-                auto [exists, id] = automaton.exists_state(state);
-                if (exists) return id;
-                if constexpr(!skip_state_mapping) {
-                    id = automaton.add_state(false, false); // accepting is set later.
-#ifndef NDEBUG
-                    auto id2 =
-#endif
-                            automaton.insert_state(state);
-                    assert(id == id2);
-                    return id;
-                }
-            }
             if constexpr(skip_state_mapping || !std::is_same_v<pda_state_t,std::size_t>){
+                if constexpr(std::is_same_v<pda_state_t,std::size_t>) {
+                    if (state < pda.states().size()) { // Initial states (i.e. in pda) without state mapping need no further action
+                        return state;
+                    }
+                }
                 // This is a non-initial state, without a name that is recorded, so we use an auxiliary mapping.
                 auto it = extra_state_map.find(state);
                 if (it != extra_state_map.end()) {
@@ -163,6 +155,16 @@ namespace pdaaal::parsing {
                 }
                 auto id = automaton.add_state(false, false); // accepting is set later.
                 extra_state_map.emplace(state,id);
+                return id;
+            } else { // pda_state_t==size_t and !skip_state_mapping
+                auto [exists, id] = automaton.exists_state(state);
+                if (exists) return id;
+                id = automaton.add_state(false, false); // accepting is set later.
+#ifndef NDEBUG
+                auto id2 =
+#endif
+                        automaton.insert_state(state);
+                assert(id == id2);
                 return id;
             }
         }
