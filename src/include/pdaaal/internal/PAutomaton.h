@@ -30,6 +30,7 @@
 #include "PDA.h"
 #include "pdaaal/NFA.h"
 #include "pdaaal/AutomatonPath.h"
+#include "pdaaal/utils/vector_printer.h"
 #include <memory>
 #include <functional>
 #include <vector>
@@ -306,7 +307,11 @@ namespace pdaaal::internal {
                                     }
                                 }
                                 if (!special_weight) {
-                                    out << "(" << tw.second << ")";
+                                    if constexpr(W::is_vector) {
+                                        out << "(" << vector_printer() << tw.second << ")";
+                                    } else {
+                                        out << "(" << tw.second << ")";
+                                    }
                                 }
                             }
                             out << "\\]";
@@ -331,7 +336,11 @@ namespace pdaaal::internal {
                         if (labels.size() > 1) out << " ";
                         out << "𝜀";
                         if constexpr(is_weighted<W>) {
-                            out << "(" << labels.find(epsilon)->second.second << ")";
+                            if constexpr(W::is_vector) {
+                                out << "(" << vector_printer() << labels.find(epsilon)->second.second << ")";
+                            } else {
+                                out << "(" << labels.find(epsilon)->second.second << ")";
+                            }
                         }
                     }
                     out << "\"];\n";
