@@ -60,6 +60,21 @@ namespace pdaaal::internal {
     template <typename W>
     using early_termination_fn = std::function<bool(size_t,uint32_t,size_t,edge_annotation_t<W>)>;
 
+    template <typename W>
+    class early_termination_handler {
+    public:
+        early_termination_handler()
+        : add_edge([](size_t, uint32_t, size_t, edge_annotation_t<W>) -> bool { return false; }),
+          update_edge([](size_t, uint32_t, size_t, edge_annotation_t<W>){}) {};
+
+        template<typename AddFn, typename UpdateFn>
+        early_termination_handler(AddFn&& add_fn, UpdateFn&& update_fn)
+        : add_edge(std::forward<AddFn>(add_fn)), update_edge(std::forward<UpdateFn>(update_fn)) {}
+
+        std::function<bool(size_t,uint32_t,size_t,edge_annotation_t<W>)> add_edge;
+        std::function<void(size_t,uint32_t,size_t,edge_annotation_t<W>)> update_edge;
+    };
+
     template <typename W, bool ET=false>
     class PreStarSaturation {
         using trace_info = TraceInfo<TraceInfoType::Single>;
@@ -202,11 +217,13 @@ namespace pdaaal::internal {
         using p_automaton_t = PAutomaton<W>;
         static constexpr auto epsilon = p_automaton_t::epsilon;
     public:
-        explicit PostStarSaturation(p_automaton_t& automaton, const early_termination_fn<W>& early_termination = [](size_t, uint32_t, size_t, edge_anno_t) -> bool { return false; })
+        explicit PostStarSaturation(p_automaton_t& automaton, const early_termination_handler<W>& early_termination = early_termination_handler<W>())
                 : _automaton(automaton), _early_termination(early_termination), _pda_states(_automaton.pda().states()),
                   _n_pda_states(_pda_states.size()), _n_Q(_automaton.states().size()) {
             initialize();
         };
+        PostStarSaturation(p_automaton_t& automaton, const early_termination_fn<W>& early_termination)
+        : PostStarSaturation(automaton, early_termination_handler<W>(early_termination, [](size_t, uint32_t, size_t, edge_anno_t){})) {};
 
     private:
         // This is an implementation of Algorithm 2 (figure 3.4) in:
@@ -214,7 +231,7 @@ namespace pdaaal::internal {
         // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 48)
 
         p_automaton_t& _automaton;
-        const early_termination_fn<W>& _early_termination;
+        const early_termination_handler<W>& _early_termination;
         const std::vector<typename PDA<W>::state_t>& _pda_states;
         const size_t _n_pda_states;
         const size_t _n_Q;
@@ -270,7 +287,7 @@ namespace pdaaal::internal {
             if (_automaton.emplace_edge(from, label, to, edge_anno::from_trace_info(trace)).second) {
                 _workset.emplace(from, label, to);
                 if constexpr (ET) {
-                    _found = _found || _early_termination(from, label, to, edge_anno::from_trace_info(trace));
+                    _found = _found || _early_termination.add_edge(from, label, to, edge_anno::from_trace_info(trace));
                 }
             }
         }
@@ -278,7 +295,7 @@ namespace pdaaal::internal {
             if (_automaton.emplace_edge(from, label, to, edge_anno::from_trace_info(trace)).second) {
                 insert_rel(from, label, to);
                 if constexpr (ET) {
-                    _found = _found || _early_termination(from, label, to, edge_anno::from_trace_info(trace));
+                    _found = _found || _early_termination.add_edge(from, label, to, edge_anno::from_trace_info(trace));
                 }
             }
         }
@@ -338,6 +355,15 @@ namespace pdaaal::internal {
         [[nodiscard]] bool found() const {
             return _found;
         }
+        bool run() {
+            while(!workset_empty()) {
+                if constexpr (ET) {
+                    if (found()) return true;
+                }
+                step();
+            }
+            return found();
+        }
     };
 
     template<typename W, bool Enable, bool ET, typename = std::enable_if_t<Enable>>
@@ -362,26 +388,9 @@ namespace pdaaal::internal {
                 return solver_weight::less(rhs._weight, lhs._weight); // Used in a max-heap, so swap arguments to make it a min-heap.
             }
         };
-        struct rel3_elem {
-            uint32_t _label;
-            size_t _to;
-            trace_t _trace;
-            typename W::type _weight;
-
-            bool operator<(const rel3_elem& other) const {
-                if (_label != other._label) return _label < other._label;
-                return _to < other._to;
-            }
-            bool operator==(const rel3_elem& other) const {
-                return _to == other._to && _label == other._label;
-            }
-            bool operator!=(const rel3_elem& other) const {
-                return !(*this == other);
-            }
-        };
 
     public:
-        PostStarShortestSaturation(p_automaton_t& automaton, const early_termination_fn<W>& early_termination)
+        PostStarShortestSaturation(p_automaton_t& automaton, const early_termination_handler<W>& early_termination)
                 : _automaton(automaton), _early_termination(early_termination), _pda_states(_automaton.pda().states()),
                   _n_pda_states(_pda_states.size()), _n_Q(_automaton.states().size()) {
             assert(!has_negative_weight());
@@ -393,7 +402,7 @@ namespace pdaaal::internal {
 
     private:
         p_automaton_t& _automaton;
-        const early_termination_fn<W>& _early_termination;
+        const early_termination_handler<W>& _early_termination;
         const std::vector<typename PDA<W>::state_t>& _pda_states;
         const size_t _n_pda_states;
         const size_t _n_Q;
@@ -406,7 +415,6 @@ namespace pdaaal::internal {
         std::priority_queue<weight_edge_trace, std::vector<weight_edge_trace>, weight_edge_trace_comp> _workset;
         std::vector<std::vector<std::pair<size_t,uint32_t>>> _rel1; // faster access for lookup _from -> (_to, _label)
         std::vector<std::vector<size_t>> _rel2; // faster access for lookup _to -> _from  (when _label is uint32_t::max)
-        std::vector<std::vector<rel3_elem>> _rel3;
 
         bool _found = false;
 
@@ -451,9 +459,8 @@ namespace pdaaal::internal {
                 _minpath[i] = solver_weight::max();
             }
 
-            _rel1.resize(_n_Q);
+            _rel1.resize(_n_automaton_states);
             _rel2.resize(_n_automaton_states - _n_Q);
-            _rel3.resize(_n_automaton_states - _n_Q);
 
             // workset := ->_0 intersect (P x Gamma x Q)
             // rel := ->_0 \ workset
@@ -468,7 +475,7 @@ namespace pdaaal::internal {
                         } else {
                             insert_rel(from->_id, label, to);
                             if constexpr (ET) {
-                                _found |= _early_termination(from->_id, label, to, trace);
+                                _found |= _early_termination.add_edge(from->_id, label, to, trace);
                             }
                         }
                     }
@@ -477,20 +484,20 @@ namespace pdaaal::internal {
         }
 
         std::pair<bool,bool> update_edge_(size_t from, uint32_t label, size_t to, typename W::type edge_weight, typename W::type workset_weight) {
-            auto res = _edge_weights.emplace(temp_edge_t{from, label, to}, std::make_pair(edge_weight, workset_weight));
-            if (!res.second) {
+            auto [it, fresh] = _edge_weights.emplace(temp_edge_t{from, label, to}, std::make_pair(edge_weight, workset_weight));
+            if (!fresh) {
                 auto result = std::make_pair(false, false);
-                if (solver_weight::less(edge_weight, (*res.first).second.first)) {
-                    (*res.first).second.first = edge_weight;
+                if (solver_weight::less(edge_weight, it->second.first)) {
+                    it->second.first = edge_weight;
                     result.first = true;
                 }
-                if (solver_weight::less(workset_weight, (*res.first).second.second)) {
-                    (*res.first).second.second = workset_weight;
+                if (solver_weight::less(workset_weight, it->second.second)) {
+                    it->second.second = workset_weight;
                     result.second = true;
                 }
                 return result;
             }
-            return std::make_pair(res.second, res.second);
+            return std::make_pair(fresh, fresh);
         }
         void update_edge(size_t from, uint32_t label, size_t to, typename W::type edge_weight, trace_t trace) {
             auto workset_weight = to < _n_Q ? edge_weight : solver_weight::add(_minpath[to - _n_Q], edge_weight);
@@ -499,7 +506,7 @@ namespace pdaaal::internal {
             }
         }
         typename W::type get_weight(size_t from, uint32_t label, size_t to) const {
-            return (*_edge_weights.find(temp_edge_t{from, label, to})).second.first;
+            return _edge_weights.find(temp_edge_t{from, label, to})->second.first;
         }
         void insert_rel(size_t from, uint32_t label, size_t to) { // Adds to rel.
             _rel1[from].emplace_back(to, label);
@@ -514,7 +521,7 @@ namespace pdaaal::internal {
             auto elem = _workset.top();
             _workset.pop();
             auto t = elem._edge;
-            auto weights = (*_edge_weights.find(t)).second;
+            auto weights = _edge_weights.find(t)->second;
             if (solver_weight::less(weights.second, elem._weight)) {
                 return; // Same edge with a smaller weight was already processed.
             }
@@ -528,7 +535,7 @@ namespace pdaaal::internal {
                 _automaton.add_edge(t._from, t._to, t._label, std::make_pair(elem._trace, t_weight));
             }
             if constexpr (ET) {
-                _found |= _early_termination(t._from, t._label, t._to, std::make_pair(elem._trace, t_weight));
+                _found |= _early_termination.add_edge(t._from, t._label, t._to, std::make_pair(elem._trace, t_weight));
             }
 
             // if y != epsilon
@@ -563,13 +570,15 @@ namespace pdaaal::internal {
                         auto add_to_workset = update_edge_(rule._to, rule._op_label, q_new, W::zero(), wd).second;
                         auto was_updated = update_edge_(q_new, t._label, t._to, wb, W::zero()).first;
                         if (was_updated) {
-                            rel3_elem new_elem{t._label, t._to, trace, wb};
-                            auto &relq = _rel3[q_new - _n_Q];
-                            auto lb = std::lower_bound(relq.begin(), relq.end(), new_elem);
-                            if (lb == std::end(relq) || *lb != new_elem) {
-                                relq.insert(lb, new_elem);
-                            } else if (solver_weight::less(wb, lb->_weight)) {
-                                *lb = new_elem;
+                            assert(_automaton.get_edge(q_new, t._label, t._to) == nullptr || solver_weight::less(wb, _automaton.get_edge(q_new, t._label, t._to)->second));
+                            auto [it, fresh] = _automaton.insert_or_assign_edge(q_new, t._label, t._to, std::make_pair(trace, wb));
+                            if (fresh) {
+                                _rel1[q_new].emplace_back(t._to, t._label);
+                                if constexpr (ET) {
+                                    _found |= _early_termination.add_edge(q_new, t._label, t._to, std::make_pair(trace, wb));
+                                }
+                            } else { // If transition was already added, we just update weight and trace info in product automaton.
+                                _early_termination.update_edge(q_new, t._label, t._to, std::make_pair(trace, wb));
                             }
                         }
                         if (solver_weight::less(wd, _minpath[q_new - _n_Q])) {
@@ -588,31 +597,11 @@ namespace pdaaal::internal {
                     }
                 }
             } else {
-                if (t._to < _n_Q) {
-                    if (!_rel1[t._to].empty()) {
-                        auto trace = _automaton.new_post_trace(t._to);
-                        for (auto e : _rel1[t._to]) {
-                            assert(e.first >= _n_pda_states);
-                            update_edge(t._from, e.second, e.first, solver_weight::add(get_weight(t._to, e.second, e.first), t_weight), trace);
-                        }
-                    }
-                } else {
-                    if (!_rel3[t._to - _n_Q].empty()) {
-                        auto trace = _automaton.new_post_trace(t._to);
-                        for (auto &e : _rel3[t._to - _n_Q]) {
-                            update_edge(t._from, e._label, e._to, solver_weight::add(get_weight(t._to, e._label, e._to), t_weight), trace);
-                        }
-                    }
-                }
-            }
-        }
-        void finalize() {
-            for (size_t i = _n_Q; i < _n_automaton_states; ++i) {
-                for (auto &e : _rel3[i - _n_Q]) {
-                    assert(e._label != epsilon);
-                    _automaton.add_edge(i, e._to, e._label, std::make_pair(e._trace, e._weight));
-                    if constexpr (ET) { // TODO: We might need to do this in main loop (and update weights) to enable early termination in some cases..?? <-- Yes, that is correct. Test case found.
-                        _found |= _early_termination(i, e._label, e._to, std::make_pair(e._trace, e._weight));
+                if (!_rel1[t._to].empty()) {
+                    auto trace = _automaton.new_post_trace(t._to);
+                    for (const auto& e : _rel1[t._to]) {
+                        assert(e.first >= _n_pda_states);
+                        update_edge(t._from, e.second, e.first, solver_weight::add(get_weight(t._to, e.second, e.first), t_weight), trace);
                     }
                 }
             }
@@ -622,6 +611,15 @@ namespace pdaaal::internal {
         }
         [[nodiscard]] bool found() const {
             return _found;
+        }
+        bool run() {
+            while(!workset_empty()) {
+                if constexpr (ET) {
+                    if (found()) return true;
+                }
+                step();
+            }
+            return found();
         }
     };
 

@@ -73,6 +73,9 @@ namespace pdaaal {
                             _swap_initial_final ? _final : _initial,
                             _swap_initial_final ? _initial : _final);
         }
+        void update_edge_product(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) {
+            _product.update_edge(from, label, to, trace);
+        }
 
         // This is for the dual_search mode:
         bool add_initial_edge(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) {

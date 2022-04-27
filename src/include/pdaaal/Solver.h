@@ -134,14 +134,18 @@ namespace pdaaal {
         template <Trace_Type trace_type = Trace_Type::Any, typename pda_t, typename automaton_t, typename W>
         static bool post_star_accepts(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             return instance.initialize_product() ||
-                   post_star<trace_type,W,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) -> bool {
-                       return instance.template add_edge_product<trace_type != Trace_Type::Shortest>(from, label, to, trace);
-                   });
+                    post_star<trace_type,W,true>(instance.automaton(), internal::early_termination_handler<W>(
+                       [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) -> bool {
+                           return instance.template add_edge_product<trace_type != Trace_Type::Shortest>(from, label, to, trace);
+                       },
+                       [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) {
+                           instance.update_edge_product(from, label, to, trace);
+                       }));
         }
 
         template <Trace_Type trace_type = Trace_Type::Any, typename W, bool ET = false>
         static bool post_star(internal::PAutomaton<W> &automaton,
-                              const internal::early_termination_fn<W>& early_termination = [](size_t, uint32_t, size_t, internal::edge_annotation_t<W>) -> bool { return false; }) {
+                              const internal::early_termination_handler<W>& early_termination = internal::early_termination_handler<W>()) {
             static_assert(is_weighted<W> || trace_type != Trace_Type::Shortest, "Cannot do shortest-trace post* for PDA without weights."); // TODO: Consider: W=uin32_t, weight==1 as a default weight.
             if constexpr (is_weighted<W> && trace_type == Trace_Type::Shortest) {
                 return post_star_shortest<W,true,ET>(automaton, early_termination);
@@ -241,28 +245,15 @@ namespace pdaaal {
 
     private:
         template <typename W, bool ET>
-        static bool post_star_any(internal::PAutomaton<W> &automaton, const internal::early_termination_fn<W>& early_termination) {
+        static bool post_star_any(internal::PAutomaton<W> &automaton, const internal::early_termination_handler<W>& early_termination) {
             internal::PostStarSaturation<W,ET> saturation(automaton, early_termination);
-            while(!saturation.workset_empty()) {
-                if constexpr (ET) {
-                    if (saturation.found()) return true;
-                }
-                saturation.step();
-            }
-            return saturation.found();
+            return saturation.run();
         }
 
         template<typename W, bool Enable, bool ET, typename = std::enable_if_t<Enable>>
-        static bool post_star_shortest(internal::PAutomaton<W> &automaton, const internal::early_termination_fn<W>& early_termination) {
+        static bool post_star_shortest(internal::PAutomaton<W> &automaton, const internal::early_termination_handler<W>& early_termination) {
             internal::PostStarShortestSaturation<W,Enable,ET> saturation(automaton, early_termination);
-            while(!saturation.workset_empty()) {
-                if constexpr (ET) {
-                    if (saturation.found()) break;
-                }
-                saturation.step();
-            }
-            saturation.finalize();
-            return saturation.found();
+            return saturation.run();
         }
 
         template <typename T, typename W, typename S, bool ssm>

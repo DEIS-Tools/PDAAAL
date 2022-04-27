@@ -84,6 +84,14 @@ namespace pdaaal::fut {
             auto emplace(Head &&head, Args &&... args) {
                 return elems.try_emplace(std::move(head)).first->second.emplace(std::forward<Args>(args)...);
             }
+            template <typename... Args>
+            auto insert_or_assign(const Head& head, Args &&... args) {
+                return elems.try_emplace(head).first->second.insert_or_assign(std::forward<Args>(args)...);
+            }
+            template <typename... Args>
+            auto insert_or_assign(Head&& head, Args &&... args) {
+                return elems.try_emplace(std::move(head)).first->second.insert_or_assign(std::forward<Args>(args)...);
+            }
 
             template<typename... Args>
             bool contains(const Head &head, const Args &... tail) const {
@@ -139,6 +147,11 @@ namespace pdaaal::fut {
         class fut_set<std::tuple<Head>, C> : public set_container<Head,C> {
         public:
             using inner_value_type = std::tuple<>;
+
+            template <typename... Args>
+            auto insert_or_assign(Args &&... args) { // In set_containers insert_or_assign is just emplace. Provide it here, to have consistent interface.
+                return emplace(std::forward<Args>(args)...);
+            }
         };
 
     }
