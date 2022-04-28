@@ -464,7 +464,7 @@ namespace pdaaal::parsing {
                 }
             };
             std::vector<size_t> accepting_initial_states;
-            std20::unordered_set<state_t> accepting_extra_states;
+            std::unordered_set<state_t> accepting_extra_states;
             iterate_states([&pda,&accepting_initial_states,&accepting_extra_states](const state_t& state, const json& j_state){
                 auto [exists, id] = pda.exists_state(state);
                 if (exists) {

@@ -39,28 +39,6 @@ namespace std20{
     template< class T >
     using remove_cvref_t = typename remove_cvref<T>::type;
 }
-namespace std20 {
-    // Add contains method to unordered containers, until we can use the ones in C++20.
-    template<typename Key, typename Tp,
-            typename Hash = std::hash<Key>,
-            typename Pred = std::equal_to<Key>,
-            typename Alloc = std::allocator<std::pair<const Key, Tp>>>
-    class unordered_map : public std::unordered_map<Key,Tp,Hash,Pred,Alloc> {
-    public:
-        bool contains(const Key &key) const {
-            return this->find(key) != this->end();
-        }
-    };
-    template<typename Value,
-            typename Hash = std::hash<Value>,
-            typename Pred = std::equal_to<Value>,
-            typename Alloc = std::allocator<Value>>
-    class unordered_set : public std::unordered_set<Value,Hash,Pred,Alloc> {
-    public:
-        bool contains(const Value &value) const {
-            return this->find(value) != this->end();
-        }
-    };
-}
+
 
 #endif //PDAAAL_STD20_H

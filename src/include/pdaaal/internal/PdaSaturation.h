@@ -112,9 +112,9 @@ namespace pdaaal::internal {
 
         void initialize() {
             // workset := ->_0  (line 1)
-            for (const auto &from : _automaton.states()) {
-                for (const auto &[to,labels] : from->_edges) {
-                    for (const auto &[label,_] : labels) {
+            for (const auto& from : _automaton.states()) {
+                for (const auto& [to, labels] : from->_edges) {
+                    for (const auto& [label, _] : labels) {
                         _workset.emplace(from->_id, label, to);
                     }
                 }
@@ -123,7 +123,7 @@ namespace pdaaal::internal {
             // for all <p, y> --> <p', epsilon> : workset U= (p, y, p') (line 2)
             for (size_t state = 0; state < _n_pda_states; ++state) {
                 size_t rule_id = 0;
-                for (const auto&[rule,labels] : _pda_states[state]._rules) {
+                for (const auto& [rule, labels] : _pda_states[state]._rules) {
                     if (rule._operation == POP) {
                         insert_edge_bulk(state, labels, rule._to, p_automaton_t::new_pre_trace(rule_id));
                     }
@@ -139,13 +139,13 @@ namespace pdaaal::internal {
                 }
             }
         };
-        void insert_edge_bulk(size_t from, const labels_t& precondition, size_t to, trace_t trace) {
-            if (precondition.wildcard()) {
+        void insert_edge_bulk(size_t from, const labels_t& labels, size_t to, trace_t trace) {
+            if (labels.wildcard()) {
                 for (uint32_t i = 0; i < _n_pda_labels; i++) {
                     insert_edge(from, i, to, trace);
                 }
             } else {
-                for (auto label : precondition.labels()) {
+                for (auto label : labels.labels()) {
                     insert_edge(from, label, to, trace);
                 }
             }
@@ -160,9 +160,7 @@ namespace pdaaal::internal {
             _rel[t._from].emplace_back(t._to, t._label);
 
             // (line 7-8 for \Delta')
-            for (auto pair : _delta_prime[t._from]) { // Loop over delta_prime (that match with t->from)
-                auto state = pair.first;
-                auto rule_id = pair.second;
+            for (const auto& [state, rule_id] : _delta_prime[t._from]) { // Loop over delta_prime (that match with t->from)
                 if (_pda_states[state]._rules[rule_id].second.contains(t._label)) {
                     insert_edge(state, t._label, t._to, p_automaton_t::new_pre_trace(rule_id, t._from));
                 }
@@ -170,10 +168,10 @@ namespace pdaaal::internal {
             // Loop over \Delta (filter rules going into q) (line 7 and 9)
             if (t._from >= _n_pda_states) { return; }
             for (auto pre_state : _pda_states[t._from]._pre_states) {
-                const auto &rules = _pda_states[pre_state]._rules;
+                const auto& rules = _pda_states[pre_state]._rules;
                 auto lb = rules.lower_bound(pda_rule_t<W>{t._from});
                 while (lb != rules.end() && lb->first._to == t._from) {
-                    const auto &[rule, labels] = *lb;
+                    const auto& [rule, labels] = *lb;
                     size_t rule_id = lb - rules.begin();
                     ++lb;
                     switch (rule._operation) {
@@ -193,9 +191,9 @@ namespace pdaaal::internal {
                             if (rule._op_label == t._label) {
                                 // (line 10)
                                 _delta_prime[t._to].emplace_back(pre_state, rule_id);
-                                for (auto rel_rule : _rel[t._to]) { // (line 11-12)
-                                    if (labels.contains(rel_rule.second)) {
-                                        insert_edge(pre_state, rel_rule.second, rel_rule.first, p_automaton_t::new_pre_trace(rule_id, t._to));
+                                for (const auto& [to, label] : _rel[t._to]) { // (line 11-12)
+                                    if (labels.contains(label)) {
+                                        insert_edge(pre_state, label, to, p_automaton_t::new_pre_trace(rule_id, t._to));
                                     }
                                 }
                             }
@@ -218,7 +216,6 @@ namespace pdaaal::internal {
     class PostStarSaturation {
         using trace_info = TraceInfo<TraceInfoType::Single>;
         using edge_anno = edge_annotation<W,TraceInfoType::Single>;
-        using edge_anno_t = edge_annotation_t<W,TraceInfoType::Single>;
         using p_automaton_t = PAutomaton<W>;
         static constexpr auto epsilon = p_automaton_t::epsilon;
     public:
@@ -253,8 +250,8 @@ namespace pdaaal::internal {
             for (const auto& state : _pda_states) {
                 for (const auto& [rule, labels] : state._rules) {
                     if (rule._operation == PUSH) {
-                        auto res = _q_prime.emplace(std::make_pair(rule._to, rule._op_label), _automaton.next_state_id());
-                        if (res.second) {
+                        auto [it, fresh] = _q_prime.emplace(std::make_pair(rule._to, rule._op_label), _automaton.next_state_id());
+                        if (fresh) {
                             _automaton.add_state(false, false);
                         }
                     }
@@ -267,9 +264,9 @@ namespace pdaaal::internal {
             // workset := ->_0 intersect (P x Gamma x Q)  (line 1)
             // rel := ->_0 \ workset (line 2)
             for (const auto& from : _automaton.states()) {
-                for (const auto& [to,labels] : from->_edges) {
+                for (const auto& [to, labels] : from->_edges) {
                     assert(!labels.contains(epsilon)); // PostStar algorithm assumes no epsilon transitions in the NFA.
-                    for (const auto& [label,_] : labels) {
+                    for (const auto& [label, _] : labels) {
                         if (from->_id < _n_pda_states) {
                             _workset.emplace(from->_id, label, to);
                         } else {
@@ -316,7 +313,7 @@ namespace pdaaal::internal {
             if (t._label != epsilon) {
                 const auto& rules = _pda_states[t._from]._rules;
                 for (size_t rule_id = 0; rule_id < rules.size(); ++rule_id) {
-                    const auto& [rule,labels] = rules[rule_id];
+                    const auto& [rule, labels] = rules[rule_id];
                     if (!labels.contains(t._label)) { continue; }
                     auto trace = p_automaton_t::new_post_trace(t._from, rule_id, t._label);
                     switch (rule._operation) {
@@ -375,8 +372,6 @@ namespace pdaaal::internal {
         using solver_weight = min_weight<typename W::type>;
 
         using trace_info = TraceInfo<TraceInfoType::Single>;
-        using edge_anno = edge_annotation<W,TraceInfoType::Single>;
-        using edge_anno_t = edge_annotation_t<W,TraceInfoType::Single>;
         using p_automaton_t = PAutomaton<W>;
 
         struct weight_edge_trace {
@@ -393,7 +388,7 @@ namespace pdaaal::internal {
         };
 
     public:
-        PostStarShortestSaturation(p_automaton_t& automaton, early_termination_handler<W>&& early_termination = early_termination_handler<W>())
+        explicit PostStarShortestSaturation(p_automaton_t& automaton, early_termination_handler<W>&& early_termination = early_termination_handler<W>())
                 : _automaton(automaton), _early_termination(std::move(early_termination)), _pda_states(_automaton.pda().states()),
                   _n_pda_states(_pda_states.size()), _n_Q(_automaton.states().size()) {
             assert(!has_negative_weight());
@@ -634,9 +629,6 @@ namespace pdaaal::internal {
         using solverW = solver_weight<W,trace_type>;
 
         using trace_info = TraceInfo<TraceInfoType::Pair>;
-        using trace_info_t = TraceInfo_t<TraceInfoType::Pair>;
-        using edge_anno = edge_annotation<W,TraceInfoType::Pair>;
-        using edge_anno_t = edge_annotation_t<W,TraceInfoType::Pair>;
         using p_automaton_t = PAutomaton<W,TraceInfoType::Pair>;
 
         template<bool change_is_bottom = false>
@@ -832,9 +824,9 @@ namespace pdaaal::internal {
         }
         template <bool avoid_loop = false>
         std::optional<rule_t> next() {
-            while(true) { // In case of post_epsilon_trace, keep going until a rule is found or we are done.
+            while(true) { // In case of post_epsilon_trace, keep going until a rule is found, or we are done.
                 if (_path.empty()) return std::nullopt;
-                auto[from, label, to] = _path.front_edge();
+                auto [from, label, to] = _path.front_edge();
                 trace_t trace_label = get_trace_label<avoid_loop>(from, label, to);
                 if (trace_label.is_null()) return std::nullopt; // Done
                 _path.pop();
