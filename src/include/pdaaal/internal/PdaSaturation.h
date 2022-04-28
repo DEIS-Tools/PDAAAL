@@ -62,17 +62,22 @@ namespace pdaaal::internal {
 
     template <typename W>
     class early_termination_handler {
+        using add_fn_t = std::function<bool(size_t,uint32_t,size_t,edge_annotation_t<W>)>;
+        using update_fn_t = std::function<void(size_t,uint32_t,size_t,edge_annotation_t<W>)>;
     public:
         early_termination_handler()
         : add_edge([](size_t, uint32_t, size_t, edge_annotation_t<W>) -> bool { return false; }),
           update_edge([](size_t, uint32_t, size_t, edge_annotation_t<W>){}) {};
 
-        template<typename AddFn, typename UpdateFn>
+        template<typename AddFn, typename E = std::enable_if_t<std::is_convertible_v<AddFn,add_fn_t>,void>>
+        explicit early_termination_handler(AddFn&& add_fn)
+        : add_edge(std::forward<AddFn>(add_fn)), update_edge([](size_t, uint32_t, size_t, edge_annotation_t<W>){}) {}
+        template<typename AddFn, typename UpdateFn, typename E = std::enable_if_t<std::is_convertible_v<AddFn,add_fn_t>&&std::is_convertible_v<UpdateFn,update_fn_t>,void>>
         early_termination_handler(AddFn&& add_fn, UpdateFn&& update_fn)
         : add_edge(std::forward<AddFn>(add_fn)), update_edge(std::forward<UpdateFn>(update_fn)) {}
 
-        std::function<bool(size_t,uint32_t,size_t,edge_annotation_t<W>)> add_edge;
-        std::function<void(size_t,uint32_t,size_t,edge_annotation_t<W>)> update_edge;
+        add_fn_t add_edge;
+        update_fn_t update_edge;
     };
 
     template <typename W, bool ET=false>
@@ -217,13 +222,11 @@ namespace pdaaal::internal {
         using p_automaton_t = PAutomaton<W>;
         static constexpr auto epsilon = p_automaton_t::epsilon;
     public:
-        explicit PostStarSaturation(p_automaton_t& automaton, const early_termination_handler<W>& early_termination = early_termination_handler<W>())
-                : _automaton(automaton), _early_termination(early_termination), _pda_states(_automaton.pda().states()),
+        explicit PostStarSaturation(p_automaton_t& automaton, early_termination_handler<W>&& early_termination = early_termination_handler<W>())
+                : _automaton(automaton), _early_termination(std::move(early_termination)), _pda_states(_automaton.pda().states()),
                   _n_pda_states(_pda_states.size()), _n_Q(_automaton.states().size()) {
             initialize();
         };
-        PostStarSaturation(p_automaton_t& automaton, const early_termination_fn<W>& early_termination)
-        : PostStarSaturation(automaton, early_termination_handler<W>(early_termination, [](size_t, uint32_t, size_t, edge_anno_t){})) {};
 
     private:
         // This is an implementation of Algorithm 2 (figure 3.4) in:
@@ -231,7 +234,7 @@ namespace pdaaal::internal {
         // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 48)
 
         p_automaton_t& _automaton;
-        const early_termination_handler<W>& _early_termination;
+        early_termination_handler<W> _early_termination;
         const std::vector<typename PDA<W>::state_t>& _pda_states;
         const size_t _n_pda_states;
         const size_t _n_Q;
@@ -390,8 +393,8 @@ namespace pdaaal::internal {
         };
 
     public:
-        PostStarShortestSaturation(p_automaton_t& automaton, const early_termination_handler<W>& early_termination)
-                : _automaton(automaton), _early_termination(early_termination), _pda_states(_automaton.pda().states()),
+        PostStarShortestSaturation(p_automaton_t& automaton, early_termination_handler<W>&& early_termination = early_termination_handler<W>())
+                : _automaton(automaton), _early_termination(std::move(early_termination)), _pda_states(_automaton.pda().states()),
                   _n_pda_states(_pda_states.size()), _n_Q(_automaton.states().size()) {
             assert(!has_negative_weight());
             if (has_negative_weight()) {
@@ -402,7 +405,7 @@ namespace pdaaal::internal {
 
     private:
         p_automaton_t& _automaton;
-        const early_termination_handler<W>& _early_termination;
+        early_termination_handler<W> _early_termination;
         const std::vector<typename PDA<W>::state_t>& _pda_states;
         const size_t _n_pda_states;
         const size_t _n_Q;

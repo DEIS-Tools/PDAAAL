@@ -73,8 +73,35 @@ namespace pdaaal {
                             _swap_initial_final ? _final : _initial,
                             _swap_initial_final ? _initial : _final);
         }
+        template<bool edge_in_first = true>
         void update_edge_product(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) {
-            _product.update_edge(from, label, to, trace);
+            const auto& fast_lookup = constexpr_ternary<edge_in_first>(_id_fast_lookup, _id_fast_lookup_back);
+            std::vector<std::pair<size_t,size_t>> from_states;
+            if (from < fast_lookup.size()) { // Avoid out-of-bounds.
+                from_states = fast_lookup[from];
+            }
+            if (from < _pda_size) {
+                from_states.emplace_back(from, from); // Initial states are not stored in _id_fast_lookup.
+            }
+            const auto& current = constexpr_ternary<edge_in_first>(_initial, _final);
+            const auto& other = constexpr_ternary<edge_in_first>(_final, _initial);
+            auto current_to = current.states()[to].get();
+            std::vector<size_t> waiting;
+            for (auto [other_from, product_from] : from_states) { // Iterate through reachable 'from-states'.
+                if (label == epsilon) {
+                    auto [fresh, product_to] = get_product_state(swap_if<!edge_in_first>(current_to, other.states()[other_from].get()));
+                    assert(!fresh);
+                    _product.update_edge(product_from, product_to, label, trace);
+                } else {
+                    for (const auto& [other_to,other_labels] : other.states()[other_from]->_edges) {
+                        if (other_labels.contains(label)) {
+                            auto [fresh, product_to] = get_product_state(swap_if<!edge_in_first>(current_to, other.states()[other_to].get()));
+                            assert(!fresh);
+                            _product.update_edge(product_from, product_to, label, trace);
+                        }
+                    }
+                }
+            }
         }
 
         // This is for the dual_search mode:
