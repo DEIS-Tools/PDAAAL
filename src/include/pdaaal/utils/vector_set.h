@@ -104,6 +104,27 @@ namespace pdaaal::fut {
         template <typename... Args> auto try_emplace(const Key& key, Args&&... args) { return emplace(key, std::forward<Args>(args)...); }
         template <typename... Args> auto try_emplace(Key&& key, Args&&... args) { return emplace(std::move(key), std::forward<Args>(args)...); }
 
+        template <typename V>
+        auto insert_or_assign(const Key& key, V&& value) {
+            auto lb = std::lower_bound(elems.begin(), elems.end(), key);
+            if (lb == elems.end() || *lb != key) {
+                lb = elems.insert(lb, elem_t(key, std::forward<V>(value)));
+                return std::make_pair(lb, true);
+            }
+            lb->second = std::forward<V>(value);
+            return std::make_pair(lb, false);
+        }
+        template <typename V>
+        auto insert_or_assign(Key&& key, V&& value) {
+            auto lb = std::lower_bound(elems.begin(), elems.end(), key);
+            if (lb == elems.end() || *lb != key) {
+                lb = elems.insert(lb, elem_t(std::move(key), std::forward<V>(value)));
+                return std::make_pair(lb, true);
+            }
+            lb->second = std::forward<V>(value);
+            return std::make_pair(lb, false);
+        }
+
         bool contains(const Key& key) const {
             auto lb = std::lower_bound(elems.begin(), elems.end(), key);
             return lb != elems.end() && *lb == key;
