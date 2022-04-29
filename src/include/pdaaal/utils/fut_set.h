@@ -45,9 +45,9 @@ namespace pdaaal::fut {
         class fut_set { };
 
         template<typename Key, typename Value, type C>
-        using map_container = std::conditional_t<C == type::hash, std20::unordered_map<Key, Value, absl::Hash<Key>>, vector_map<Key, Value>>;
+        using map_container = std::conditional_t<C == type::hash, std::unordered_map<Key, Value, absl::Hash<Key>>, vector_map<Key, Value>>;
         template<typename Key, type C>
-        using set_container = std::conditional_t<C == type::hash, std20::unordered_set<Key, absl::Hash<Key>>, vector_set<Key>>;
+        using set_container = std::conditional_t<C == type::hash, std::unordered_set<Key, absl::Hash<Key>>, vector_set<Key>>;
 
         // TODO: Add 'compare_by' functionality somehow.
 
@@ -83,6 +83,14 @@ namespace pdaaal::fut {
             template<typename... Args>
             auto emplace(Head &&head, Args &&... args) {
                 return elems.try_emplace(std::move(head)).first->second.emplace(std::forward<Args>(args)...);
+            }
+            template <typename... Args>
+            auto insert_or_assign(const Head& head, Args &&... args) {
+                return elems.try_emplace(head).first->second.insert_or_assign(std::forward<Args>(args)...);
+            }
+            template <typename... Args>
+            auto insert_or_assign(Head&& head, Args &&... args) {
+                return elems.try_emplace(std::move(head)).first->second.insert_or_assign(std::forward<Args>(args)...);
             }
 
             template<typename... Args>
@@ -139,6 +147,11 @@ namespace pdaaal::fut {
         class fut_set<std::tuple<Head>, C> : public set_container<Head,C> {
         public:
             using inner_value_type = std::tuple<>;
+
+            template <typename... Args>
+            auto insert_or_assign(Args &&... args) { // In set_containers insert_or_assign is just emplace. Provide it here, to have consistent interface.
+                return emplace(std::forward<Args>(args)...);
+            }
         };
 
     }

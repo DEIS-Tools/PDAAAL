@@ -29,7 +29,6 @@
 #include <parsing/PAutomatonJsonParser.h>
 #include <parsing/PAutomatonParser.h>
 #include <parsing/PdaJsonParser.h>
-#include <pdaaal/SolverInstance.h>
 #include <pdaaal/Solver.h>
 #include <boost/test/unit_test.hpp>
 

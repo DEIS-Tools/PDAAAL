@@ -52,7 +52,7 @@ namespace pdaaal {
         // Construct a PAutomaton that accepts a configuration <p,w> iff states contains p and nfa accepts w.
         PAutomaton(const pda_t& pda, const NFA<label_t>& nfa, const std::vector<size_t>& states)
         : parent_t(static_cast<const internal_pda_t&>(pda), states, nfa.empty_accept()), _pda(pda) {
-            this->template construct<label_t>(nfa, states, [&pda](const auto& v){ return pda.encode_pre(v); });
+            this->template construct<label_t>(nfa, states, [&pda](const auto& e){ return pda.encode_pre(e._symbols); });
         }
         // Same, but where the NFA contains the symbols mapped to ids already.
         PAutomaton(const pda_t& pda, const NFA<uint32_t>& nfa, const std::vector<size_t>& states)
