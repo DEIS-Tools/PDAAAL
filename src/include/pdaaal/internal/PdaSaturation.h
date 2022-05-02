@@ -781,6 +781,164 @@ namespace pdaaal::internal {
         }
     };
 
+    template<typename W, Trace_Type trace_type>
+    class PostStarFixedPointSaturation : public fixed_point_workset<PostStarFixedPointSaturation<W,trace_type>, temp_edge_t> {
+        using parent_t = fixed_point_workset<PostStarFixedPointSaturation<W,trace_type>, temp_edge_t>;
+        static_assert(W::is_weight);
+        using weight_t = typename W::type;
+        using solverW = solver_weight<W,trace_type>;
+
+        using trace_info = TraceInfo<TraceInfoType::Pair>;
+        using p_automaton_t = PAutomaton<W,TraceInfoType::Pair>;
+
+        template<bool change_is_bottom = false>
+        bool update_edge(size_t from, uint32_t label, size_t to, const weight_t& edge_weight, trace_t trace) {
+            bool is_changed = false;
+            if constexpr(change_is_bottom) {
+                auto ptr = _automaton.get_edge(from, label, to);
+                assert(ptr != nullptr);
+                if (solverW::less(edge_weight, ptr->second)) {
+                    ptr->first.second = trace; // We update the second trace_info in the pair, keeping the first one unchanged.
+                    ptr->second = solverW::bottom(); // Update weight.
+                    is_changed = true;
+                }
+            } else {
+                auto [it, fresh] = _automaton.emplace_edge(from, label, to, std::make_pair(std::make_pair(trace,trace), edge_weight));
+                if (fresh) {
+                    insert_rel(from, label, to);
+                    is_changed = true;
+                } else if (solverW::less(edge_weight, it->second.second)) {
+                    it->second.first.second = trace;
+                    it->second.second = edge_weight;
+                    is_changed = true;
+                }
+            }
+            if (is_changed && from < _n_pda_states) {
+                parent_t::emplace(from, label, to);
+            }
+            return is_changed;
+        }
+        void insert_rel(size_t from, uint32_t label, size_t to) {
+            if (from >= _n_pda_states) {
+                _rel1[from - _n_pda_states].emplace_back(to, label);
+            }
+            if (label == epsilon && to >= _n_Q) {
+                _rel2[to - _n_Q].push_back(from);
+            }
+        }
+    public:
+        explicit PostStarFixedPointSaturation(p_automaton_t& automaton)
+        : parent_t(std::pow(automaton.states().size(), 2) * automaton.number_of_labels()),
+          _automaton(automaton), _pda_states(_automaton.pda().states()),
+          _n_pda_states(_pda_states.size()), _n_Q(_automaton.states().size()) {
+            initialize();
+        };
+        PostStarFixedPointSaturation(p_automaton_t& automaton, size_t round_limit)
+        : parent_t(round_limit),
+          _automaton(automaton), _pda_states(_automaton.pda().states()),
+          _n_pda_states(_pda_states.size()), _n_Q(_automaton.states().size()) {
+            initialize();
+        };
+        static constexpr temp_edge_t next_round_elem = temp_edge_t();
+    private:
+        p_automaton_t& _automaton;
+        const std::vector<typename PDA<W>::state_t>& _pda_states;
+        const size_t _n_pda_states;
+        const size_t _n_Q;
+        std::unordered_map<std::pair<size_t, uint32_t>, size_t, absl::Hash<std::pair<size_t, uint32_t>>> _q_prime{};
+
+        size_t _n_automaton_states{};
+        std::vector<std::vector<std::pair<size_t,uint32_t>>> _rel1; // faster access for lookup _from -> (_to, _label)
+        std::vector<std::vector<size_t>> _rel2; // faster access for lookup _to -> _from  (when _label is epsilon)
+        std::vector<typename W::type> _minpath;
+
+        void initialize() {
+            // for <p, y> -> <p', y1 y2> do  (line 3)
+            //   Q' U= {q_p'y1}              (line 4)
+            for (const auto& state : _pda_states) {
+                for (const auto& [rule, labels] : state._rules) {
+                    if (rule._operation == PUSH) {
+                        auto [it, fresh] = _q_prime.emplace(std::make_pair(rule._to, rule._op_label), _automaton.next_state_id());
+                        if (fresh) {
+                            _automaton.add_state(false, false);
+                        }
+                    }
+                }
+            }
+
+            _n_automaton_states = _automaton.states().size();
+            _rel1.resize(_n_automaton_states - _n_pda_states);
+            _rel2.resize(_n_automaton_states - _n_Q);
+
+            // workset := ->_0 intersect (P x Gamma x Q)  (line 1)
+            // rel := ->_0 \ workset (line 2)
+            for (const auto& from : _automaton.states()) {
+                for (const auto& [to, labels] : from->_edges) {
+                    assert(!labels.contains(epsilon)); // PostStar algorithm assumes no epsilon transitions in the NFA.
+                    for (const auto& [label, _] : labels) {
+                        if (from->_id < _n_pda_states) {
+                            parent_t::emplace(from->_id, label, to);
+                        } else {
+                            insert_rel(from->_id, label, to);
+                        }
+                    }
+                }
+            }
+            _minpath.resize(_n_automaton_states - _n_Q);
+            std::fill(_minpath.begin(), _minpath.end(), solverW::max());
+        }
+
+    public:
+        template<bool change_is_bottom = false>
+        bool step_with(temp_edge_t&& t) {
+            assert(t._from < _n_pda_states); // This should be an invariant of the way we use the workset.
+            assert(t._to >= _n_pda_states); // This should be an invariant of post*
+
+            assert(_automaton.get_edge(t._from, t._label, t._to) != nullptr);
+            auto w = _automaton.get_edge(t._from, t._label, t._to)->second;
+
+            if (t._label != epsilon) {
+                const auto& rules = _pda_states[t._from]._rules;
+                for (size_t rule_id = 0; rule_id < rules.size(); ++rule_id) {
+                    const auto& [rule, labels] = rules[rule_id];
+                    if (!labels.contains(t._label)) { continue; }
+                    auto trace = p_automaton_t::new_post_trace(t._from, rule_id, t._label);
+                    auto wb = solverW::add(w, rule._weight);
+                    switch (rule._operation) {
+                        case POP:
+                            update_edge<change_is_bottom>(rule._to, epsilon, t._to, wb, trace);
+                            break;
+                        case SWAP:
+                            update_edge<change_is_bottom>(rule._to, rule._op_label, t._to, wb, trace);
+                            break;
+                        case NOOP:
+                            update_edge<change_is_bottom>(rule._to, t._label, t._to, wb, trace);
+                            break;
+                        case PUSH: {
+                            assert(_q_prime.find(std::make_pair(rule._to, rule._op_label)) != std::end(_q_prime));
+                            size_t q_new = _q_prime[std::make_pair(rule._to, rule._op_label)];
+                            update_edge<change_is_bottom>(rule._to, rule._op_label, q_new, W::zero(), trace);
+                            if (update_edge<change_is_bottom>(q_new, t._label, t._to, wb, trace)) {
+                                assert(q_new >= _n_Q);
+                                for (auto f: _rel2[q_new - _n_Q]) {
+                                    assert(_automaton.get_edge(f, epsilon, q_new) != nullptr);
+                                    update_edge<change_is_bottom>(f, t._label, t._to, solverW::add(wb, _automaton.get_edge(f, epsilon, q_new)->second), p_automaton_t::new_post_trace(q_new));
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            } else {
+                for (const auto& [to, label]: _rel1[t._to - _n_pda_states]) {
+                    assert(_automaton.get_edge(t._to, label, to) != nullptr);
+                    update_edge<change_is_bottom>(t._from, label, to, solverW::add(_automaton.get_edge(t._to, label, to)->second, w), p_automaton_t::new_post_trace(t._to));
+                }
+            }
+            return true;
+        }
+    };
+
     template <typename W, TraceInfoType trace_info_type>
     class TraceBack {
         using rule_t = user_rule_t<W>;

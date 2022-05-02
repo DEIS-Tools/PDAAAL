@@ -49,6 +49,17 @@ namespace pdaaal {
             saturation.run();
         }
 
+        template <Trace_Type trace_type, typename pda_t, typename automaton_t, typename W>
+        static bool post_star_fixed_point_accepts(PAutomatonProduct<pda_t,automaton_t,W,TraceInfoType::Pair>& instance) {
+            post_star_fixed_point<trace_type>(instance.automaton());
+            return instance.template initialize_product<false,false>();
+        }
+        template <Trace_Type trace_type, typename W>
+        static void post_star_fixed_point(internal::PAutomaton<W,TraceInfoType::Pair>& automaton) {
+            internal::PostStarFixedPointSaturation<W,trace_type> saturation(automaton);
+            saturation.run();
+        }
+
         template <typename pda_t, typename automaton_t, typename W>
         static bool dual_search_accepts(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             if (instance.template initialize_product<true>()) {
