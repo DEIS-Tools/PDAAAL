@@ -37,7 +37,7 @@ namespace pdaaal {
     class fixed_point_workset {
         static constexpr Elem next_round_elem = Derived::next_round_elem;
         bool _done = false;
-        const size_t _round_limit;
+        size_t _round_limit;
         size_t _rounds = 0;
         std::deque<Elem> _workset;
     public:
@@ -87,6 +87,7 @@ namespace pdaaal {
         auto emplace(Args&&... args){
             return _workset.emplace_back(std::forward<Args>(args)...);
         }
+        void set_round_limit(size_t new_round_limit) { _round_limit = new_round_limit; }
     };
 }
 

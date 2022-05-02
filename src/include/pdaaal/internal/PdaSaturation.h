@@ -787,45 +787,9 @@ namespace pdaaal::internal {
         static_assert(W::is_weight);
         using weight_t = typename W::type;
         using solverW = solver_weight<W,trace_type>;
-
         using trace_info = TraceInfo<TraceInfoType::Pair>;
         using p_automaton_t = PAutomaton<W,TraceInfoType::Pair>;
 
-        template<bool change_is_bottom = false>
-        bool update_edge(size_t from, uint32_t label, size_t to, const weight_t& edge_weight, trace_t trace) {
-            bool is_changed = false;
-            if constexpr(change_is_bottom) {
-                auto ptr = _automaton.get_edge(from, label, to);
-                assert(ptr != nullptr);
-                if (solverW::less(edge_weight, ptr->second)) {
-                    ptr->first.second = trace; // We update the second trace_info in the pair, keeping the first one unchanged.
-                    ptr->second = solverW::bottom(); // Update weight.
-                    is_changed = true;
-                }
-            } else {
-                auto [it, fresh] = _automaton.emplace_edge(from, label, to, std::make_pair(std::make_pair(trace,trace), edge_weight));
-                if (fresh) {
-                    insert_rel(from, label, to);
-                    is_changed = true;
-                } else if (solverW::less(edge_weight, it->second.second)) {
-                    it->second.first.second = trace;
-                    it->second.second = edge_weight;
-                    is_changed = true;
-                }
-            }
-            if (is_changed && from < _n_pda_states) {
-                parent_t::emplace(from, label, to);
-            }
-            return is_changed;
-        }
-        void insert_rel(size_t from, uint32_t label, size_t to) {
-            if (from >= _n_pda_states) {
-                _rel1[from - _n_pda_states].emplace_back(to, label);
-            }
-            if (label == epsilon && to >= _n_Q) {
-                _rel2[to - _n_Q].push_back(from);
-            }
-        }
     public:
         explicit PostStarFixedPointSaturation(p_automaton_t& automaton)
         : parent_t(std::pow(automaton.states().size(), 2) * automaton.number_of_labels()),
@@ -851,6 +815,8 @@ namespace pdaaal::internal {
         std::vector<std::vector<std::pair<size_t,uint32_t>>> _rel1; // faster access for lookup _from -> (_to, _label)
         std::vector<std::vector<size_t>> _rel2; // faster access for lookup _to -> _from  (when _label is epsilon)
         std::vector<typename W::type> _minpath;
+
+        size_t _count_transitions = 0;
 
         void initialize() {
             // for <p, y> -> <p', y1 y2> do  (line 3)
@@ -878,14 +844,54 @@ namespace pdaaal::internal {
                     for (const auto& [label, _] : labels) {
                         if (from->_id < _n_pda_states) {
                             parent_t::emplace(from->_id, label, to);
+                            ++_count_transitions;
                         } else {
                             insert_rel(from->_id, label, to);
                         }
                     }
                 }
             }
+            parent_t::set_round_limit(_count_transitions);
             _minpath.resize(_n_automaton_states - _n_Q);
             std::fill(_minpath.begin(), _minpath.end(), solverW::max());
+        }
+
+        void insert_rel(size_t from, uint32_t label, size_t to) {
+            if (from >= _n_pda_states) {
+                _rel1[from - _n_pda_states].emplace_back(to, label);
+            }
+            if (label == epsilon && to >= _n_Q) {
+                _rel2[to - _n_Q].push_back(from);
+            }
+        }
+
+        template<bool change_is_bottom = false>
+        bool update_edge(size_t from, uint32_t label, size_t to, const weight_t& edge_weight, trace_t trace) {
+            bool is_changed = false;
+            if constexpr(change_is_bottom) {
+                auto ptr = _automaton.get_edge(from, label, to);
+                assert(ptr != nullptr);
+                if (solverW::less(edge_weight, ptr->second)) {
+                    ptr->first.second = trace; // We update the second trace_info in the pair, keeping the first one unchanged.
+                    ptr->second = solverW::bottom(); // Update weight.
+                    is_changed = true;
+                }
+            } else {
+                auto [it, fresh] = _automaton.emplace_edge(from, label, to, std::make_pair(std::make_pair(trace,trace), edge_weight));
+                if (fresh) {
+                    ++_count_transitions; parent_t::set_round_limit(_count_transitions);
+                    insert_rel(from, label, to);
+                    is_changed = true;
+                } else if (solverW::less(edge_weight, it->second.second)) {
+                    it->second.first.second = trace;
+                    it->second.second = edge_weight;
+                    is_changed = true;
+                }
+            }
+            if (is_changed && from < _n_pda_states) {
+                parent_t::emplace(from, label, to);
+            }
+            return is_changed;
         }
 
     public:
