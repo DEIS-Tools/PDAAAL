@@ -187,7 +187,8 @@ namespace pdaaal {
             if constexpr (trace_type == Trace_Type::Longest || trace_type == Trace_Type::ShortestFixedPoint) {
                 using return_type = decltype(_get_trace(instance.pda(), instance.initial_automaton(), std::declval<AutomatonPath<>>()));
                 auto [automaton_path, weight] = instance.template find_path_fixed_point<trace_type>();
-                if (weight != internal::solver_weight<W,trace_type>::bottom()) { // Not infinite. Use standard _get_trace.
+                if ((trace_type == Trace_Type::ShortestFixedPoint && !W::is_signed) // For unsigned shortest-fixed-point, bottom==0 is not infinite.
+                    || weight != internal::solver_weight<W,trace_type>::bottom()) { // Not infinite. Use standard _get_trace.
                     return std::make_pair(_get_trace(instance.pda(), instance.automaton(), automaton_path), weight);
                 }
                 // Infinite trace.

@@ -208,7 +208,7 @@ namespace pdaaal {
                                     std::tie(trace, weight) = Solver::get_trace<Trace_Type::ShortestFixedPoint>(instance);
                                     reachability_time.stop(); // We don't want to include time for output in reachability_time.
                                     using W = typename pda_t::weight;
-                                    if (weight == internal::solver_weight<W,Trace_Type::ShortestFixedPoint>::bottom()) {
+                                    if (W::is_signed && weight == internal::solver_weight<W,Trace_Type::ShortestFixedPoint>::bottom()) {
                                         json_out.entry("weight", "negative infinity");
                                     } else {
                                         json_out.entry("weight", weight);
@@ -243,7 +243,7 @@ namespace pdaaal {
                                     std::tie(trace, weight) = Solver::get_trace<Trace_Type::ShortestFixedPoint>(instance);
                                     reachability_time.stop(); // We don't want to include time for output in reachability_time.
                                     using W = typename pda_t::weight;
-                                    if (weight == internal::solver_weight<W,Trace_Type::ShortestFixedPoint>::bottom()) {
+                                    if (W::is_signed && weight == internal::solver_weight<W,Trace_Type::ShortestFixedPoint>::bottom()) {
                                         json_out.entry("weight", "negative infinity");
                                     } else {
                                         json_out.entry("weight", weight);
