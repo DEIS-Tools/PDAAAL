@@ -33,34 +33,34 @@
 
 namespace pdaaal {
 
-    template<typename Derived, typename Elem>
+    template<typename Derived, typename Elem, bool enforce_set = true>
     class fixed_point_workset {
-        static constexpr Elem next_round_elem = Derived::next_round_elem;
         bool _done = false;
         size_t _round_limit;
         size_t _rounds = 0;
-        std::deque<Elem> _workset;
+        std::vector<Elem> _workset;
+        std::vector<Elem> _next_workset;
     public:
-        explicit fixed_point_workset(size_t round_limit) : _round_limit(round_limit) {
-            _workset.emplace_back(next_round_elem);
-        };
+        explicit fixed_point_workset(size_t round_limit = 0) : _round_limit(round_limit) { };
 
         template<bool change_is_bottom = false>
         bool step() {
-            auto current = _workset.front();
-            _workset.pop_front();
-
-            if (current == next_round_elem) {
+            if (_workset.empty()) {
                 ++_rounds;
-                if (_workset.empty()) {
+                if (_next_workset.empty()) {
                     _done = true;
                     return false;
                 }
-                _workset.emplace_back(next_round_elem);
-                current = _workset.front();
-                _workset.pop_front();
-                assert(current != next_round_elem);
+                if constexpr (enforce_set) { // Remove duplicates, if this is not ensured somewhere else.
+                    std::sort(_next_workset.begin(), _next_workset.end());
+                    _next_workset.erase(std::unique(_next_workset.begin(), _next_workset.end()), _next_workset.end());
+                }
+                std::swap(_workset, _next_workset);
             }
+
+            auto current = _workset.back();
+            _workset.pop_back();
+
             if (!static_cast<Derived*>(this)->template step_with<change_is_bottom>(std::move(current))) {
                 _done = true;
                 return false;
@@ -85,7 +85,7 @@ namespace pdaaal {
     protected:
         template<typename... Args>
         auto emplace(Args&&... args){
-            return _workset.emplace_back(std::forward<Args>(args)...);
+            return _next_workset.emplace_back(std::forward<Args>(args)...);
         }
         void set_round_limit(size_t new_round_limit) { _round_limit = new_round_limit; }
     };

@@ -645,6 +645,7 @@ namespace pdaaal::internal {
             } else {
                 auto [it, fresh] = _automaton.emplace_edge(from, label, to, std::make_pair(std::make_pair(trace,trace), edge_weight));
                 if (fresh) {
+                    ++_count_transitions; parent_t::set_round_limit(_count_transitions);
                     _rel[from].emplace_back(to, label); // Allow fast iteration over _edges matching specific from.
                     is_changed = true;
                 } else {
@@ -686,7 +687,6 @@ namespace pdaaal::internal {
                   _rel(_n_automaton_states), _delta_prime(_n_automaton_states) {
             initialize();
         };
-        static constexpr temp_edge_t next_round_elem = temp_edge_t();
     private:
         p_automaton_t& _automaton;
         const std::vector<typename PDA<W>::state_t>& _pda_states;
@@ -697,6 +697,8 @@ namespace pdaaal::internal {
         std::vector<std::vector<std::pair<size_t,uint32_t>>> _rel; // Fast access to _edges based on _from.
         std::vector<fut::vector_set<std::pair<size_t, size_t>>> _delta_prime;
 
+        size_t _count_transitions = 0;
+
         void initialize() {
             for (const auto& from : _automaton.states()) {
                 for (const auto& [to,labels] : from->_edges) {
@@ -704,6 +706,7 @@ namespace pdaaal::internal {
                         assert(tw == std::make_pair(trace_info::make_default(), W::zero()));
                         _rel[from->_id].emplace_back(to, label); // Allow fast iteration over _edges matching specific from.
                         parent_t::emplace(from->_id, label, to);
+                        ++_count_transitions;
                     }
                 }
             }
@@ -717,6 +720,7 @@ namespace pdaaal::internal {
                     ++rule_id;
                 }
             }
+            parent_t::set_round_limit(_count_transitions);
         }
 
     public:
@@ -803,7 +807,6 @@ namespace pdaaal::internal {
           _n_pda_states(_pda_states.size()), _n_Q(_automaton.states().size()) {
             initialize();
         };
-        static constexpr temp_edge_t next_round_elem = temp_edge_t();
     private:
         p_automaton_t& _automaton;
         const std::vector<typename PDA<W>::state_t>& _pda_states;
