@@ -817,7 +817,6 @@ namespace pdaaal::internal {
         size_t _n_automaton_states{};
         std::vector<std::vector<std::pair<size_t,uint32_t>>> _rel1; // faster access for lookup _from -> (_to, _label)
         std::vector<std::vector<size_t>> _rel2; // faster access for lookup _to -> _from  (when _label is epsilon)
-        std::vector<typename W::type> _minpath;
 
         size_t _count_transitions = 0;
 
@@ -855,8 +854,6 @@ namespace pdaaal::internal {
                 }
             }
             parent_t::set_round_limit(_count_transitions);
-            _minpath.resize(_n_automaton_states - _n_Q);
-            std::fill(_minpath.begin(), _minpath.end(), solverW::max());
         }
 
         void insert_rel(size_t from, uint32_t label, size_t to) {
