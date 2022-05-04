@@ -56,6 +56,12 @@ namespace pdaaal {
           _product(std::move(other._product), _pda), _swap_initial_final(other._swap_initial_final), _id_map(std::move(other._id_map)),
           _id_fast_lookup(std::move(other._id_fast_lookup)), _id_fast_lookup_back(std::move(other._id_fast_lookup_back)) {};
 
+        auto copy() {
+            auto initial_automaton_copy = initial_automaton();
+            auto final_automaton_copy = final_automaton();
+            return PAutomatonProduct(pda(), std::move(initial_automaton_copy), std::move(final_automaton_copy));
+        }
+
         // Returns whether an accepting state in the product automaton was reached.
         template<bool needs_back_lookup = false, bool ET = true>
         bool initialize_product() {

@@ -49,6 +49,38 @@ namespace pdaaal {
             saturation.run();
         }
 
+        template <Trace_Type trace_type, typename pda_t, typename automaton_t, typename W>
+        static bool post_star_fixed_point_accepts(PAutomatonProduct<pda_t,automaton_t,W,TraceInfoType::Pair>& instance) {
+            post_star_fixed_point<trace_type>(instance.automaton());
+            return instance.template initialize_product<false,false>();
+        }
+        template <Trace_Type trace_type, typename W>
+        static void post_star_fixed_point(internal::PAutomaton<W,TraceInfoType::Pair>& automaton) {
+            internal::PostStarFixedPointSaturation<W,trace_type> saturation(automaton);
+            saturation.run();
+        }
+
+        template <Trace_Type trace_type, typename pda_t, typename automaton_t, typename W>
+        static std::pair<bool,bool> interleaving_fixed_point_accepts(PAutomatonProduct<pda_t,automaton_t,W,TraceInfoType::Pair>& instance,
+                                                     PAutomatonProduct<pda_t,automaton_t,W,TraceInfoType::Pair>& instance_copy) {
+            instance_copy.enable_pre_star();
+            internal::PreStarFixedPointSaturation<W,trace_type> pre_star(instance_copy.automaton());
+            internal::PostStarFixedPointSaturation<W,trace_type> post_star(instance.automaton());
+
+            while(!pre_star.done() && !post_star.done()) {
+                post_star.step();
+                pre_star.step();
+            }
+            if (pre_star.done()) {
+                pre_star.finalize();
+                return std::make_pair(instance_copy.template initialize_product<false,false>(), true);
+            } else {
+                assert(post_star.done());
+                post_star.finalize();
+                return std::make_pair(instance.template initialize_product<false,false>(), false);
+            }
+        }
+
         template <typename pda_t, typename automaton_t, typename W>
         static bool dual_search_accepts(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             if (instance.template initialize_product<true>()) {
@@ -176,7 +208,8 @@ namespace pdaaal {
             if constexpr (trace_type == Trace_Type::Longest || trace_type == Trace_Type::ShortestFixedPoint) {
                 using return_type = decltype(_get_trace(instance.pda(), instance.initial_automaton(), std::declval<AutomatonPath<>>()));
                 auto [automaton_path, weight] = instance.template find_path_fixed_point<trace_type>();
-                if (weight != internal::solver_weight<W,trace_type>::bottom()) { // Not infinite. Use standard _get_trace.
+                if ((trace_type == Trace_Type::ShortestFixedPoint && !W::is_signed) // For unsigned shortest-fixed-point, bottom==0 is not infinite.
+                    || weight != internal::solver_weight<W,trace_type>::bottom()) { // Not infinite. Use standard _get_trace.
                     return std::make_pair(_get_trace(instance.pda(), instance.automaton(), automaton_path), weight);
                 }
                 // Infinite trace.
