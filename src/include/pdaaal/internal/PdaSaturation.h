@@ -521,20 +521,25 @@ namespace pdaaal::internal {
                 return; // Same edge with a smaller weight was already processed.
             }
             auto t_weight = weights.first;
-            assert(t._from < _n_pda_states); // This should be an invariant of the way we use the workset.
             assert(t._to >= _n_pda_states); // This should be an invariant of post*
 
             // rel = rel U {t}
+            insert_rel(t._from, t._label, t._to);
             if (t._label == epsilon) {
-                if (t._to >= _n_Q) { // Since (t._from < _n_pda_states), this is the only effect of insert_rel(t._from, t._label, t._to);
-                    _rel2[t._to - _n_Q].push_back(t._from);
-                }
                 _automaton.add_epsilon_edge(t._from, t._to, std::make_pair(elem._trace, t_weight));
             } else {
                 _automaton.add_edge(t._from, t._to, t._label, std::make_pair(elem._trace, t_weight));
             }
             if constexpr (ET) {
                 _found |= _early_termination.add_edge(t._from, t._label, t._to, std::make_pair(elem._trace, t_weight));
+            }
+            if (t._from >= _n_pda_states) {
+                assert(t._from >= _n_Q);
+                for (auto f : _rel2[t._from - _n_Q]) {
+                    assert(_automaton.get_edge(f, epsilon, t._from) != nullptr);
+                    update_edge(f, t._label, t._to, solver_weight::add(t_weight, _automaton.get_edge(f, epsilon, t._from)->second), p_automaton_t::new_post_trace(t._from));
+                }
+                return;
             }
 
             // if y != epsilon
@@ -560,32 +565,13 @@ namespace pdaaal::internal {
                             assert(_q_prime.find(std::make_pair(rule._to, rule._op_label)) != std::end(_q_prime));
                             size_t q_new = _q_prime[std::make_pair(rule._to, rule._op_label)];
                             auto add_to_workset = update_edge_(rule._to, rule._op_label, q_new, W::zero(), wd).second;
-                            auto was_updated = update_edge_(q_new, t._label, t._to, wb, W::zero()).first;
-                            if (was_updated) {
-                                assert(_automaton.get_edge(q_new, t._label, t._to) == nullptr || solver_weight::less(wb, _automaton.get_edge(q_new, t._label, t._to)->second));
-                                auto [it, fresh] = _automaton.insert_or_assign_edge(q_new, t._label, t._to, std::make_pair(trace, wb));
-                                if (fresh) {
-                                    _rel1[q_new].emplace_back(t._to, t._label);
-                                    if constexpr (ET) {
-                                        _found |= _early_termination.add_edge(q_new, t._label, t._to, std::make_pair(trace, wb));
-                                    }
-                                } else { // If transition was already added, we just update weight and trace info in product automaton.
-                                    if constexpr (ET) {
-                                        _early_termination.update_edge(q_new, t._label, t._to, std::make_pair(trace, wb));
-                                    }
-                                }
-                            }
                             if (solver_weight::less(wd, _minpath[q_new - _n_Q])) {
                                 _minpath[q_new - _n_Q] = wd;
                                 if (add_to_workset) {
                                     _workset.emplace(wd, temp_edge_t{rule._to, rule._op_label, q_new}, trace);
                                 }
-                            } else if (was_updated) {
-                                for (auto f : _rel2[q_new - _n_Q]) {
-                                    assert(_automaton.get_edge(f, epsilon, q_new) != nullptr);
-                                    update_edge(f, t._label, t._to, solver_weight::add(wb, _automaton.get_edge(f, epsilon, q_new)->second), p_automaton_t::new_post_trace(q_new));
-                                }
                             }
+                            update_edge(q_new, t._label, t._to, wb, trace); // Add to queue, since we do Dijkstra -> Transitions in Pautomaton and product are only added once they are on the search-frontier.
                             break;
                         }
                     }
