@@ -258,7 +258,7 @@ namespace pdaaal::internal {
                 }
             }
             _n_automaton_states = _automaton.states().size();
-            _rel1.resize(_n_automaton_states);
+            _rel1.resize(_n_automaton_states - _n_pda_states);
             _rel2.resize(_n_automaton_states - _n_Q);
 
             // workset := ->_0 intersect (P x Gamma x Q)  (line 1)
@@ -278,7 +278,9 @@ namespace pdaaal::internal {
         }
 
         void insert_rel(size_t from, uint32_t label, size_t to) {
-            _rel1[from].emplace_back(to, label);
+            if (from >= _n_pda_states) {
+                _rel1[from - _n_pda_states].emplace_back(to, label);
+            }
             if (label == epsilon && to >= _n_Q) {
                 _rel2[to - _n_Q].push_back(from);
             }
@@ -306,6 +308,7 @@ namespace pdaaal::internal {
             temp_edge_t t;
             t = _workset.front();
             _workset.pop();
+            assert(t._to >= _n_pda_states); // This should be an invariant of post*
             // rel = rel U {t} (line 8)   (membership test on line 7 is done in insert_edge).
             insert_rel(t._from, t._label, t._to);
 
@@ -341,11 +344,9 @@ namespace pdaaal::internal {
                     }
                 }
             } else {
-                if (!_rel1[t._to].empty()) {
-                    auto trace = p_automaton_t::new_post_trace(t._to);
-                    for (const auto& [to,label] : _rel1[t._to]) { // (line 20)
-                        insert_edge(t._from, label, to, trace); // (line 21)
-                    }
+                for (const auto& [to, label] : _rel1[t._to - _n_pda_states]) { // (line 20)
+                    assert(to >= _n_pda_states);
+                    insert_edge(t._from, label, to, p_automaton_t::new_post_trace(t._to)); // (line 21)
                 }
             }
         }
