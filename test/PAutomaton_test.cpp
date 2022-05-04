@@ -82,7 +82,7 @@ BOOST_AUTO_TEST_CASE(UnweightedPreStar)
     std::vector<char> init_stack{'A', 'A'};
     internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
-    Solver::pre_star(automaton);
+    Solver::pre_star<Trace_Type::None>(automaton);
 
     std::vector<char> test_stack_reachable{'C', 'B', 'B', 'A'};
     BOOST_CHECK_EQUAL(automaton.accepts(2, pda.encode_pre(test_stack_reachable)), true);
@@ -158,7 +158,7 @@ BOOST_AUTO_TEST_CASE(WeightedPreStar)
     std::vector<char> init_stack{'A', 'A'};
     internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
-    Solver::pre_star(automaton);
+    Solver::pre_star<Trace_Type::None>(automaton);
 
     std::vector<char> test_stack_reachable{'C', 'B', 'B', 'A'};
     BOOST_CHECK_EQUAL(automaton.accepts(2, pda.encode_pre(test_stack_reachable)), true);

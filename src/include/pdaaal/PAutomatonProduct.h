@@ -1,14 +1,14 @@
-/* 
+/*
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -17,7 +17,7 @@
  *  Copyright Morten K. Schou
  */
 
-/* 
+/*
  * File:   PAutomatonProduct.h
  * Author: Morten K. Schou <morten@h-schou.dk>
  *
@@ -34,8 +34,14 @@
 
 namespace pdaaal {
 
-    template <typename pda_t, typename automaton_t, typename W, TraceInfoType trace_info_type = TraceInfoType::Single>
+    template <typename _pda_t, typename _automaton_t, typename _W, TraceInfoType _trace_info_type = TraceInfoType::Single>
     class PAutomatonProduct {
+    public:
+        using pda_t = _pda_t;
+        using automaton_t = _automaton_t;
+        using W = _W;
+        static constexpr auto trace_info_type = _trace_info_type;
+    private:
         using product_automaton_t = internal::PAutomaton<W,trace_info_type>; // No explicit abstraction on product automaton - this is covered by _initial and _final.
         using state_t = typename product_automaton_t::state_t;
         static constexpr auto epsilon = product_automaton_t::epsilon;

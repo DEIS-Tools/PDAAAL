@@ -117,31 +117,33 @@ namespace pdaaal {
             return pre_star.found() || post_star.found();
         }
 
-        template <typename W>
+        template <Trace_Type trace_type, typename W>
         static bool pre_star_accepts(internal::PAutomaton<W> &automaton, size_t state, const std::vector<uint32_t> &stack) {
             if (stack.size() == 1) {
                 auto s_label = stack[0];
-                return automaton.accepts(state, stack) || pre_star<W,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W>) -> bool {
+                return automaton.accepts(state, stack) || pre_star<trace_type, W,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W>) -> bool {
                     return from == state && label == s_label && automaton.states()[to]->_accepting;
                 });
             } else {
-                return pre_star<W>(automaton) || automaton.accepts(state, stack);
+                return pre_star<trace_type,W>(automaton) || automaton.accepts(state, stack);
             }
         }
 
-        template <typename pda_t, typename automaton_t, typename W>
+        template <Trace_Type trace_type, typename pda_t, typename automaton_t, typename W>
         static bool pre_star_accepts(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             instance.enable_pre_star();
             return instance.initialize_product() ||
-                   pre_star<W,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) -> bool {
+                   pre_star<trace_type,W,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) -> bool {
                        return instance.add_edge_product(from, label, to, trace);
                    });
         }
 
-        template <typename W, bool ET=false>
+        template <Trace_Type trace_type, typename W, bool ET=false>
         static bool pre_star(internal::PAutomaton<W> &automaton,
                              const internal::early_termination_fn<W>& early_termination = [](size_t, uint32_t, size_t, internal::edge_annotation_t<W>) -> bool { return false; }) {
-            internal::PreStarSaturation<W,ET> saturation(automaton, early_termination);
+            if(!is_weighted<W> && trace_type == Trace_Type::Shortest)
+                throw std::logic_error("Cannot do shortest-trace pre* for PDA without weights."); // TODO: Consider: W=uin32_t, weight==1 as a default weight.
+            internal::PreStarSaturation<W,ET,false /*trace_type == Trace_Type::Shortest*/> saturation(automaton, early_termination);
             while(!saturation.workset_empty()) {
                 if constexpr (ET) {
                     if (saturation.found()) return true;
