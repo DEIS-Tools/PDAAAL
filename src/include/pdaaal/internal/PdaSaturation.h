@@ -69,7 +69,7 @@ namespace pdaaal::internal {
         using solver_weight = min_weight<typename W::type>;
 
         struct weighted_edge_t : public temp_edge_t { // maybe reuse for poststar?
-            weighted_edge_t(size_t from, uint32_t label, size_t to, W&& weight)
+            weighted_edge_t(size_t from, uint32_t label, size_t to, weight_t&& weight)
             : temp_edge_t(from, label, to), _weight(std::move(weight)) {}
             weight_t _weight;
         };
@@ -81,9 +81,10 @@ namespace pdaaal::internal {
             }
         };
 
-        static inline weight_t get_weight(const pda_rule_t<W>& rule) {
+        static inline const weight_t& get_weight(const pda_rule_t<W>& rule) {
+            static const int dummy = 1;
             if constexpr(W::is_weight) return rule._weight;
-            else return 0;
+            else return dummy;
         }
 
         using trace_info = TraceInfo<TraceInfoType::Single>;
@@ -117,13 +118,40 @@ namespace pdaaal::internal {
         std::vector<std::vector<std::pair<size_t,uint32_t>>> _rel;
         std::vector<std::vector<std::pair<size_t, size_t>>> _delta_prime;
         bool _found = false;
+        std::vector<weight_t> _minpath;
+
+        bool has_negative_weight() const {
+            if constexpr (W::is_signed) {
+                for (const auto& state : _pda_states)
+                    if(state.has_negative_weight(solver_weight::less)) return true;
+                if(_automaton.has_negative_weights(solver_weight::less)) return true;
+            }
+            return false;
+        }
 
         void initialize() {
+
+            if constexpr (SHORTEST && W::is_weight)
+            {
+                _minpath.resize(_automaton.states().size());
+                for(auto& m : _minpath)
+                    m = solver_weight::max();
+            }
+
             // workset := ->_0  (line 1)
             for (const auto& from : _automaton.states()) {
                 for (const auto& [to, labels] : from->_edges) {
                     for (const auto& [label, _] : labels) {
-                        _workset.emplace(from->_id, label, to);
+                        if constexpr (W::is_weight && SHORTEST)
+                        {
+                            _minpath[from->_id] = solver_weight::zero();
+                            _workset.emplace(from->_id, label, to, solver_weight::zero());
+                        }
+                        else if constexpr (!SHORTEST)
+                        {
+                            _workset.emplace(from->_id, label, to);
+                        }
+                        else throw std::logic_error("Shortest traces for void-weights is not supported.");
                     }
                 }
             }
@@ -140,15 +168,31 @@ namespace pdaaal::internal {
             }
         }
 
-        void insert_edge(size_t from, uint32_t label, size_t to, trace_t trace, const weight_t weight) {
+        void insert_edge(size_t from, uint32_t label, size_t to, trace_t trace, [[maybe_unused]] const weight_t& weight) {
             if (_automaton.emplace_edge(from, label, to, edge_anno::from_trace_info(trace)).second) { // New edge is not already in edges (rel U workset).
-                if constexpr (SHORTEST) {
-                    _workset.emplace(from, label, to, std::move(weight));
-                } else {
+                if constexpr (SHORTEST && W::is_weight) {
+                    auto& target = _minpath[from];
+                    assert(target != solver_weight::max());
+                    auto res = solver_weight::add(target, _minpath[to]);
+                    _minpath[from] = res;
+                    _workset.emplace(from, label, to, std::move(res));
+                } else if constexpr (!SHORTEST) {
                     _workset.emplace(from, label, to);
-                }
+                } else { assert(false); }
                 if constexpr (ET) {
                     _found = _found || _early_termination(from, label, to, edge_anno::from_trace_info(trace));
+                }
+            } else {
+                if constexpr (SHORTEST && W::is_weight) {
+                    // check if we improved on path
+                    auto& target = _minpath[from];
+                    assert(target != solver_weight::max());
+                    auto res = solver_weight::add(target, _minpath[to]);
+                    if (solver_weight::less(res, _minpath[from]))
+                    {
+                        _minpath[from] = res;
+                        _workset.emplace(from, label, to, std::move(res));
+                    }
                 }
             }
         }
@@ -170,13 +214,18 @@ namespace pdaaal::internal {
             // pop t = (q, y, q') from workset (line 4)
             auto t = _workset.top();
             _workset.pop();
+            if constexpr (SHORTEST && W::is_weight) {
+                // skip if allready processed shorter path
+                if(solver_weight::less(_minpath[t._to], t._weight))
+                    return;
+            }
             // rel = rel U {t} (line 6)   (membership test on line 5 is done in insert_edge).
             _rel[t._from].emplace_back(t._to, t._label);
 
             // (line 7-8 for \Delta')
             for (const auto& [state, rule_id] : _delta_prime[t._from]) { // Loop over delta_prime (that match with t->from)
                 if (_pda_states[state]._rules[rule_id].second.contains(t._label)) {
-                    insert_edge(state, t._label, t._to, p_automaton_t::new_pre_trace(rule_id, t._from), get_weight(_pda_states[state]._rules[rule_id].first));
+                    insert_edge(state, t._label, t._to, p_automaton_t::new_pre_trace(rule_id, t._from), get_weight( _pda_states[state]._rules[rule_id].first));
                 }
             }
             // Loop over \Delta (filter rules going into q) (line 7 and 9)
@@ -435,22 +484,9 @@ namespace pdaaal::internal {
 
         bool has_negative_weight() const {
             if constexpr (W::is_signed) {
-                for (const auto& state : _pda_states) {
-                    for (const auto& [rule,labels] : state._rules) {
-                        if (solver_weight::less(rule._weight, W::zero())) {
-                            return true;
-                        }
-                    }
-                }
-                for (const auto& from : _automaton.states()) {
-                    for (const auto& [to,labels] : from->_edges) {
-                        for (const auto& [label,trace] : labels) {
-                            if (solver_weight::less(trace.second, W::zero())) {
-                                return true;
-                            }
-                        }
-                    }
-                }
+                for (const auto& state : _pda_states)
+                    if(state.has_negative_weight(solver_weight::less)) return true;
+                if(_automaton.has_negative_weights(solver_weight::less)) return true;
             }
             return false;
         }

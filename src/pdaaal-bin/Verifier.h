@@ -144,9 +144,17 @@ namespace pdaaal {
                                 }
                                 break;
                             case Trace_Type::Shortest:
-                                result = Solver::pre_star_accepts<Trace_Type::Shortest>(instance);
-                                if (result) {
-                                    trace = Solver::get_trace(instance);
+                                if constexpr(pda_t::has_weight) {
+                                    result = Solver::pre_star_accepts<Trace_Type::Shortest>(instance);
+                                    if (result) {
+                                        typename pda_t::weight_type weight;
+                                        std::tie(trace, weight) = Solver::get_trace<Trace_Type::Shortest>(instance);
+                                        reachability_time.stop(); // We don't want to include time for output in reachability_time.
+                                        json_out.entry("weight", weight);
+                                    }
+                                } else {
+                                    assert(false);
+                                    throw std::runtime_error("Cannot use shortest trace option for unweighted PDA.");
                                 }
                                 break;
                             case Trace_Type::Longest:

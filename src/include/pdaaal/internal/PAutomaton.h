@@ -232,8 +232,25 @@ namespace pdaaal::internal {
             }
         }
 
+        template<typename C>
+        bool has_negative_weights(const C& comp) const {
+            if constexpr (is_weighted<W> && W::is_signed)
+            {
+                for (const auto& from : states()) {
+                    for (const auto& [to,labels] : from->_edges) {
+                        for (const auto& [label,trace] : labels) {
+                            if (comp(trace.second, W::zero())) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
         [[nodiscard]] const std::vector<std::unique_ptr<state_t>>& states() const { return _states; }
-        
+
         [[nodiscard]] const PDA<W>& pda() const { return _pda; }
 
         void or_extend(PAutomaton<W,trace_info_type>&& other) {
