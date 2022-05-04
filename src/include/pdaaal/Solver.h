@@ -143,7 +143,7 @@ namespace pdaaal {
                              const internal::early_termination_fn<W>& early_termination = [](size_t, uint32_t, size_t, internal::edge_annotation_t<W>) -> bool { return false; }) {
             if(!is_weighted<W> && trace_type == Trace_Type::Shortest)
                 throw std::logic_error("Cannot do shortest-trace pre* for PDA without weights."); // TODO: Consider: W=uin32_t, weight==1 as a default weight.
-            internal::PreStarSaturation<W,ET,false /*trace_type == Trace_Type::Shortest*/> saturation(automaton, early_termination);
+            internal::PreStarSaturation<W,ET,trace_type == Trace_Type::Shortest> saturation(automaton, early_termination);
             while(!saturation.workset_empty()) {
                 if constexpr (ET) {
                     if (saturation.found()) return true;
