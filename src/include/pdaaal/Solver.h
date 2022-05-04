@@ -60,6 +60,27 @@ namespace pdaaal {
             saturation.run();
         }
 
+        template <Trace_Type trace_type, typename pda_t, typename automaton_t, typename W>
+        static std::pair<bool,bool> interleaving_fixed_point_accepts(PAutomatonProduct<pda_t,automaton_t,W,TraceInfoType::Pair>& instance,
+                                                     PAutomatonProduct<pda_t,automaton_t,W,TraceInfoType::Pair>& instance_copy) {
+            instance_copy.enable_pre_star();
+            internal::PreStarFixedPointSaturation<W,trace_type> pre_star(instance_copy.automaton());
+            internal::PostStarFixedPointSaturation<W,trace_type> post_star(instance.automaton());
+
+            while(!pre_star.done() && !post_star.done()) {
+                post_star.step();
+                pre_star.step();
+            }
+            if (pre_star.done()) {
+                pre_star.finalize();
+                return std::make_pair(instance_copy.template initialize_product<false,false>(), true);
+            } else {
+                assert(post_star.done());
+                post_star.finalize();
+                return std::make_pair(instance.template initialize_product<false,false>(), false);
+            }
+        }
+
         template <typename pda_t, typename automaton_t, typename W>
         static bool dual_search_accepts(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             if (instance.template initialize_product<true>()) {
