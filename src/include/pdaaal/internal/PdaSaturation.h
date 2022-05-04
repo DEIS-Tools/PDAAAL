@@ -1,14 +1,14 @@
-/* 
+/*
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -17,7 +17,7 @@
  *  Copyright Morten K. Schou
  */
 
-/* 
+/*
  * File:   PdaSaturation.h
  * Author: Morten K. Schou <morten@h-schou.dk>
  *
@@ -60,12 +60,39 @@ namespace pdaaal::internal {
     template <typename W>
     using early_termination_fn = std::function<bool(size_t,uint32_t,size_t,edge_annotation_t<W>)>;
 
-    template <typename W, bool ET=false>
+    template <typename W, bool ET=false, bool SHORTEST=false>
     class PreStarSaturation {
+    private:
+        using weight_t = std::conditional<W::is_weight,typename W::type,int>::type;
+        using solver_weight = min_weight<typename W::type>;
+
+        struct weighted_edge_t : public temp_edge_t { // maybe reuse for poststar?
+            weighted_edge_t(size_t from, uint32_t label, size_t to, W&& weight)
+            : temp_edge_t(from, label, to), _weight(std::move(weight)) {}
+            weight_t _weight;
+        };
+
+        struct weighted_edge_t_comp {
+            bool operator()(const weighted_edge_t &lhs, const weighted_edge_t &rhs){
+                if constexpr (W::is_weight) return solver_weight::less(rhs._weight, lhs._weight);
+                else return false;
+            }
+        };
+
+        static inline weight_t get_weight(const pda_rule_t<W>& rule) {
+            if constexpr(W::is_weight) return rule._weight;
+            else return 0;
+        }
+
         using trace_info = TraceInfo<TraceInfoType::Single>;
         using edge_anno = edge_annotation<W,TraceInfoType::Single>;
         using edge_anno_t = edge_annotation_t<W,TraceInfoType::Single>;
         using p_automaton_t = PAutomaton<W>;
+        using workset_t = std::conditional<SHORTEST,
+                                                    std::priority_queue<weighted_edge_t,std::vector<weighted_edge_t>,weighted_edge_t_comp>,
+                                                    std::stack<temp_edge_t>
+                                          >::type;
+
     public:
         explicit PreStarSaturation(PAutomaton<W> &automaton, const early_termination_fn<W>& early_termination = [](size_t, uint32_t, size_t, edge_anno_t) -> bool { return false; })
                 : _automaton(automaton), _early_termination(early_termination), _pda_states(_automaton.pda().states()),
@@ -74,7 +101,6 @@ namespace pdaaal::internal {
             initialize();
         };
 
-    private:
         // This is an implementation of Algorithm 1 (figure 3.3) in:
         // Schwoon, Stefan. Model-checking pushdown systems. 2002. PhD Thesis. Technische Universität München.
         // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 42)
@@ -85,7 +111,7 @@ namespace pdaaal::internal {
         const size_t _n_pda_states;
         const size_t _n_automaton_states;
         const size_t _n_pda_labels;
-        std::stack<temp_edge_t> _workset;
+        workset_t _workset;
         std::vector<std::vector<std::pair<size_t,uint32_t>>> _rel;
         std::vector<std::vector<std::pair<size_t, size_t>>> _delta_prime;
         bool _found = false;
@@ -105,31 +131,37 @@ namespace pdaaal::internal {
                 size_t rule_id = 0;
                 for (const auto& [rule, labels] : _pda_states[state]._rules) {
                     if (rule._operation == POP) {
-                        insert_edge_bulk(state, labels, rule._to, p_automaton_t::new_pre_trace(rule_id));
+                        insert_edge_bulk(state, labels, rule._to, p_automaton_t::new_pre_trace(rule_id), get_weight(rule));
                     }
                     ++rule_id;
                 }
             }
         }
-        void insert_edge(size_t from, uint32_t label, size_t to, trace_t trace) {
+
+        void insert_edge(size_t from, uint32_t label, size_t to, trace_t trace, const weight_t weight) {
             if (_automaton.emplace_edge(from, label, to, edge_anno::from_trace_info(trace)).second) { // New edge is not already in edges (rel U workset).
-                _workset.emplace(from, label, to);
+                if constexpr (SHORTEST) {
+                    _workset.emplace(from, label, to, std::move(weight));
+                } else {
+                    _workset.emplace(from, label, to);
+                }
                 if constexpr (ET) {
                     _found = _found || _early_termination(from, label, to, edge_anno::from_trace_info(trace));
                 }
             }
-        };
-        void insert_edge_bulk(size_t from, const labels_t& labels, size_t to, trace_t trace) {
+        }
+
+        void insert_edge_bulk(size_t from, const labels_t& labels, size_t to, trace_t trace, const weight_t& weight) {
             if (labels.wildcard()) {
                 for (uint32_t i = 0; i < _n_pda_labels; i++) {
-                    insert_edge(from, i, to, trace);
+                    insert_edge(from, i, to, trace, weight);
                 }
             } else {
                 for (auto label : labels.labels()) {
-                    insert_edge(from, label, to, trace);
+                    insert_edge(from, label, to, trace, weight);
                 }
             }
-        };
+        }
 
     public:
         void step() {
@@ -142,7 +174,7 @@ namespace pdaaal::internal {
             // (line 7-8 for \Delta')
             for (const auto& [state, rule_id] : _delta_prime[t._from]) { // Loop over delta_prime (that match with t->from)
                 if (_pda_states[state]._rules[rule_id].second.contains(t._label)) {
-                    insert_edge(state, t._label, t._to, p_automaton_t::new_pre_trace(rule_id, t._from));
+                    insert_edge(state, t._label, t._to, p_automaton_t::new_pre_trace(rule_id, t._from), get_weight(_pda_states[state]._rules[rule_id].first));
                 }
             }
             // Loop over \Delta (filter rules going into q) (line 7 and 9)
@@ -159,12 +191,12 @@ namespace pdaaal::internal {
                             break;
                         case SWAP: // (line 7-8 for \Delta)
                             if (rule._op_label == t._label) {
-                                insert_edge_bulk(pre_state, labels, t._to, p_automaton_t::new_pre_trace(rule_id));
+                                insert_edge_bulk(pre_state, labels, t._to, p_automaton_t::new_pre_trace(rule_id), get_weight(rule));
                             }
                             break;
                         case NOOP: // (line 7-8 for \Delta)
                             if (labels.contains(t._label)) {
-                                insert_edge(pre_state, t._label, t._to, p_automaton_t::new_pre_trace(rule_id));
+                                insert_edge(pre_state, t._label, t._to, p_automaton_t::new_pre_trace(rule_id), get_weight(rule));
                             }
                             break;
                         case PUSH: // (line 9)
@@ -173,7 +205,7 @@ namespace pdaaal::internal {
                                 _delta_prime[t._to].emplace_back(pre_state, rule_id);
                                 for (const auto& [to, label] : _rel[t._to]) { // (line 11-12)
                                     if (labels.contains(label)) {
-                                        insert_edge(pre_state, label, to, p_automaton_t::new_pre_trace(rule_id, t._to));
+                                        insert_edge(pre_state, label, to, p_automaton_t::new_pre_trace(rule_id, t._to), get_weight(rule));
                                     }
                                 }
                             }
@@ -184,9 +216,11 @@ namespace pdaaal::internal {
                 }
             }
         }
+
         [[nodiscard]] bool workset_empty() const {
             return _workset.empty();
         }
+
         [[nodiscard]] bool found() const {
             return _found;
         }
