@@ -453,11 +453,9 @@ namespace pdaaal::internal {
             }
             _n_automaton_states = _automaton.states().size();
             _minpath.resize(_n_automaton_states - _n_Q);
-            for (size_t i = 0; i < _minpath.size(); ++i) {
-                _minpath[i] = solver_weight::max();
-            }
+            std::fill(_minpath.begin(), _minpath.end(), solver_weight::max());
 
-            _rel1.resize(_n_automaton_states);
+            _rel1.resize(_n_automaton_states - _n_pda_states);
             _rel2.resize(_n_automaton_states - _n_Q);
 
             // workset := ->_0 intersect (P x Gamma x Q)
@@ -503,11 +501,10 @@ namespace pdaaal::internal {
                 _workset.emplace(workset_weight, temp_edge_t{from, label, to}, trace);
             }
         }
-        typename W::type get_weight(size_t from, uint32_t label, size_t to) const {
-            return _edge_weights.find(temp_edge_t{from, label, to})->second.first;
-        }
         void insert_rel(size_t from, uint32_t label, size_t to) { // Adds to rel.
-            _rel1[from].emplace_back(to, label);
+            if (from >= _n_pda_states) {
+                _rel1[from - _n_pda_states].emplace_back(to, label);
+            }
             if (label == epsilon && to >= _n_Q) {
                 _rel2[to - _n_Q].push_back(from);
             }
@@ -524,10 +521,14 @@ namespace pdaaal::internal {
                 return; // Same edge with a smaller weight was already processed.
             }
             auto t_weight = weights.first;
+            assert(t._from < _n_pda_states); // This should be an invariant of the way we use the workset.
+            assert(t._to >= _n_pda_states); // This should be an invariant of post*
 
             // rel = rel U {t}
-            insert_rel(t._from, t._label, t._to);
             if (t._label == epsilon) {
+                if (t._to >= _n_Q) { // Since (t._from < _n_pda_states), this is the only effect of insert_rel(t._from, t._label, t._to);
+                    _rel2[t._to - _n_Q].push_back(t._from);
+                }
                 _automaton.add_epsilon_edge(t._from, t._to, std::make_pair(elem._trace, t_weight));
             } else {
                 _automaton.add_edge(t._from, t._to, t._label, std::make_pair(elem._trace, t_weight));
@@ -545,62 +546,55 @@ namespace pdaaal::internal {
                     auto trace = p_automaton_t::new_post_trace(t._from, rule_id, t._label);
                     auto wd = solver_weight::add(elem._weight, rule._weight);
                     auto wb = solver_weight::add(t_weight, rule._weight);
-                    if (rule._operation != PUSH) {
-                        uint32_t label = 0;
-                        switch(rule._operation) {
-                            case POP:
-                                label = epsilon;
-                                break;
-                            case SWAP:
-                                label = rule._op_label;
-                                break;
-                            case NOOP:
-                                label = t._label;
-                                break;
-                            case PUSH:
-                            default:
-                                assert(false); // Does not happen!
-                        }
-                        update_edge(rule._to, label, t._to, wb, trace);
-                    } else { // rule._operation == PUSH
-                        assert(_q_prime.find(std::make_pair(rule._to, rule._op_label)) != std::end(_q_prime));
-                        size_t q_new = _q_prime[std::make_pair(rule._to, rule._op_label)];
-                        auto add_to_workset = update_edge_(rule._to, rule._op_label, q_new, W::zero(), wd).second;
-                        auto was_updated = update_edge_(q_new, t._label, t._to, wb, W::zero()).first;
-                        if (was_updated) {
-                            assert(_automaton.get_edge(q_new, t._label, t._to) == nullptr || solver_weight::less(wb, _automaton.get_edge(q_new, t._label, t._to)->second));
-                            auto [it, fresh] = _automaton.insert_or_assign_edge(q_new, t._label, t._to, std::make_pair(trace, wb));
-                            if (fresh) {
-                                _rel1[q_new].emplace_back(t._to, t._label);
-                                if constexpr (ET) {
-                                    _found |= _early_termination.add_edge(q_new, t._label, t._to, std::make_pair(trace, wb));
+                    switch(rule._operation) {
+                        case POP:
+                            update_edge(rule._to, epsilon, t._to, wb, trace);
+                            break;
+                        case SWAP:
+                            update_edge(rule._to, rule._op_label, t._to, wb, trace);
+                            break;
+                        case NOOP:
+                            update_edge(rule._to, t._label, t._to, wb, trace);
+                            break;
+                        case PUSH: {
+                            assert(_q_prime.find(std::make_pair(rule._to, rule._op_label)) != std::end(_q_prime));
+                            size_t q_new = _q_prime[std::make_pair(rule._to, rule._op_label)];
+                            auto add_to_workset = update_edge_(rule._to, rule._op_label, q_new, W::zero(), wd).second;
+                            auto was_updated = update_edge_(q_new, t._label, t._to, wb, W::zero()).first;
+                            if (was_updated) {
+                                assert(_automaton.get_edge(q_new, t._label, t._to) == nullptr || solver_weight::less(wb, _automaton.get_edge(q_new, t._label, t._to)->second));
+                                auto [it, fresh] = _automaton.insert_or_assign_edge(q_new, t._label, t._to, std::make_pair(trace, wb));
+                                if (fresh) {
+                                    _rel1[q_new].emplace_back(t._to, t._label);
+                                    if constexpr (ET) {
+                                        _found |= _early_termination.add_edge(q_new, t._label, t._to, std::make_pair(trace, wb));
+                                    }
+                                } else { // If transition was already added, we just update weight and trace info in product automaton.
+                                    if constexpr (ET) {
+                                        _early_termination.update_edge(q_new, t._label, t._to, std::make_pair(trace, wb));
+                                    }
                                 }
-                            } else { // If transition was already added, we just update weight and trace info in product automaton.
-                                _early_termination.update_edge(q_new, t._label, t._to, std::make_pair(trace, wb));
                             }
-                        }
-                        if (solver_weight::less(wd, _minpath[q_new - _n_Q])) {
-                            _minpath[q_new - _n_Q] = wd;
-                            if (add_to_workset) {
-                                _workset.emplace(wd, temp_edge_t{rule._to, rule._op_label, q_new}, trace);
-                            }
-                        } else if (was_updated) {
-                            if (!_rel2[q_new - _n_Q].empty()) {
-                                auto trace_q_new = p_automaton_t::new_post_trace(q_new);
+                            if (solver_weight::less(wd, _minpath[q_new - _n_Q])) {
+                                _minpath[q_new - _n_Q] = wd;
+                                if (add_to_workset) {
+                                    _workset.emplace(wd, temp_edge_t{rule._to, rule._op_label, q_new}, trace);
+                                }
+                            } else if (was_updated) {
                                 for (auto f : _rel2[q_new - _n_Q]) {
-                                    update_edge(f, t._label, t._to, solver_weight::add(get_weight(f, epsilon, q_new), wb), trace_q_new);
+                                    assert(_automaton.get_edge(f, epsilon, q_new) != nullptr);
+                                    update_edge(f, t._label, t._to, solver_weight::add(wb, _automaton.get_edge(f, epsilon, q_new)->second), p_automaton_t::new_post_trace(q_new));
                                 }
                             }
+                            break;
                         }
                     }
                 }
             } else {
-                if (!_rel1[t._to].empty()) {
-                    auto trace = _automaton.new_post_trace(t._to);
-                    for (const auto& e : _rel1[t._to]) {
-                        assert(e.first >= _n_pda_states);
-                        update_edge(t._from, e.second, e.first, solver_weight::add(get_weight(t._to, e.second, e.first), t_weight), trace);
-                    }
+                for (const auto& [to, label] : _rel1[t._to - _n_pda_states]) {
+                    assert(to >= _n_pda_states);
+                    assert(_automaton.get_edge(t._to, label, to) != nullptr);
+                    update_edge(t._from, label, to, solver_weight::add(_automaton.get_edge(t._to, label, to)->second, t_weight), p_automaton_t::new_post_trace(t._to));
                 }
             }
         }
