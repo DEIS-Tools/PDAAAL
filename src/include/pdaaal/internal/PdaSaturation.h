@@ -90,10 +90,10 @@ namespace pdaaal::internal {
         using edge_anno = edge_annotation<W,TraceInfoType::Single>;
         using edge_anno_t = edge_annotation_t<W,TraceInfoType::Single>;
         using p_automaton_t = PAutomaton<W>;
-        using workset_t = std::conditional<SHORTEST,
+        using workset_t = std::conditional_t<SHORTEST,
                                                     std::priority_queue<weighted_edge_t,std::vector<weighted_edge_t>,weighted_edge_t_comp>,
                                                     std::stack<temp_edge_t>
-                                          >::type;
+                                          >;
 
     public:
         explicit PreStarSaturation(PAutomaton<W> &automaton, const early_termination_fn<W>& early_termination = [](size_t, uint32_t, size_t, edge_anno_t) -> bool { return false; })
@@ -177,7 +177,7 @@ namespace pdaaal::internal {
                     auto& target = _minpath[from];
                     if (solver_weight::less(res, target))
                     {
-                        _automaton.update_edge(from, label, to, std::make_pair(trace, res));
+                        _automaton.update_edge(from, to, label, std::make_pair(trace, res));
                         target = res;
                         _workset.emplace(from, label, to, std::move(res), trace);
                     }
