@@ -67,9 +67,10 @@ namespace pdaaal::internal {
         using solver_weight = min_weight<typename W::type>;
 
         struct weighted_edge_t : public temp_edge_t { // maybe reuse for poststar?
-            weighted_edge_t(size_t from, uint32_t label, size_t to, weight_t&& weight)
-            : temp_edge_t(from, label, to), _weight(std::move(weight)) {}
+            weighted_edge_t(size_t from, uint32_t label, size_t to, weight_t&& weight, trace_t trace)
+            : temp_edge_t(from, label, to), _weight(std::move(weight)), _trace(trace) {}
             weight_t _weight;
+            trace_t _trace;
         };
 
         struct weighted_edge_t_comp {
@@ -128,7 +129,6 @@ namespace pdaaal::internal {
         }
 
         void initialize() {
-
             if constexpr (SHORTEST && W::is_weight)
             {
                 _minpath.resize(_automaton.states().size());
@@ -142,8 +142,8 @@ namespace pdaaal::internal {
                     for (const auto& [label, _] : labels) {
                         if constexpr (W::is_weight && SHORTEST)
                         {
-                            _minpath[from->_id] = solver_weight::zero();
-                            _workset.emplace(from->_id, label, to, solver_weight::zero());
+                            _minpath[to] = solver_weight::zero();
+                            _workset.emplace(from->_id, label, to, solver_weight::zero(), trace_t());
                         }
                         else if constexpr (!SHORTEST)
                         {
@@ -167,29 +167,28 @@ namespace pdaaal::internal {
         }
 
         void insert_edge(size_t from, uint32_t label, size_t to, trace_t trace, [[maybe_unused]] const weight_t& weight) {
-            if (_automaton.emplace_edge(from, label, to, edge_anno::from_trace_info(trace)).second) { // New edge is not already in edges (rel U workset).
-                if constexpr (SHORTEST && W::is_weight) {
-                    auto& target = _minpath[from];
-                    assert(target != solver_weight::max());
-                    auto res = solver_weight::add(target, _minpath[to]);
+            if constexpr (SHORTEST && W::is_weight) {
+                auto res = solver_weight::add(weight, _minpath[to]);
+                if (_automaton.emplace_edge(from, label, to, std::make_pair(trace, res)).second) { // New edge is not already in edges (rel U workset).
                     _minpath[from] = res;
-                    _workset.emplace(from, label, to, std::move(res));
-                } else if constexpr (!SHORTEST) {
-                    _workset.emplace(from, label, to);
-                } else { assert(false); }
-                if constexpr (ET) {
-                    _found = _found || _early_termination(from, label, to, edge_anno::from_trace_info(trace));
-                }
-            } else {
-                if constexpr (SHORTEST && W::is_weight) {
+                    _workset.emplace(from, label, to, std::move(res), trace);
+                } else {
                     // check if we improved on path
                     auto& target = _minpath[from];
-                    assert(target != solver_weight::max());
-                    auto res = solver_weight::add(target, _minpath[to]);
-                    if (solver_weight::less(res, _minpath[from]))
+                    if (solver_weight::less(res, target))
                     {
-                        _minpath[from] = res;
-                        _workset.emplace(from, label, to, std::move(res));
+                        _automaton.update_edge(from, label, to, std::make_pair(trace, res));
+                        target = res;
+                        _workset.emplace(from, label, to, std::move(res), trace);
+                    }
+                }
+            }
+            else {
+                if (_automaton.emplace_edge(from, label, to, edge_anno::from_trace_info(trace)).second)
+                {
+                     _workset.emplace(from, label, to);
+                    if constexpr (ET) {
+                        _found = _found || _early_termination(from, label, to, edge_anno::from_trace_info(trace));
                     }
                 }
             }
@@ -214,6 +213,9 @@ namespace pdaaal::internal {
             _workset.pop();
             if constexpr (SHORTEST && W::is_weight) {
                 // skip if allready processed shorter path
+                if constexpr (ET) {
+                    _found = _found || _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._weight));
+                }
                 if(solver_weight::less(_minpath[t._to], t._weight))
                     return;
             }
