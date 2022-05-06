@@ -30,6 +30,7 @@
 #include "PDA.h"
 #include "PAutomaton.h"
 #include "pdaaal/internal/PAutomatonAlgorithms.h"
+#include "pdaaal/utils/more_algorithms.h"
 
 namespace pdaaal {
 
@@ -38,6 +39,7 @@ namespace pdaaal {
         using product_automaton_t = internal::PAutomaton<W,trace_info_type>; // No explicit abstraction on product automaton - this is covered by _initial and _final.
         using state_t = typename product_automaton_t::state_t;
         static constexpr auto epsilon = product_automaton_t::epsilon;
+        template<Trace_Type trace_type> using queue_type = std::conditional_t<W::is_weight && trace_type == Trace_Type::Shortest, priority_set<typename W::type,size_t>, std::vector<size_t>>;
     public:
         template<typename T>
         PAutomatonProduct(const pda_t& pda, const NFA<T>& initial_nfa, const std::vector<size_t>& initial_states,
@@ -63,19 +65,26 @@ namespace pdaaal {
         }
 
         // Returns whether an accepting state in the product automaton was reached.
-        template<bool needs_back_lookup = false, bool ET = true>
+        template<bool needs_back_lookup = false, bool ET = true, Trace_Type trace_type = Trace_Type::None>
         bool initialize_product() {
-            std::vector<size_t> ids(_product.states().size());
-            std::iota (ids.begin(), ids.end(), 0); // Fill with 0,1,...,size-1;
-            return construct_reachable<needs_back_lookup,ET>(ids,
+            queue_type<trace_type> initial_states;
+            if constexpr(W::is_weight && trace_type == Trace_Type::Shortest) {
+                for (size_t i = 0; i < _product.states().size(); ++i) {
+                    initial_states.emplace(W::zero(), i);
+                }
+            } else {
+                initial_states.resize(_product.states().size());
+                std::iota(initial_states.begin(), initial_states.end(), 0); // Fill with 0,1,...,size-1;
+            }
+            return construct_reachable<needs_back_lookup,ET,trace_type>(initial_states,
                                                              _swap_initial_final ? _final : _initial,
                                                              _swap_initial_final ? _initial : _final);
         }
 
         // Returns whether an accepting state in the product automaton was reached.
-        template<bool ET = true>
+        template<bool ET = true, Trace_Type trace_type = Trace_Type::None>
         bool add_edge_product(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) {
-            return add_edge<true,false,ET>(from, label, to, trace,
+            return add_edge<true,false,ET,trace_type>(from, label, to, trace,
                             _swap_initial_final ? _final : _initial,
                             _swap_initial_final ? _initial : _final);
         }
@@ -186,7 +195,7 @@ namespace pdaaal {
         }
 
     private:
-        template<bool edge_in_first = true, bool needs_back_lookup = false, bool ET = true>
+        template<bool edge_in_first = true, bool needs_back_lookup = false, bool ET = true, Trace_Type trace_type = Trace_Type::None>
         bool add_edge(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace,
                       const automaton_t& first, const automaton_t& second) { // States in first and second automaton corresponds to respectively first and second component of the states in product automaton.
             static_assert(edge_in_first || needs_back_lookup, "If you insert edge in the second automaton, then you must also enable using _id_fast_lookup_back to keep the relevant information.");
@@ -201,7 +210,7 @@ namespace pdaaal {
             const auto& current = constexpr_ternary<edge_in_first>(first, second);
             const auto& other = constexpr_ternary<edge_in_first>(second, first);
             auto current_to = current.states()[to].get();
-            std::vector<size_t> waiting;
+            queue_type<trace_type> waiting;
             for (auto [other_from, product_from] : from_states) { // Iterate through reachable 'from-states'.
                 std::vector<size_t> other_tos;
                 if (label == epsilon) {
@@ -225,47 +234,56 @@ namespace pdaaal {
                             return true; // Early termination
                         }
                     }
-                    if (fresh) {
-                        waiting.push_back(product_to); // If the 'to-state' is new (was not previously reachable), we need to continue constructing from there.
+                    if constexpr(W::is_weight && trace_type == Trace_Type::Shortest) {
+                        auto w_opt = _product.make_back_edge_shortest(product_from, label, product_to, trace.second);
+                        assert(!fresh || w_opt); // fresh must imply weight change.
+                        if (w_opt) {
+                            waiting.emplace_back(std::move(w_opt).value(), product_to); // If the 'to-state' is new or got a shortest path to it, we need to continue constructing from there.
+                        }
+                    } else {
+                        if (fresh) {
+                            waiting.push_back(product_to); // If the 'to-state' is new (was not previously reachable), we need to continue constructing from there.
+                        }
                     }
                 }
             }
-            return construct_reachable<needs_back_lookup,ET>(waiting, first, second);
+            return construct_reachable<needs_back_lookup,ET,trace_type>(waiting, first, second);
         }
 
         // Returns whether an accepting state in the product automaton was reached.
-        template<bool needs_back_lookup = false, bool ET = true>
-        bool construct_reachable(std::vector<size_t>& waiting, const automaton_t& initial, const automaton_t& final) {
+        template<bool needs_back_lookup = false, bool ET = true, Trace_Type trace_type>
+        bool construct_reachable(queue_type<trace_type>& waiting, const automaton_t& initial, const automaton_t& final) {
             while (!waiting.empty()) {
                 size_t top = waiting.back();
                 waiting.pop_back();
                 auto [i_from,f_from] = get_original_ids(top);
-                for (const auto& [i_to,i_labels] : initial.states()[i_from]->_edges) {
-                    if (auto it = i_labels.find(epsilon); it != i_labels.end()) {
-                        auto [fresh, product_to] = get_product_state<needs_back_lookup>(initial.states()[i_to].get(), final.states()[f_from].get());
-                        _product.add_epsilon_edge(top, product_to, it->second);
-                        if constexpr (ET) {
-                            if (_product.has_accepting_state()) {
-                                return true; // Early termination
-                            }
-                        }
-                        if (fresh) {
-                            waiting.push_back(product_to);
-                        }
-                    }
-                    for (const auto& [f_to,f_labels] : final.states()[f_from]->_edges) {
-                        if (auto it = f_labels.find(epsilon); it != f_labels.end()) {
-                            auto [fresh, product_to] = get_product_state<needs_back_lookup>(initial.states()[i_from].get(), final.states()[f_to].get());
+                for (bool flip : std::array<bool,2>{true,false}) {
+                    for (const auto& [to,labels] : (flip ? initial : final).states()[i_from]->_edges) {
+                        if (auto it = labels.find(epsilon); it != labels.end()) {
+                            auto [fresh, product_to] = get_product_state<needs_back_lookup>(
+                                    initial.states()[(flip ? to : i_from)].get(), final.states()[(flip ? f_from : to)].get());
                             _product.add_epsilon_edge(top, product_to, it->second);
                             if constexpr (ET) {
                                 if (_product.has_accepting_state()) {
                                     return true; // Early termination
                                 }
                             }
-                            if (fresh) {
-                                waiting.push_back(product_to);
+                            if constexpr(W::is_weight && trace_type == Trace_Type::Shortest) {
+                                auto w_opt = _product.make_back_edge_shortest(top, epsilon, product_to, it->second.second);
+                                assert(!fresh || w_opt); // fresh must imply weight change.
+                                if (w_opt) {
+                                    waiting.emplace_back(std::move(w_opt).value(), product_to);
+                                }
+                            } else {
+                                if (fresh) {
+                                    waiting.push_back(product_to);
+                                }
                             }
                         }
+                    }
+                }
+                for (const auto& [i_to,i_labels] : initial.states()[i_from]->_edges) {
+                    for (const auto& [f_to,f_labels] : final.states()[f_from]->_edges) {
                         std::vector<typename decltype(i_labels)::value_type> labels;
                         std::set_intersection(i_labels.begin(), i_labels.end(), f_labels.begin(), f_labels.end(), std::back_inserter(labels));
                         if (!labels.empty() && labels.size() > (labels.back() == epsilon ? 1 : 0)) {
@@ -280,8 +298,19 @@ namespace pdaaal {
                                     return true; // Early termination
                                 }
                             }
-                            if (fresh) {
-                                waiting.push_back(to_id);
+                            if constexpr(W::is_weight && trace_type == Trace_Type::Shortest) {
+                                auto min_label_it = std::min_element(labels.begin(), labels.end() - (labels.back() == epsilon ? 1 : 0), [](const auto& a, const auto& b) {
+                                    return internal::solver_weight<W, Trace_Type::Shortest>::less(a.second.second, b.second.second);
+                                });
+                                auto w_opt = _product.make_back_edge_shortest(top, min_label_it->first, to_id, min_label_it->second.second);
+                                assert(!fresh || w_opt); // fresh must imply weight change.
+                                if (w_opt) {
+                                    waiting.emplace_back(std::move(w_opt).value(), to_id);
+                                }
+                            } else {
+                                if (fresh) {
+                                    waiting.push_back(to_id);
+                                }
                             }
                         }
                     }
