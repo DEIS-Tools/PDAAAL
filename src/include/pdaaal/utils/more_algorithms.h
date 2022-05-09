@@ -29,7 +29,10 @@
 
 #include <utility>
 #include <vector>
+#include <queue>
 #include <algorithm>
+#include <unordered_set>
+#include <cassert>
 
 namespace pdaaal {
     // Auxiliary function... Why is something like this not in <algorithm>??.
@@ -107,9 +110,9 @@ namespace pdaaal {
         void pop() {
             assert(!_seen.contains(_queue.top().second)); // This should be the class invariant.
             _seen.emplace(_queue.top().second);
-            _queue.pop_back();
-            while(_seen.contains(_queue.top().second)) {
-                _queue.pop_back(); // Remove elems already processed.
+            _queue.pop();
+            while(!_queue.empty() && _seen.contains(_queue.top().second)) {
+                _queue.pop(); // Remove elems already processed.
             }
         }
         [[nodiscard]] auto top() const {

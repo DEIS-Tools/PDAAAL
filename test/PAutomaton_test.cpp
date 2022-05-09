@@ -182,9 +182,10 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar4EarlyTermination)
     internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
     std::vector<char> test_stack_reachable{'A'};
-    BOOST_CHECK_EQUAL(Solver::post_star_accepts<Trace_Type::Shortest>(automaton, 4, pda.encode_pre(test_stack_reachable)), true);
+    PAutomatonProduct instance(pda, std::move(automaton), internal::PAutomaton(pda, 4, pda.encode_pre(test_stack_reachable)));
+    BOOST_CHECK_EQUAL(Solver::post_star_accepts<Trace_Type::Shortest>(instance), true);
 
-    auto result4A = automaton.accept_path<Trace_Type::Shortest>(4, pda.encode_pre(test_stack_reachable));
+    auto result4A = instance.automaton().accept_path<Trace_Type::Shortest>(4, pda.encode_pre(test_stack_reachable));
     auto distance4A = result4A.second;
     BOOST_CHECK_EQUAL(distance4A, 30);          //Example Derived on whiteboard
 }

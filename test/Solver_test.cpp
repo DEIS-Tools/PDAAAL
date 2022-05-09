@@ -119,10 +119,11 @@ BOOST_AUTO_TEST_CASE(EarlyTerminationPostStar)
 
     std::vector<char> test_stack_reachable{'B', 'A', 'A', 'A'};
     auto stack_native = pda.encode_pre(test_stack_reachable);
-    auto result = Solver::post_star_accepts(automaton, 1, stack_native);
+    PAutomatonProduct instance(pda, std::move(automaton), internal::PAutomaton(pda, 1, stack_native));
+    auto result = Solver::post_star_accepts(instance);
     BOOST_CHECK_EQUAL(result, true);
 
-    auto trace = Solver::get_trace(pda, automaton, 1, test_stack_reachable);
+    auto trace = Solver::get_trace(pda, instance.automaton(), 1, test_stack_reachable);
     BOOST_CHECK_EQUAL(trace.size(), 7);
 }
 

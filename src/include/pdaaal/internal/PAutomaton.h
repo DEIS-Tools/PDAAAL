@@ -168,6 +168,7 @@ namespace pdaaal::internal {
             size_t _id;
             fut::set<std::tuple<size_t,uint32_t,edge_anno_t>, fut::type::hash, fut::type::vector> _edges;
 
+            // TODO: Move this out to sub-class IncrementalPAutomaton
             size_t _back_edge_state = std::numeric_limits<size_t>::max(); // Use the back_edge_state to check for existence of a back_edge.
             uint32_t _back_edge_label = std::numeric_limits<uint32_t>::max()-1; // The null value should not equal epsilon (defensive defaults)
             weight_or_bool_t _best_weight;
@@ -579,6 +580,10 @@ namespace pdaaal::internal {
                                 search_queue.emplace(solver_weight<W,trace_type>::add(current._weight, label->second), to, current._stack_index + 1, pointer);
                             }
                         }
+                        auto eps_label = labels.get(epsilon);
+                        if (eps_label != nullptr) {
+                            search_queue.emplace(solver_weight<W,trace_type>::add(current._weight, eps_label->second), to, current._stack_index, pointer->_back_pointer);
+                        }
                     }
                 }
                 return std::make_pair(std::vector<size_t>(), solver_weight<W,trace_type>::max());
@@ -634,14 +639,37 @@ namespace pdaaal::internal {
         const weight_or_bool_t&
         min_accepting_weight() const {
             if constexpr (W::is_weight) {
-                if (_accepting.empty()) return solver_weight<W,trace_type>::max();
-                return std::min_element(_accepting.begin(), _accepting.end(), [](const auto& a, const auto& b){
+                static const auto max = solver_weight<W,trace_type>::max();
+                if (_accepting.empty()) return max;
+                return (*std::min_element(_accepting.begin(), _accepting.end(), [](const auto& a, const auto& b){
                     return solver_weight<W,trace_type>::less(a->_best_weight, b->_best_weight);
-                })->_best_weight;
+                }))->_best_weight;
             } else {
                 return has_accepting_state();
             }
         }
+
+        [[nodiscard]] auto get_path_shortest() const { return get_path_shortest([](size_t s){ return s; }); }
+        template <typename Fn> [[nodiscard]] auto get_path_shortest(Fn&& state_map) const {
+            if constexpr (W::is_weight) {
+                if (_accepting.empty()) return std::make_tuple(AutomatonPath(), solver_weight<W, Trace_Type::Shortest>::max());
+                auto best_accept_state = *std::min_element(_accepting.begin(), _accepting.end(), [](const auto& a, const auto& b){
+                    return solver_weight<W,Trace_Type::Shortest>::less(a->_best_weight, b->_best_weight);
+                });
+                AutomatonPath automaton_path(state_map(best_accept_state->_id));
+                const state_t* p = best_accept_state;
+                while (p->_back_edge_state != std::numeric_limits<size_t>::max()) {
+                    auto label = p->_back_edge_label;
+                    p = _states[p->_back_edge_state].get();
+                    automaton_path.emplace(state_map(p->_id), label);
+                }
+                return std::make_tuple(std::move(automaton_path), best_accept_state->_best_weight);
+            } else {
+                assert(false);
+                throw std::logic_error("Not implemented: Shortest path for unweighted automaton.");
+            }
+        }
+
 
         size_t add_state(bool initial, bool accepting) {
             auto id = next_state_id();
@@ -686,7 +714,7 @@ namespace pdaaal::internal {
             if constexpr (W::is_weight) {
                 if (to < _pda.states().size()) return std::nullopt; // Initial states cannot be reached by a shorter path.
                 // If from is initial it has weight 0 (but we don't care about storing that).
-                auto new_weight = from < _pda.states().size() ? weight : solver_weight<W,Trace_Type::Shortest>::add(_states[from], weight);
+                auto new_weight = from < _pda.states().size() ? weight : solver_weight<W,Trace_Type::Shortest>::add(_states[from]->_best_weight, weight);
                 if (_states[to]->_back_edge_state == std::numeric_limits<size_t>::max()
                     || solver_weight<W,Trace_Type::Shortest>::less(new_weight, _states[to]->_best_weight)) {
                     _states[to]->_back_edge_state = from;
