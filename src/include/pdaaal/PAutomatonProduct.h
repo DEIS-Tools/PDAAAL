@@ -346,7 +346,11 @@ namespace pdaaal {
                     }
                 }
             }
-            return _product.has_accepting_state();
+            if constexpr(W::is_weight && trace_type == Trace_Type::Shortest) {
+                return !internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight());
+            } else {
+                return _product.has_accepting_state();
+            }
         }
 
         static std::vector<size_t> get_initial_accepting(const automaton_t& a1, const automaton_t& a2) {
