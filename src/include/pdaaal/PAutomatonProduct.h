@@ -141,11 +141,11 @@ namespace pdaaal {
             automaton_to_dot<trace_type>(out, automaton());
         }
         template<Trace_Type trace_type = Trace_Type::None>
-        void product_automaton_to_dot(std::ostream &out) {
+        void product_automaton_to_dot(std::ostream &out) const {
             automaton_to_dot<trace_type>(out, product_automaton());
         }
         template<Trace_Type trace_type = Trace_Type::None, typename aut_t>
-        void automaton_to_dot(std::ostream &out, const aut_t& automaton) {
+        void automaton_to_dot(std::ostream &out, const aut_t& automaton) const {
             automaton.template to_dot<trace_type>(out,
                 [this](std::ostream& s, const uint32_t& label){ s << pda().get_symbol(label); },
                 [this,pda_size=pda().states().size()](std::ostream& s, const size_t& state_id){

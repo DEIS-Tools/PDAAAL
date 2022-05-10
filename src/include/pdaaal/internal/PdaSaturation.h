@@ -144,6 +144,8 @@ namespace pdaaal::internal {
                     for (const auto& [label, _] : labels) {
                         if constexpr (W::is_weight && SHORTEST)
                         {
+                            // anything inside the automaton is reachable with weight zero.
+                            _minpath[from->_id] = solver_weight::zero();
                             _minpath[to] = solver_weight::zero();
                             _workset.emplace(from->_id, label, to, solver_weight::zero(), trace_t());
                         }
@@ -171,6 +173,7 @@ namespace pdaaal::internal {
         void insert_edge(size_t from, uint32_t label, size_t to, trace_t trace, [[maybe_unused]] const weight_t& weight) {
             if constexpr (SHORTEST && W::is_weight) {
                 auto res = solver_weight::add(weight, _minpath[to]);
+                assert(res != solver_weight::max());
                 if (_automaton.emplace_edge(from, label, to, std::make_pair(trace, res)).second) { // New edge is not already in edges (rel U workset).
                     _minpath[from] = res;
                     _workset.emplace(from, label, to, std::move(res), trace);
