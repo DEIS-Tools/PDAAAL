@@ -222,7 +222,7 @@ namespace pdaaal::internal {
                 if constexpr (ET) {
                     //if(std::is_integral<typename W::type>::value)
                     //    std::cerr << "Adding trace w weight " << t._weight << std::endl;
-                    _found = _found || _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._rule_weight), t._weight);
+                    _found = _found || _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._weight), t._weight);
                 }
                 if(solver_weight::less(_minpath[t._to], t._weight))
                     return;
