@@ -87,7 +87,7 @@ namespace pdaaal {
                 return true;
             }
             return dual_search<W>(instance.final_automaton(), instance.initial_automaton(),
-                [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) -> bool {
+                [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const auto&) -> bool {
                     return instance.add_final_edge(from, label, to, trace);
                 },
                 [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) -> bool {
@@ -97,7 +97,7 @@ namespace pdaaal {
         }
         template <typename W, bool ET=true>
         static bool dual_search(internal::PAutomaton<W> &pre_star_automaton, internal::PAutomaton<W> &post_star_automaton,
-                                const internal::early_termination_fn<W>& pre_star_early_termination,
+                                const internal::early_termination_fn2<W>& pre_star_early_termination,
                                 const internal::early_termination_fn<W>& post_star_early_termination) {
             internal::PreStarSaturation<W,ET> pre_star(pre_star_automaton, pre_star_early_termination);
             internal::PostStarSaturation<W,ET> post_star(post_star_automaton, post_star_early_termination);
@@ -121,7 +121,8 @@ namespace pdaaal {
         static bool pre_star_accepts(internal::PAutomaton<W> &automaton, size_t state, const std::vector<uint32_t> &stack) {
             if (stack.size() == 1) {
                 auto s_label = stack[0];
-                return automaton.accepts(state, stack) || pre_star<trace_type, W,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W>) -> bool {
+                return automaton.accepts(state, stack) ||
+                        pre_star<trace_type, W,true>(automaton, [&automaton, state, s_label](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W>, const auto&) -> bool {
                     return from == state && label == s_label && automaton.states()[to]->_accepting;
                 });
             } else {
@@ -133,14 +134,18 @@ namespace pdaaal {
         static bool pre_star_accepts(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             instance.enable_pre_star();
             return instance.initialize_product() ||
-                   pre_star<trace_type,W,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) -> bool {
-                       return instance.add_edge_product(from, label, to, trace);
+                   pre_star<trace_type,W,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const auto& et_param) -> bool {
+                        if constexpr (is_weighted<W> && trace_type == Trace_Type::Shortest)
+                            return instance.add_edge_product(from, label, to, trace, et_param);
+                        else
+                            return instance.add_edge_product(from, label, to, trace);
+
                    });
-        }
+            }
 
         template <Trace_Type trace_type, typename W, bool ET=false>
         static bool pre_star(internal::PAutomaton<W> &automaton,
-                             const internal::early_termination_fn<W>& early_termination = [](size_t, uint32_t, size_t, internal::edge_annotation_t<W>) -> bool { return false; }) {
+                             const internal::early_termination_fn2<W>& early_termination = [](size_t, uint32_t, size_t, internal::edge_annotation_t<W>, const auto&) -> bool { return false; }) {
             if(!is_weighted<W> && trace_type == Trace_Type::Shortest)
                 throw std::logic_error("Cannot do shortest-trace pre* for PDA without weights."); // TODO: Consider: W=uin32_t, weight==1 as a default weight.
             internal::PreStarSaturation<W,ET,trace_type == Trace_Type::Shortest> saturation(automaton, early_termination);
