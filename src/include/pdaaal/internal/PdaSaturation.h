@@ -59,6 +59,8 @@ namespace pdaaal::internal {
 
     template <typename W>
     using early_termination_fn = std::function<bool(size_t,uint32_t,size_t,edge_annotation_t<W>)>;
+    template <typename W>
+    using early_termination_fn2 = std::function<bool(size_t,uint32_t,size_t,edge_annotation_t<W>,std::conditional_t<W::is_weight, typename W::type, bool> const&)>;
 
     template <typename W, bool ET=false, bool SHORTEST=false>
     class PreStarSaturation {
@@ -454,7 +456,7 @@ namespace pdaaal::internal {
         };
 
     public:
-        explicit PostStarShortestSaturation(p_automaton_t& automaton, const early_termination_fn<W>& early_termination = [](size_t, uint32_t, size_t, edge_annotation_t<W>) -> bool { return false; })
+        explicit PostStarShortestSaturation(p_automaton_t& automaton, const early_termination_fn2<W>& early_termination = [](size_t, uint32_t, size_t, edge_annotation_t<W>,auto) -> bool { return false; })
                 : _automaton(automaton), _early_termination(early_termination), _pda_states(_automaton.pda().states()),
                   _n_pda_states(_pda_states.size()), _n_Q(_automaton.states().size()) {
             assert(!has_negative_weight());
@@ -466,7 +468,7 @@ namespace pdaaal::internal {
 
     private:
         p_automaton_t& _automaton;
-        const early_termination_fn<W>& _early_termination;
+        const early_termination_fn2<W>& _early_termination;
         const std::vector<typename PDA<W>::state_t>& _pda_states;
         const size_t _n_pda_states;
         const size_t _n_Q;
@@ -524,7 +526,7 @@ namespace pdaaal::internal {
                         } else {
                             insert_rel(from->_id, label, to);
                             if constexpr (ET) {
-                                _found |= _early_termination(from->_id, label, to, trace);
+                                _found |= _early_termination(from->_id, label, to, trace, W::zero());
                             }
                         }
                     }
@@ -584,7 +586,7 @@ namespace pdaaal::internal {
                 _automaton.add_edge(t._from, t._to, t._label, std::make_pair(elem._trace, t_weight));
             }
             if constexpr (ET) {
-                _found |= _early_termination(t._from, t._label, t._to, std::make_pair(elem._trace, t_weight));
+                _found |= _early_termination(t._from, t._label, t._to, std::make_pair(elem._trace, t_weight), elem._weight);
             }
             if (t._from >= _n_pda_states) {
                 assert(t._from >= _n_Q);

@@ -158,6 +158,7 @@ namespace pdaaal::internal {
         using trace_info_t = TraceInfo_t<trace_info_type>;
         using edge_anno = edge_annotation<W,trace_info_type>;
         using edge_anno_t = edge_annotation_t<W,trace_info_type>;
+        using weight_or_bool_t = std::conditional_t<W::is_weight, typename W::type, bool>;
     public:
         using weight = W; // Expose the template parameter.
         static constexpr auto epsilon = std::numeric_limits<uint32_t>::max();
@@ -166,6 +167,11 @@ namespace pdaaal::internal {
             bool _accepting = false;
             size_t _id;
             fut::set<std::tuple<size_t,uint32_t,edge_anno_t>, fut::type::hash, fut::type::vector> _edges;
+
+            // TODO: Move this out to sub-class IncrementalPAutomaton
+            size_t _back_edge_state = std::numeric_limits<size_t>::max(); // Use the back_edge_state to check for existence of a back_edge.
+            uint32_t _back_edge_label = std::numeric_limits<uint32_t>::max()-1; // The null value should not equal epsilon (defensive defaults)
+            weight_or_bool_t _best_weight;
 
             state_t(bool accepting, size_t id) : _accepting(accepting), _id(id) {};
 
@@ -591,6 +597,10 @@ namespace pdaaal::internal {
                                 search_queue.emplace(solver_weight<W,trace_type>::add(current._weight, label->second), to, current._stack_index + 1, pointer);
                             }
                         }
+                        auto eps_label = labels.get(epsilon);
+                        if (eps_label != nullptr) {
+                            search_queue.emplace(solver_weight<W,trace_type>::add(current._weight, eps_label->second), to, current._stack_index, pointer->_back_pointer);
+                        }
                     }
                 }
                 return std::make_pair(std::vector<size_t>(), solver_weight<W,trace_type>::max());
@@ -642,6 +652,41 @@ namespace pdaaal::internal {
         [[nodiscard]] bool has_accepting_state() const {
             return !_accepting.empty();
         };
+        template<Trace_Type trace_type = Trace_Type::Shortest>
+        const weight_or_bool_t&
+        min_accepting_weight() const {
+            if constexpr (W::is_weight) {
+                static const auto max = solver_weight<W,trace_type>::max();
+                if (_accepting.empty()) return max;
+                return (*std::min_element(_accepting.begin(), _accepting.end(), [](const auto& a, const auto& b){
+                    return solver_weight<W,trace_type>::less(a->_best_weight, b->_best_weight);
+                }))->_best_weight;
+            } else {
+                return has_accepting_state();
+            }
+        }
+
+        [[nodiscard]] auto get_path_shortest() const { return get_path_shortest([](size_t s){ return s; }); }
+        template <typename Fn> [[nodiscard]] auto get_path_shortest(Fn&& state_map) const {
+            if constexpr (W::is_weight) {
+                if (_accepting.empty()) return std::make_tuple(AutomatonPath(), solver_weight<W, Trace_Type::Shortest>::max());
+                auto best_accept_state = *std::min_element(_accepting.begin(), _accepting.end(), [](const auto& a, const auto& b){
+                    return solver_weight<W,Trace_Type::Shortest>::less(a->_best_weight, b->_best_weight);
+                });
+                AutomatonPath automaton_path(state_map(best_accept_state->_id));
+                const state_t* p = best_accept_state;
+                while (p->_back_edge_state != std::numeric_limits<size_t>::max()) {
+                    auto label = p->_back_edge_label;
+                    p = _states[p->_back_edge_state].get();
+                    automaton_path.emplace(state_map(p->_id), label);
+                }
+                return std::make_tuple(std::move(automaton_path), best_accept_state->_best_weight);
+            } else {
+                assert(false);
+                throw std::logic_error("Not implemented: Shortest path for unweighted automaton.");
+            }
+        }
+
 
         size_t add_state(bool initial, bool accepting) {
             auto id = next_state_id();
@@ -666,12 +711,38 @@ namespace pdaaal::internal {
         }
 
         void add_epsilon_edge(size_t from, size_t to, edge_anno_t trace = edge_anno::make_default()) {
-            _states[from]->_edges.emplace(to, epsilon, trace);
+            _states[from]->_edges.emplace(to, epsilon, std::move(trace));
         }
-
         void add_edge(size_t from, size_t to, uint32_t label, edge_anno_t trace = edge_anno::make_default()) {
             assert(label < std::numeric_limits<uint32_t>::max() - 1);
-            _states[from]->_edges.emplace(to, label, trace);
+            _states[from]->_edges.emplace(to, label, std::move(trace));
+        }
+
+        bool make_back_edge(size_t from, uint32_t label, size_t to) {
+            if (_states[to]->_back_edge_state == std::numeric_limits<size_t>::max()) {
+                _states[to]->_back_edge_state = from;
+                _states[to]->_back_edge_label = label;
+                return true;
+            }
+            return false;
+        }
+        std::optional<weight_or_bool_t>
+        make_back_edge_shortest(size_t from, uint32_t label, size_t to, const weight_or_bool_t& weight) {
+            if constexpr (W::is_weight) {
+                if (to < _pda.states().size()) return std::nullopt; // Initial states cannot be reached by a shorter path.
+                // If from is initial it has weight 0 (but we don't care about storing that).
+                auto new_weight = from < _pda.states().size() ? weight : solver_weight<W,Trace_Type::Shortest>::add(_states[from]->_best_weight, weight);
+                if (_states[to]->_back_edge_state == std::numeric_limits<size_t>::max()
+                    || solver_weight<W,Trace_Type::Shortest>::less(new_weight, _states[to]->_best_weight)) {
+                    _states[to]->_back_edge_state = from;
+                    _states[to]->_back_edge_label = label;
+                    _states[to]->_best_weight = std::move(new_weight);
+                    return _states[to]->_best_weight;
+                }
+                return std::nullopt;
+            } else {
+                return make_back_edge(from, label, to);
+            }
         }
         auto get_edge(size_t from, uint32_t label, size_t to) {
             return _states[from]->_edges.get(to, label);
