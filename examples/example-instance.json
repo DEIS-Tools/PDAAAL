@@ -1,0 +1,30 @@
+{
+  "instance": [
+    {"state-names": true, "weight-type": "uint"},
+    { "states": {
+        "p0": {
+          "A": {"to": "p1", "pop": "", "weight": 1},
+          "B": {"to": "p0", "push": "A", "weight": 0}},
+        "p1": {
+          "A": [
+            {"to": "p0", "swap": "A", "weight": 2},
+            {"to": "p2", "push": "B", "weight": 1}]},
+        "p2": {
+          "B": {"to": "p2", "pop": "", "weight": 3}}
+      }
+    },
+    { "accepting": [3],
+      "edges": [
+        ["p0","A",3],
+        ["p0","B",4],
+        [4,"A",3],
+        ["p1","A",3]
+      ]
+    },
+    { "accepting": ["p2",3],
+      "edges": [
+        ["p2","A",3]
+      ]
+    }
+  ]
+}
