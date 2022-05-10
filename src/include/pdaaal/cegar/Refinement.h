@@ -27,51 +27,16 @@
 #ifndef PDAAAL_REFINEMENT_H
 #define PDAAAL_REFINEMENT_H
 
+#include "pdaaal/utils/more_algorithms.h"
 #include <vector>
+#include <array>
 #include <algorithm>
 #include <cassert>
 #include <limits>
 #include <unordered_set>
+#include <iterator>
 
 namespace pdaaal {
-
-    // Auxiliary function... Why is something like this not in <algorithm>??.
-    template<typename T>
-    inline bool is_disjoint(const std::vector<T>& a, const std::vector<T>& b) {
-        // Inspired by: https://stackoverflow.com/a/29123390
-        assert(std::is_sorted(a.begin(), a.end()));
-        assert(std::is_sorted(b.begin(), b.end()));
-        auto it_a = a.begin();
-        auto it_b = b.begin();
-        while (it_a != a.end() && it_b != b.end()) {
-            if (*it_a < *it_b) {
-                it_a = std::lower_bound(++it_a, a.end(), *it_b);
-            } else if (*it_b < *it_a) {
-                it_b = std::lower_bound(++it_b, b.end(), *it_a);
-            } else {
-                return false;
-            }
-        }
-        return true;
-    }
-    template<typename T, typename U, typename Compare>
-    inline bool is_disjoint(const std::vector<T>& a, const std::vector<U>& b, Compare comp) {
-        // Inspired by: https://stackoverflow.com/a/29123390
-        assert(std::is_sorted(a.begin(), a.end(), comp));
-        assert(std::is_sorted(b.begin(), b.end(), comp));
-        auto it_a = a.begin();
-        auto it_b = b.begin();
-        while (it_a != a.end() && it_b != b.end()) {
-            if (comp(*it_a,*it_b)) {
-                it_a = std::lower_bound(++it_a, a.end(), *it_b, comp);
-            } else if (comp(*it_b, *it_a)) {
-                it_b = std::lower_bound(++it_b, b.end(), *it_a, comp);
-            } else {
-                return false;
-            }
-        }
-        return true;
-    }
 
     template<typename T>
     class Refinement {
@@ -228,22 +193,6 @@ namespace pdaaal {
         const std::vector<Refinement<label_t>>& refinements() const {
             return _refinements;
         }
-    };
-
-    template<typename A, typename B>
-    struct CompFirst {
-        bool operator()(const std::pair<A, B>& lhs, const std::pair<A, B>& rhs) const { return lhs.first < rhs.first; }
-        bool operator()(const std::pair<A, B>& lhs, const A& rhs) const { return lhs.first < rhs; }
-        bool operator()(const A& lhs, const std::pair<A, B>& rhs) const { return lhs < rhs.first; }
-        bool operator()(const A& lhs, const A& rhs) const { return lhs < rhs; }
-    };
-
-    template<typename A, typename B>
-    struct EqFirst {
-        bool operator()(const std::pair<A, B>& lhs, const std::pair<A, B>& rhs) const { return lhs.first == rhs.first; }
-        bool operator()(const std::pair<A, B>& lhs, const A& rhs) const { return lhs.first == rhs; }
-        bool operator()(const A& lhs, const std::pair<A, B>& rhs) const { return lhs == rhs.first; }
-        bool operator()(const A& lhs, const A& rhs) const { return lhs == rhs; }
     };
 
     template<typename A, typename B>

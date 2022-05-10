@@ -104,9 +104,11 @@ namespace pdaaal {
             }
             return stack;
         }
-        [[nodiscard]] std::pair<std::vector<state_t>, std::vector<uint32_t>> get_path_and_stack() const {
-            std::vector<state_t>  path;  path.reserve(_edges.size() + 1);
-            std::vector<uint32_t> stack; stack.reserve(_edges.size());
+        [[nodiscard]] auto get_path_and_stack() const {
+            std::pair<std::vector<state_t>, std::vector<uint32_t>> result;
+            auto& [path, stack] = result;
+            path.reserve(_edges.size() + 1);
+            stack.reserve(_edges.size());
             for (auto it = _edges.crbegin(); it != _edges.crend(); ++it) {
                 if (it->first != std::numeric_limits<uint32_t>::max()) {
                     path.push_back(it->second);
@@ -114,18 +116,18 @@ namespace pdaaal {
                 }
             }
             path.push_back(_end);
-            return std::make_pair(path, stack);
+            return result;
         }
 
-        [[nodiscard]] std::pair<AutomatonPath<>,AutomatonPath<>> split() const {
+        [[nodiscard]] auto split() const {
             if constexpr(state_pair) {
-                AutomatonPath<> first_path(_end.first);
-                AutomatonPath<> second_path(_end.second);
+                auto result = std::make_pair(AutomatonPath<>(_end.first),AutomatonPath<>(_end.second));
+                auto& [first_path, second_path] = result;
                 for (const auto& [label, state] : _edges) {
                     first_path.emplace(state.first, label);
                     second_path.emplace(state.second, label);
                 }
-                return std::make_pair(first_path, second_path);
+                return result;
             } else {
                 assert(false); // split should only be used for AutomatonPath with state_pair==true
                 return std::make_pair(*this, *this);

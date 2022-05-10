@@ -30,6 +30,7 @@
 #include "PDA.h"
 #include "pdaaal/NFA.h"
 #include "pdaaal/AutomatonPath.h"
+#include "pdaaal/utils/vector_printer.h"
 #include <memory>
 #include <functional>
 #include <vector>
@@ -157,6 +158,7 @@ namespace pdaaal::internal {
         using trace_info_t = TraceInfo_t<trace_info_type>;
         using edge_anno = edge_annotation<W,trace_info_type>;
         using edge_anno_t = edge_annotation_t<W,trace_info_type>;
+        using weight_or_bool_t = std::conditional_t<W::is_weight, typename W::type, bool>;
     public:
         using weight = W; // Expose the template parameter.
         static constexpr auto epsilon = std::numeric_limits<uint32_t>::max();
@@ -165,6 +167,11 @@ namespace pdaaal::internal {
             bool _accepting = false;
             size_t _id;
             fut::set<std::tuple<size_t,uint32_t,edge_anno_t>, fut::type::hash, fut::type::vector> _edges;
+
+            // TODO: Move this out to sub-class IncrementalPAutomaton
+            size_t _back_edge_state = std::numeric_limits<size_t>::max(); // Use the back_edge_state to check for existence of a back_edge.
+            uint32_t _back_edge_label = std::numeric_limits<uint32_t>::max()-1; // The null value should not equal epsilon (defensive defaults)
+            weight_or_bool_t _best_weight;
 
             state_t(bool accepting, size_t id) : _accepting(accepting), _id(id) {};
 
@@ -190,7 +197,7 @@ namespace pdaaal::internal {
         // Construct a PAutomaton that accepts a configuration <p,w> iff states contains p and nfa accepts w.
         PAutomaton(const PDA<W>& pda, const NFA<uint32_t>& nfa, const std::vector<size_t>& states)
         : PAutomaton(pda, states, nfa.empty_accept()) {
-            construct<uint32_t,false>(nfa, states, [](const auto& v){ return v; });
+            construct<uint32_t,false>(nfa, states, [](const auto& e){ return e._symbols; });
         }
 
         PAutomaton(const PDA<W>& pda, const std::vector<size_t>& special_initial_states, bool special_accepting = true) : _pda(pda) {
@@ -306,7 +313,11 @@ namespace pdaaal::internal {
                                     }
                                 }
                                 if (!special_weight) {
-                                    out << "(" << tw.second << ")";
+                                    if constexpr(W::is_vector) {
+                                        out << "(" << vector_printer() << tw.second << ")";
+                                    } else {
+                                        out << "(" << tw.second << ")";
+                                    }
                                 }
                             }
                             out << "\\]";
@@ -331,7 +342,11 @@ namespace pdaaal::internal {
                         if (labels.size() > 1) out << " ";
                         out << "𝜀";
                         if constexpr(is_weighted<W>) {
-                            out << "(" << labels.find(epsilon)->second.second << ")";
+                            if constexpr(W::is_vector) {
+                                out << "(" << vector_printer() << labels.find(epsilon)->second.second << ")";
+                            } else {
+                                out << "(" << labels.find(epsilon)->second.second << ")";
+                            }
                         }
                     }
                     out << "\"];\n";
@@ -565,6 +580,10 @@ namespace pdaaal::internal {
                                 search_queue.emplace(solver_weight<W,trace_type>::add(current._weight, label->second), to, current._stack_index + 1, pointer);
                             }
                         }
+                        auto eps_label = labels.get(epsilon);
+                        if (eps_label != nullptr) {
+                            search_queue.emplace(solver_weight<W,trace_type>::add(current._weight, eps_label->second), to, current._stack_index, pointer->_back_pointer);
+                        }
                     }
                 }
                 return std::make_pair(std::vector<size_t>(), solver_weight<W,trace_type>::max());
@@ -616,6 +635,41 @@ namespace pdaaal::internal {
         [[nodiscard]] bool has_accepting_state() const {
             return !_accepting.empty();
         };
+        template<Trace_Type trace_type = Trace_Type::Shortest>
+        const weight_or_bool_t&
+        min_accepting_weight() const {
+            if constexpr (W::is_weight) {
+                static const auto max = solver_weight<W,trace_type>::max();
+                if (_accepting.empty()) return max;
+                return (*std::min_element(_accepting.begin(), _accepting.end(), [](const auto& a, const auto& b){
+                    return solver_weight<W,trace_type>::less(a->_best_weight, b->_best_weight);
+                }))->_best_weight;
+            } else {
+                return has_accepting_state();
+            }
+        }
+
+        [[nodiscard]] auto get_path_shortest() const { return get_path_shortest([](size_t s){ return s; }); }
+        template <typename Fn> [[nodiscard]] auto get_path_shortest(Fn&& state_map) const {
+            if constexpr (W::is_weight) {
+                if (_accepting.empty()) return std::make_tuple(AutomatonPath(), solver_weight<W, Trace_Type::Shortest>::max());
+                auto best_accept_state = *std::min_element(_accepting.begin(), _accepting.end(), [](const auto& a, const auto& b){
+                    return solver_weight<W,Trace_Type::Shortest>::less(a->_best_weight, b->_best_weight);
+                });
+                AutomatonPath automaton_path(state_map(best_accept_state->_id));
+                const state_t* p = best_accept_state;
+                while (p->_back_edge_state != std::numeric_limits<size_t>::max()) {
+                    auto label = p->_back_edge_label;
+                    p = _states[p->_back_edge_state].get();
+                    automaton_path.emplace(state_map(p->_id), label);
+                }
+                return std::make_tuple(std::move(automaton_path), best_accept_state->_best_weight);
+            } else {
+                assert(false);
+                throw std::logic_error("Not implemented: Shortest path for unweighted automaton.");
+            }
+        }
+
 
         size_t add_state(bool initial, bool accepting) {
             auto id = next_state_id();
@@ -628,17 +682,56 @@ namespace pdaaal::internal {
             }
             return id;
         }
+        void set_state_accepting(size_t id) {
+            assert(id < _states.size());
+            if (!_states[id]->_accepting) {
+                _states[id]->_accepting = true;
+                _accepting.push_back(_states[id].get());
+            }
+        }
         [[nodiscard]] size_t next_state_id() const {
             return _states.size();
         }
 
         void add_epsilon_edge(size_t from, size_t to, edge_anno_t trace = edge_anno::make_default()) {
-            _states[from]->_edges.emplace(to, epsilon, trace);
+            _states[from]->_edges.emplace(to, epsilon, std::move(trace));
         }
-
         void add_edge(size_t from, size_t to, uint32_t label, edge_anno_t trace = edge_anno::make_default()) {
             assert(label < std::numeric_limits<uint32_t>::max() - 1);
-            _states[from]->_edges.emplace(to, label, trace);
+            _states[from]->_edges.emplace(to, label, std::move(trace));
+        }
+
+        bool make_back_edge(size_t from, uint32_t label, size_t to) {
+            if (_states[to]->_back_edge_state == std::numeric_limits<size_t>::max()) {
+                _states[to]->_back_edge_state = from;
+                _states[to]->_back_edge_label = label;
+                return true;
+            }
+            return false;
+        }
+        std::optional<weight_or_bool_t>
+        make_back_edge_shortest(size_t from, uint32_t label, size_t to, const weight_or_bool_t& weight) {
+            if constexpr (W::is_weight) {
+                if (to < _pda.states().size()) return std::nullopt; // Initial states cannot be reached by a shorter path.
+                // If from is initial it has weight 0 (but we don't care about storing that).
+                auto new_weight = from < _pda.states().size() ? weight : solver_weight<W,Trace_Type::Shortest>::add(_states[from]->_best_weight, weight);
+                if (_states[to]->_back_edge_state == std::numeric_limits<size_t>::max()
+                    || solver_weight<W,Trace_Type::Shortest>::less(new_weight, _states[to]->_best_weight)) {
+                    _states[to]->_back_edge_state = from;
+                    _states[to]->_back_edge_label = label;
+                    _states[to]->_best_weight = std::move(new_weight);
+                    return _states[to]->_best_weight;
+                }
+                return std::nullopt;
+            } else {
+                return make_back_edge(from, label, to);
+            }
+        }
+        auto get_edge(size_t from, uint32_t label, size_t to) {
+            return _states[from]->_edges.get(to, label);
+        }
+        auto emplace_edge(size_t from, uint32_t label, size_t to, edge_anno_t trace = edge_anno::make_default()) {
+            return _states[from]->_edges.emplace(to, label, trace);
         }
         void update_edge(size_t from, size_t to, uint32_t label, edge_annotation_t<W,TraceInfoType::Single> trace) {
             auto ptr = _states[from]->_edges.get(to, label);
@@ -718,12 +811,13 @@ namespace pdaaal::internal {
             return trace_t(epsilon_state);
         }
     protected:
-        template<typename T, bool use_mapping = true>
-        void construct(const NFA<T>& nfa, const std::vector<size_t>& states, const std::function<std::vector<uint32_t>(const std::vector<T>&)>& map_symbols) {
+        template<typename T, bool use_mapping = true, bool use_new_state_action = false>
+        void construct(const NFA<T>& nfa, const std::vector<size_t>& states, const std::function<std::vector<uint32_t>(const typename NFA<T>::edge_t&)>& map_edge,
+                       const std::function<void(const typename NFA<T>::state_t*,size_t)>& new_state_action = [](auto,auto){}) {
             using nfastate_t = typename NFA<T>::state_t;
             std::unordered_map<const nfastate_t*, size_t> nfastate_to_id;
             std::vector<std::pair<const nfastate_t*,size_t>> waiting;
-            auto get_nfastate_id = [this, &waiting, &nfastate_to_id](const nfastate_t* n) -> size_t {
+            auto get_nfastate_id = [this, &waiting, &nfastate_to_id,&new_state_action](const nfastate_t* n) -> size_t {
                 // Adds nfastate if not yet seen.
                 size_t n_id;
                 auto it = nfastate_to_id.find(n);
@@ -733,6 +827,9 @@ namespace pdaaal::internal {
                     n_id = add_state(false, n->_accepting);
                     nfastate_to_id.emplace(n, n_id);
                     waiting.emplace_back(n, n_id);
+                    if constexpr(use_new_state_action) {
+                        new_state_action(n,n_id); // Allows subclasses to do something for each new state. Defaults to no action.
+                    }
                 }
                 return n_id;
             };
@@ -742,7 +839,7 @@ namespace pdaaal::internal {
                     for (const nfastate_t* n : e.follow_epsilon()) {
                         size_t n_id = get_nfastate_id(n);
                         if constexpr(use_mapping) {
-                            add_edges(states, n_id, e._negated, map_symbols(e._symbols));
+                            add_edges(states, n_id, e._negated, map_edge(e));
                         } else {
                             add_edges(states, n_id, e._negated, e._symbols);
                         }
@@ -756,7 +853,7 @@ namespace pdaaal::internal {
                     for (const nfastate_t* n : e.follow_epsilon()) {
                         size_t n_id = get_nfastate_id(n);
                         if constexpr(use_mapping) {
-                            add_edges(top_id, n_id, e._negated, map_symbols(e._symbols));
+                            add_edges(top_id, n_id, e._negated, map_edge(e));
                         } else {
                             add_edges(top_id, n_id, e._negated, e._symbols);
                         }

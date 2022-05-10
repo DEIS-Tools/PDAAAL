@@ -61,6 +61,8 @@ namespace pdaaal {
     class PDA : public internal::PDA<W, Container>, public std::conditional_t<skip_state_mapping, no_state_mapping, state_mapping<state_t>> {
     public:
         using parent_t = internal::PDA<W, Container>;
+        using expose_state_t = state_t; // Expose template parameter as dependent name.
+        static constexpr bool expose_skip_state_mapping = skip_state_mapping;
     protected:
         using impl_rule_t = typename internal::PDA<W, Container>::rule_t; // This rule type is used internally.
         static_assert(!skip_state_mapping || std::is_same_v<state_t,size_t>, "When skip_state_mapping==true, you must use state_t=size_t");
@@ -135,6 +137,7 @@ namespace pdaaal {
             }
         }
         PDA() = default;
+        virtual ~PDA() = default;
 
         auto move_label_map() { return std::move(_label_map); }
 
@@ -207,20 +210,6 @@ namespace pdaaal {
             this->add_untyped_rule_impl(from, r, wildcard, pre_labels);
         }
 
-        std::vector<label_t> get_labels(const internal::labels_t& labels) const { // TODO: Support lazy iteration. Maybe with C++20 ranges..?
-            std::vector<label_t> result;
-            if (labels.wildcard()) {
-                result.reserve(_label_map.size());
-                for (size_t i = 0; i < _label_map.size(); ++i) {
-                    result.emplace_back(get_symbol(i));
-                }
-            } else {
-                for (auto label : labels.labels()) {
-                    result.emplace_back(get_symbol(label));
-                }
-            }
-            return result;
-        }
         [[nodiscard]] nlohmann::json to_json() const {
             nlohmann::json j;
             j["pda"] = *this;
@@ -301,10 +290,9 @@ namespace pdaaal {
         }
 
         template<typename label_t, typename W, fut::type Container, typename state_t, bool ssm>
-        void pda_rule_to_json(json& j_state, json& j_rule, const label_t& pre_label,
+        void pda_rule_to_json(json& j_state, json& j_rule, const std::string& pre_label,
                               const typename internal::PDA<W, Container>::rule_t& rule,
                               const PDA<label_t, W, Container, state_t, ssm>& pda) {
-            auto label_s = label_to_string(pre_label);
             switch (rule._operation) {
                 case POP:
                     j_rule["pop"] = "";
@@ -313,7 +301,7 @@ namespace pdaaal {
                     j_rule["swap"] = label_to_string(pda.get_symbol(rule._op_label));
                     break;
                 case NOOP:
-                    j_rule["swap"] = label_s;
+                    j_rule["swap"] = pre_label;
                     break;
                 case PUSH:
                     j_rule["push"] = label_to_string(pda.get_symbol(rule._op_label));
@@ -324,15 +312,15 @@ namespace pdaaal {
             if constexpr (W::is_weight) {
                 j_rule["weight"] = rule._weight;
             }
-            if (j_state.contains(label_s)) {
-                if (!j_state[label_s].is_array()) {
-                    auto temp_rule = j_state[label_s];
-                    j_state[label_s] = json::array();
-                    j_state[label_s].emplace_back(temp_rule);
+            if (j_state.contains(pre_label)) {
+                if (!j_state[pre_label].is_array()) {
+                    auto temp_rule = j_state[pre_label];
+                    j_state[pre_label] = json::array();
+                    j_state[pre_label].emplace_back(temp_rule);
                 }
-                j_state[label_s].emplace_back(j_rule);
+                j_state[pre_label].emplace_back(j_rule);
             } else {
-                j_state[label_s] = j_rule;
+                j_state[pre_label] = j_rule;
             }
         }
     }
@@ -343,10 +331,16 @@ namespace pdaaal {
         for (const auto& state : pda.states()) {
             auto j_state = json::object();
             for (const auto& [rule, labels] : state._rules) {
-                for (const auto& label : pda.get_labels(labels)) {
+                if (labels.wildcard()) {
                     auto j_rule = json::object();
                     j_rule["to"] = rule._to;
-                    details::pda_rule_to_json(j_state, j_rule, label, rule, pda);
+                    details::pda_rule_to_json(j_state, j_rule, "*", rule, pda);
+                } else {
+                    for (auto label : labels.labels()) {
+                        auto j_rule = json::object();
+                        j_rule["to"] = rule._to;
+                        details::pda_rule_to_json(j_state, j_rule, details::label_to_string(pda.get_symbol(label)), rule, pda);
+                    }
                 }
             }
             j_states.emplace_back(j_state);
@@ -361,12 +355,18 @@ namespace pdaaal {
         for (const auto& state : pda.states()) {
             auto j_state = json::object();
             for (const auto& [rule, labels] : state._rules) {
-                for (const auto& label : pda.get_labels(labels)) {
+                std::stringstream ss;
+                ss << pda.get_state(rule._to);
+                if (labels.wildcard()) {
                     auto j_rule = json::object();
-                    std::stringstream ss;
-                    ss << pda.get_state(rule._to);
                     j_rule["to"] = ss.str();
-                    details::pda_rule_to_json(j_state, j_rule, label, rule, pda);
+                    details::pda_rule_to_json(j_state, j_rule, "*", rule, pda);
+                } else {
+                    for (const auto& label : labels.labels()) {
+                        auto j_rule = json::object();
+                        j_rule["to"] = ss.str();
+                        details::pda_rule_to_json(j_state, j_rule, details::label_to_string(pda.get_symbol(label)), rule, pda);
+                    }
                 }
             }
             std::stringstream ss;
@@ -381,6 +381,52 @@ namespace pdaaal {
             ++state_i;
         }
         j["states"] = j_states;
+    }
+
+    namespace details {
+        template<typename label_t, typename W>
+        void params_state_names(nlohmann::json& j, const PDA<label_t,W,fut::type::vector,size_t,true>&) {
+            j["state-names"] = false;
+        }
+        template<typename label_t, typename W, typename state_t>
+        void params_state_names(nlohmann::json& j, const PDA<label_t,W,fut::type::vector,state_t,false>&) {
+            j["state-names"] = true;
+        }
+        template<typename label_t, typename state_t, bool skip_state_mapping>
+        void params_weight_type(nlohmann::json& j, const PDA<label_t,weight<void>,fut::type::vector,state_t,skip_state_mapping>&) {
+            j["weight-type"] = "none";
+        }
+        template<typename Inner, std::size_t N, typename label_t, typename state_t, bool skip_state_mapping>
+        void params_weight_type(nlohmann::json& j, const PDA<label_t,weight<std::array<Inner,N>>,fut::type::vector,state_t,skip_state_mapping>&) {
+            static_assert(weight<std::array<Inner,N>>::is_weight);
+            j["weight-type"] = json::array();
+            if constexpr(weight<std::array<Inner,N>>::is_signed) {
+                j["weight-type"].emplace_back("int");
+            } else {
+                j["weight-type"].emplace_back("uint");
+            }
+            j["weight-type"].emplace_back(N);
+        }
+        template<typename Inner, typename label_t, typename state_t, bool skip_state_mapping>
+        void params_weight_type(nlohmann::json& j, const PDA<label_t,weight<std::vector<Inner>>,fut::type::vector,state_t,skip_state_mapping>&) {
+            static_assert(weight<std::vector<Inner>>::is_weight);
+            j["weight-type"] = json::array();
+            if constexpr(weight<std::vector<Inner>>::is_signed) {
+                j["weight-type"].emplace_back("int");
+            } else {
+                j["weight-type"].emplace_back("uint");
+            }
+        }
+        template<typename label_t, typename W, typename state_t, bool skip_state_mapping>
+        void params_weight_type(nlohmann::json& j, const PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&) {
+            if constexpr(W::is_weight) {
+                if constexpr(W::is_signed) {
+                    j["weight-type"] = "int";
+                } else {
+                    j["weight-type"] = "uint";
+                }
+            }
+        }
     }
 
 }

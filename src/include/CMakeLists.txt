@@ -17,7 +17,11 @@ target_sources(pdaaal
     PUBLIC  ${HEADER_FILES}
 )
 target_compile_features(pdaaal PUBLIC cxx_std_17) # Require C++17 features.
-target_compile_definitions(pdaaal PUBLIC $<$<CONFIG:Release>:NDEBUG>) # We can use "#ifndef NDEBUG\n <debug only code> \n#endif" to define code that is only used in debug mode.
+if (MSVC)
+    target_compile_options(pdaaal PRIVATE /W4)
+else()
+    target_compile_options(pdaaal PRIVATE -Wall -Wextra -Wpedantic)
+endif()
 target_include_directories(pdaaal PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
@@ -25,25 +29,13 @@ target_include_directories(pdaaal PUBLIC
 #target_link_libraries(pdaaal PUBLIC m) # Uncomment this if we need to include <math.h>
 
 if (PDAAAL_GetDependencies)
-    # TODO: Prefer to use FetchContent over ExternalProject, and make ptrie available for parent projects too.
-    # setup for external imports
-    include(ExternalProject)
-    set(EXTERNAL_INSTALL_LOCATION ${CMAKE_BINARY_DIR}/external)
-
-    ExternalProject_add(ptrie-ext
-            URL https://github.com/MortenSchou/ptrie/archive/refs/tags/v1.1.2beta.zip
-            URL_HASH SHA512=7dbfd54839509187d27e2ddea34c253ac1f26712012c29eca0d96b9f7bcf9844bdc3b40955aa98e391344745b734aa2f28cf115572b4b0ab2873582b32dfe228
-            CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EXTERNAL_INSTALL_LOCATION} -DBUILD_TESTING=OFF
-            )
-    file(MAKE_DIRECTORY ${EXTERNAL_INSTALL_LOCATION}/include)
-    # we can now include external libraries
-    add_dependencies(pdaaal ptrie-ext)
-    target_include_directories(pdaaal PUBLIC
-            $<BUILD_INTERFACE:${EXTERNAL_INSTALL_LOCATION}/include>
-            $<INSTALL_INTERFACE:external/include>)
-
-
     include(FetchContent)
+    FetchContent_Declare(ptrie
+        GIT_REPOSITORY https://github.com/petergjoel/ptrie.git
+        GIT_TAG f45e1a39524a95a28684aa75b169afa476ac025c
+    )
+    FetchContent_MakeAvailable(ptrie)
+
     # PEGTL (Parsing Expression Grammar Template Library) is a modern header-only parser combinator library.
     FetchContent_Declare(pegtl
             URL https://github.com/taocpp/PEGTL/archive/refs/tags/3.2.5.tar.gz
@@ -80,7 +72,7 @@ if (PDAAAL_GetDependencies)
 endif (PDAAAL_GetDependencies)
 
 # Define library dependencies.
-target_link_libraries(pdaaal PUBLIC Boost::headers pegtl absl::hash nlohmann_json::nlohmann_json)
+target_link_libraries(pdaaal PUBLIC Boost::headers ptrie pegtl absl::hash nlohmann_json::nlohmann_json)
 
 # Define which directories to install with the pdaaal library.
 install(DIRECTORY pdaaal/ pdaaal/parsing/ pdaaal/utils/
@@ -105,15 +97,19 @@ generate_export_header(pdaaal)
 install(FILES "${PROJECT_BINARY_DIR}/pdaaal_export.h"
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-# pdaaal-config.cmake.in defines dependencies that should be (transitively) available in pdaaal's parent project.
-configure_file(pdaaal-config.cmake.in pdaaal-config.cmake @ONLY)
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/pdaaal-config.cmake"
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pdaaal)
-# Setup creation of versioned package. PDAAAL_VERSION is defined in the top-level cmake file.
 include(CMakePackageConfigHelpers)
-write_basic_package_version_file("pdaaal-config-version.cmake"
+# pdaaal-config.cmake.in defines dependencies that should be (transitively) available in pdaaal's parent project.
+configure_package_config_file(pdaaal-config.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/pdaaal-config.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pdaaal
+)
+# Setup creation of versioned package. PDAAAL_VERSION is defined in the top-level cmake file.
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/pdaaal-config-version.cmake
     VERSION ${PDAAAL_VERSION}
     COMPATIBILITY SameMajorVersion
 )
-install(FILES "pdaaal-config-version.cmake"
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pdaaal)
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/pdaaal-config.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/pdaaal-config-version.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pdaaal)

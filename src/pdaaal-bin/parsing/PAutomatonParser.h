@@ -31,7 +31,7 @@
 #include <pdaaal/PAutomaton.h>
 #include <tao/pegtl/contrib/unescape.hpp>
 
-namespace pdaaal {
+namespace pdaaal::parsing {
 
     // First define grammar for PAutomaton.
     // Escaped string

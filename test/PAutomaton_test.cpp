@@ -34,36 +34,6 @@
 
 using namespace pdaaal;
 
-BOOST_AUTO_TEST_CASE(PAutomatonFromJsonTest)
-{
-    std::unordered_set<std::string> labels{"A"};
-    PDA<std::string> pda(labels);
-    pda.add_rule(0, 0, POP, "*", "A");
-    std::istringstream automaton_stream(R"({"P-automaton":{
-        "states":[
-            {"edges":[{"label":"A","to":1}],"initial":true},
-            {"edges":[{"label":"A","to":2}]},
-            {"accepting":true,"edges":[]}
-        ]
-    }})");
-    auto automaton = PAutomatonJsonParser::parse<>(automaton_stream, pda);
-    std::vector<uint32_t> stack; stack.emplace_back(0);
-    bool result = Solver::post_star_accepts(automaton, 0, stack);
-    BOOST_CHECK(result);
-}
-
-BOOST_AUTO_TEST_CASE(PAutomatonToJsonTest)
-{
-    std::unordered_set<std::string> labels{"A"};
-    PDA<std::string> pda(labels);
-    pda.add_rule(0, 0, POP, "*", "A");
-    std::vector<std::string> init_stack{"A", "A"};
-    PAutomaton automaton(pda, 0, init_stack);
-    auto j = automaton.to_json();
-    BOOST_TEST_MESSAGE(j.dump());
-    BOOST_CHECK_EQUAL(j.dump(), R"({"P-automaton":{"states":[{"edges":[{"label":"A","to":1}],"initial":true},{"edges":[{"label":"A","to":2}]},{"accepting":true,"edges":[]}]}})");
-}
-
 BOOST_AUTO_TEST_CASE(Dijkstra_Test_1)
 {
     using trace_t = internal::trace_t;
@@ -212,9 +182,10 @@ BOOST_AUTO_TEST_CASE(WeightedPostStar4EarlyTermination)
     internal::PAutomaton automaton(pda, 0, pda.encode_pre(init_stack));
 
     std::vector<char> test_stack_reachable{'A'};
-    BOOST_CHECK_EQUAL(Solver::post_star_accepts<Trace_Type::Shortest>(automaton, 4, pda.encode_pre(test_stack_reachable)), true);
+    PAutomatonProduct instance(pda, std::move(automaton), internal::PAutomaton(pda, 4, pda.encode_pre(test_stack_reachable)));
+    BOOST_CHECK_EQUAL(Solver::post_star_accepts<Trace_Type::Shortest>(instance), true);
 
-    auto result4A = automaton.accept_path<Trace_Type::Shortest>(4, pda.encode_pre(test_stack_reachable));
+    auto result4A = instance.automaton().accept_path<Trace_Type::Shortest>(4, pda.encode_pre(test_stack_reachable));
     auto distance4A = result4A.second;
     BOOST_CHECK_EQUAL(distance4A, 30);          //Example Derived on whiteboard
 }

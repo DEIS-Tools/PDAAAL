@@ -18,19 +18,29 @@ if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(PDAAAL_MAIN_PROJECT ON)
 endif()
 
-option(PDAAAL_BuildTests "Build the unit tests when BUILD_TESTING is enabled." ${PDAAAL_MAIN_PROJECT})
+option(PDAAAL_BuildTests "Build the unit tests of PDAAAL." ${PDAAAL_MAIN_PROJECT})
 option(PDAAAL_Build_Main "Build the stand-alone PDAAAL binary." ${PDAAAL_MAIN_PROJECT})
 option(PDAAAL_AddressSanitizer "Enables address sanitization during compilation." OFF)
 option(PDAAAL_GetDependencies "Fetch external dependencies from web." ON)
 
+option(PDAAAL_BuildBundle "Includes all but system libraries within the binary." OFF)
+if (PDAAAL_BuildBundle)
+    set(BUILD_SHARED_LIBS OFF)
+    set(Boost_USE_STATIC_LIBS ON)
+    set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
+endif (PDAAAL_BuildBundle)
+option(PDAAAL_BuildStatic "Includes all (incl. system libraries) within the binary." OFF)
+if (PDAAAL_BuildStatic)
+    set(BUILD_SHARED_LIBS OFF)
+    set(Boost_USE_STATIC_LIBS ON)
+    set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
+    set(CMAKE_EXE_LINKER_FLAGS "-static")
+endif (PDAAAL_BuildStatic)
 
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -Wall")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2 -Wall -Wpedantic")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lstdc++")
 
 if(PDAAAL_AddressSanitizer)
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}  -fno-omit-frame-pointer -fsanitize=address")
+    add_compile_options(-fno-omit-frame-pointer -fsanitize=address)
 endif(PDAAAL_AddressSanitizer)
 
 find_package(Boost 1.70 CONFIG REQUIRED COMPONENTS headers program_options unit_test_framework)
@@ -38,9 +48,7 @@ find_package(Boost 1.70 CONFIG REQUIRED COMPONENTS headers program_options unit_
 #actual library
 add_subdirectory(src)
 
-set(BUILD_TESTING ON)
-
-if(BUILD_TESTING AND PDAAAL_BuildTests)
+if(PDAAAL_BuildTests)
     #benchmark
     add_subdirectory(benchmark)
 
@@ -60,6 +68,7 @@ if(BUILD_TESTING AND PDAAAL_BuildTests)
     add_test(NAME AutomatonPath_test        COMMAND AutomatonPath_test)
 
     if (PDAAAL_Build_Main) # We need the dependencies for pdaaal-bin to test it.
+        add_test(NAME Parser_test               COMMAND Parser_test)
         add_test(NAME Verification_test         COMMAND Verification_test)
     endif()
 

@@ -29,8 +29,6 @@
 
 #include "PAutomaton.h"
 #include "PAutomatonProduct.h"
-#include "pdaaal/cegar/AbstractionPDA.h"
-#include "pdaaal/cegar/AbstractionPAutomaton.h"
 #include <limits>
 
 namespace pdaaal {
@@ -51,6 +49,16 @@ namespace pdaaal {
 
         SolverInstance(pda_t&& pda, pautomaton_t&& initial, pautomaton_t&& final)
         : _pda(std::move(pda)), _product(_pda, std::move(initial), std::move(final)) {};
+
+        SolverInstance(SolverInstance&& other) noexcept
+        : _pda(std::move(other._pda)), _product(std::move(other._product), _pda) {};
+        SolverInstance& operator=(SolverInstance&& other) noexcept {
+            if (this != &other) {
+                _pda = std::move(other._pda);
+                _product = product_t(std::move(other._product), _pda);
+            }
+            return *this;
+        }
 
         product_t* operator->() {
             return &_product;
@@ -83,57 +91,6 @@ namespace pdaaal {
     SolverInstance(PDA<label_t,W,fut::type::vector,state_t,skip_state_mapping>&& pda,
                    PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type> initial,
                    PAutomaton<label_t,W,state_t,skip_state_mapping,trace_info_type> final) -> SolverInstance<label_t,W,state_t,skip_state_mapping,trace_info_type>;
-
-    template <typename T, typename W>
-    class AbstractionSolverInstance {
-    public:
-        using pda_t = AbstractionPDA<T,W>;
-        using pautomaton_t = AbstractionPAutomaton<T,W>;
-        using product_t = PAutomatonProduct<pda_t, pautomaton_t, W, TraceInfoType::Single>;
-        AbstractionSolverInstance(pda_t&& pda,
-                                  const NFA<T>& initial_nfa, const std::vector<size_t>& initial_states,
-                                  const NFA<T>& final_nfa,   const std::vector<size_t>& final_states)
-        : _pda(std::move(pda)), _product(_pda, initial_nfa, initial_states, final_nfa, final_states) {};
-
-        auto move_pda_refinement_mapping() {
-            return _pda.move_label_map();
-        }
-        auto move_pda_refinement_mapping(const Refinement<T>& refinement) {
-            auto map = _pda.move_label_map();
-            map.refine(refinement);
-            return map;
-        }
-        auto move_pda_refinement_mapping(const HeaderRefinement<T>& header_refinement) {
-            auto map = _pda.move_label_map();
-            for (const auto& refinement : header_refinement.refinements()) {
-                map.refine(refinement);
-            }
-            return map;
-        }
-
-        product_t* operator->() {
-            return &_product;
-        }
-        const product_t* operator->() const {
-            return &_product;
-        }
-        product_t& operator*() {
-            return _product;
-        }
-        const product_t& operator*() const {
-            return _product;
-        }
-        product_t& get() {
-            return _product;
-        }
-        const product_t& get() const {
-            return _product;
-        }
-
-    private:
-        pda_t _pda;
-        product_t _product;
-    };
 
 }
 

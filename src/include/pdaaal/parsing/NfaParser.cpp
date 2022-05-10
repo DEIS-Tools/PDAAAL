@@ -26,6 +26,8 @@
 
 #include "NfaParser.h"
 #include "NfaParserGrammar.h"
+#include <iomanip>
+#include <filesystem>
 
 namespace pdaaal {
 

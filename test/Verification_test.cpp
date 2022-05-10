@@ -26,13 +26,14 @@
 
 #define BOOST_TEST_MODULE Verification_test
 
+#include <parsing/PAutomatonJsonParser.h>
 #include <parsing/PAutomatonParser.h>
 #include <parsing/PdaJsonParser.h>
-#include <pdaaal/SolverInstance.h>
 #include <pdaaal/Solver.h>
 #include <boost/test/unit_test.hpp>
 
 using namespace pdaaal;
+using namespace pdaaal::parsing;
 
 template<typename pda_t>
 void print_trace(const std::vector<typename pda_t::tracestate_t>& trace, const pda_t& pda, std::ostream& s = std::cout) {
@@ -119,7 +120,7 @@ BOOST_AUTO_TEST_CASE(Verification_Test_1)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
     auto initial_p_automaton = PAutomatonParser::parse_string("< [Zero, One] , ([A]?[B])* >", pda);
     auto final_p_automaton = PAutomatonParser::parse_string("< [Two] , [B] [B] [B] >", pda);
     PAutomatonProduct instance(pda, std::move(initial_p_automaton), std::move(final_p_automaton));
@@ -150,7 +151,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
     auto p_automaton = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [q] , >", pda);
 
     Solver::pre_star_fixed_point<Trace_Type::Shortest>(p_automaton);
@@ -181,7 +182,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
     auto p_automaton = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , >", pda);
 
     Solver::pre_star_fixed_point<Trace_Type::Shortest>(p_automaton);
@@ -204,7 +205,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_path_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , .* >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -233,7 +234,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_path2_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , .+ >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -263,7 +264,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_loop_not_accepting_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [q] , [Y] .+ >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -295,7 +296,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_weight_finite_path_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [a] , [X] >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [c] , >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -327,7 +328,7 @@ BOOST_AUTO_TEST_CASE(Verification_poststar_pop_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<void>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<void>,true>(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string("< [p] , [X] [X] >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string("< [p] , [X] >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -354,7 +355,7 @@ BOOST_AUTO_TEST_CASE(Verification_poststar_empty_final_stack_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<void>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<void>,true>(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string("< [p] , [X] >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string("< [p] , >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -381,7 +382,7 @@ BOOST_AUTO_TEST_CASE(Verification_poststar_no_ET_empty_final_stack_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<void>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<void>,true>(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string("< [p] , [X] >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string("< [p] , >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -418,7 +419,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_ring_push_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , [X1] >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , [X1] >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -453,7 +454,7 @@ BOOST_AUTO_TEST_CASE(Verification_negative_ring_swap_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<int32_t>,true>(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , [X1] >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -488,7 +489,7 @@ BOOST_AUTO_TEST_CASE(Verification_longest_trace_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , [X1] >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -516,7 +517,7 @@ BOOST_AUTO_TEST_CASE(Incremental_Parsing_vs_Wildcard_test)
             }
         }
     })");
-    auto pda = PdaJSONParser::parse(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string("< [p0], [B] >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string("< [p0], >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -545,7 +546,7 @@ BOOST_AUTO_TEST_CASE(Verification_longest_trace_arithmetic_3_5_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [s] , [S] >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [f] , [F] >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -599,7 +600,7 @@ BOOST_AUTO_TEST_CASE(Verification_longest_trace_arithmetic_3_3_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [s] , [S] >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [f] , [F] >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -633,7 +634,7 @@ BOOST_AUTO_TEST_CASE(Verification_longest_trace_arithmetic_3_3or5_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [s] , [S] >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [f] , [F] | ([F] [X] [X] [X] [X] [X] [X] [X] [X] [X] [X] [X] [X] [X] [X] [X]) >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -693,7 +694,7 @@ BOOST_AUTO_TEST_CASE(Verification_longest_trace_which_pop_seq_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [s] , [S] >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [f] , [F] >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -743,7 +744,7 @@ BOOST_AUTO_TEST_CASE(Verification_longest_trace_arithmetic_pop3loop_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [s] , [S] [X]* >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [f] , [F] >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -775,7 +776,7 @@ BOOST_AUTO_TEST_CASE(Verification_longest_trace_hill_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [p] , [X] >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [q] , >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -830,7 +831,7 @@ BOOST_AUTO_TEST_CASE(Verification_longest_trace_start_hill_end_test)
         }
       }
     })");
-    auto pda = PdaJSONParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
+    auto pda = PdaJsonParser::parse<weight<uint32_t>,true>(pda_stream, std::cerr);
     auto p_automaton_i = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [s] , [S] >", pda);
     auto p_automaton_f = PAutomatonParser::parse_string<TraceInfoType::Pair>("< [f] , [F] >", pda);
     PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
@@ -864,5 +865,48 @@ BOOST_AUTO_TEST_CASE(Verification_longest_trace_start_hill_end_test)
     auto [trace, weight] = Solver::get_trace<Trace_Type::Longest>(instance);
     BOOST_CHECK_EQUAL(w, weight);
 
+    BOOST_TEST_MESSAGE(s.str());
+}
+
+BOOST_AUTO_TEST_CASE(Verification_shortest_trace_test)
+{
+    std::istringstream pda_stream(R"({
+      "pda": {
+        "states": [
+          {"A": {"push": "B", "to": 2, "weight": 0}},
+          {"A": {"push": "A", "to": 2, "weight": 1}},
+          {"A": {"push": "B", "to": 0, "weight": 0},
+           "B": {"push": "B", "to": 0, "weight": 0}}
+        ]
+      }
+    })");
+    std::istringstream initial_stream(R"({
+      "P-automaton": {
+        "initial": [0,1,2],
+        "accepting": [3],
+        "edges": [[0,"A",3], [1,"A",3]]
+      }
+    })");
+    std::istringstream final_stream(R"({
+      "P-automaton": {
+        "initial": [0,1,2],
+        "accepting": [3],
+        "edges": [[0,"B",3], [3,"A",3], [3,"B",3]]
+      }
+    })");
+    auto pda = PdaJsonParser::parse<weight<uint32_t>,false>(pda_stream, std::cerr);
+    auto p_automaton_i = PAutomatonJsonParser::parse(initial_stream, pda);
+    auto p_automaton_f = PAutomatonJsonParser::parse(final_stream, pda);
+    PAutomatonProduct instance(pda, std::move(p_automaton_i), std::move(p_automaton_f));
+    bool result = Solver::post_star_accepts<Trace_Type::Shortest>(instance);
+    BOOST_TEST(result);
+    auto [path,weight] = instance.template find_path<Trace_Type::Shortest>();
+    BOOST_CHECK_EQUAL(weight, 0);
+
+    std::stringstream s;
+    print_automaton<Trace_Type::Shortest>(instance.product_automaton(), pda, s);
+    s << std::endl;
+    print_automaton<Trace_Type::Shortest>(instance.automaton(), pda, s);
+    s << std::endl;
     BOOST_TEST_MESSAGE(s.str());
 }

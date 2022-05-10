@@ -33,11 +33,11 @@
 namespace pdaaal::internal {
 
     template<typename W, Trace_Type trace_type>
-    class PAutomatonFixedPoint : public fixed_point_workset<PAutomatonFixedPoint<W, trace_type>, size_t> {
+    class PAutomatonFixedPoint : public fixed_point_workset<PAutomatonFixedPoint<W, trace_type>, size_t, false> {
         static constexpr size_t uninitialized_state = std::numeric_limits<size_t>::max();
         static constexpr size_t no_state = std::numeric_limits<size_t>::max() - 1;
 
-        using parent_t = fixed_point_workset<PAutomatonFixedPoint<W, trace_type>, size_t>;
+        using parent_t = fixed_point_workset<PAutomatonFixedPoint<W, trace_type>, size_t, false>;
         using solverW = solver_weight<W,trace_type>;
         struct state_info {
             typename W::type weight = solverW::max();
@@ -51,8 +51,6 @@ namespace pdaaal::internal {
         std::vector<state_info> _states;
         size_t _min_accepting_state = uninitialized_state; // Id of accept state with minimum path weight to it. (keep it updated).
     public:
-        static constexpr size_t next_round_elem = std::numeric_limits<size_t>::max(); // Needs to be different from any proper queue element.
-
         explicit PAutomatonFixedPoint(const PAutomaton<W, TraceInfoType::Pair>& automaton)
         : parent_t(automaton.states().size()),
         _automaton(automaton), _states(_automaton.states().size()) {
@@ -177,6 +175,14 @@ namespace pdaaal::internal {
                 return _path;
             }
         };
+        // Deduction guide is needed for Clang, but not supported by GCC before 12.
+        // TODO: This deduction guide should always work.
+        //  Related GCC compiler bug is fixed in GCC 12. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=79501
+        //  Remove #if, when upgrading to GCC 12.
+        #if __clang__
+        template<typename MapFn>
+        AutomatonTraceBack(const PAutomatonFixedPoint<W,trace_type>& fp, MapFn&& state_map) -> AutomatonTraceBack<MapFn>;
+        #endif
 
         [[nodiscard]] auto get_path_with_loop() {
             return get_path_with_loop([](size_t s){ return s; });

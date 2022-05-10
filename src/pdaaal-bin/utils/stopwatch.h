@@ -30,10 +30,10 @@ class stopwatch {
     clock::time_point _stop;
 
 public:
-    auto started() const { return _start; }
-    auto stopped() const { return _stop; }
-    bool running() const { return _running; }
-    stopwatch(bool r = true) : _running(r), _start(clock::now()), _stop(clock::now()){}
+    [[nodiscard]] auto started() const { return _start; }
+    [[nodiscard]] auto stopped() const { return _stop; }
+    [[nodiscard]] bool running() const { return _running; }
+    explicit stopwatch(bool r = true) : _running(r), _start(clock::now()), _stop(clock::now()){}
     void start() {
         if(!_running)
         {
@@ -49,9 +49,9 @@ public:
         }
     }
 
-    double duration() const { return std::chrono::duration_cast<std::chrono::duration<double>>(_stop-_start).count(); }
+    [[nodiscard]] double duration() const { return std::chrono::duration_cast<std::chrono::duration<double>>(_stop-_start).count(); }
 
-    std::ostream &operator<<(std::ostream &os){
+    std::ostream &operator<<(std::ostream &os) const {
         os << duration() << " s";
         return os;
     }
