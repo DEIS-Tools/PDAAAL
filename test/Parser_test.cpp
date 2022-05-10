@@ -47,7 +47,8 @@ BOOST_AUTO_TEST_CASE(PAutomatonFromJson_OldFormat_Test)
     auto automaton = parsing::PAutomatonJsonParser_Old::parse<>(automaton_stream, pda);
     BOOST_CHECK_EQUAL(automaton.states().size(), 3);
     std::vector<uint32_t> stack; stack.emplace_back(0);
-    bool result = Solver::post_star_accepts(automaton, 0, stack);
+    PAutomatonProduct instance(pda, std::move(automaton), internal::PAutomaton(pda, 0, stack));
+    bool result = Solver::post_star_accepts(instance);
     BOOST_CHECK(result);
 }
 
@@ -67,7 +68,8 @@ BOOST_AUTO_TEST_CASE(PAutomatonFromJson_NewFormat_Test)
     auto automaton = parsing::PAutomatonJsonParser::parse<>(automaton_stream, pda);
     BOOST_CHECK_EQUAL(automaton.states().size(), 3);
     std::vector<uint32_t> stack; stack.emplace_back(0);
-    bool result = Solver::post_star_accepts(automaton, 0, stack);
+    PAutomatonProduct instance(pda, std::move(automaton), internal::PAutomaton(pda, 0, stack));
+    bool result = Solver::post_star_accepts(instance);
     BOOST_CHECK(result);
 }
 
