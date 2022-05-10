@@ -136,7 +136,7 @@ namespace pdaaal {
             return instance.initialize_product() ||
                    pre_star<trace_type,W,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const auto& et_param) -> bool {
                         if constexpr (is_weighted<W> && trace_type == Trace_Type::Shortest)
-                            return instance.add_edge_product(from, label, to, trace, et_param);
+                            return instance.template add_edge_product<true,trace_type>(from, label, to, trace, et_param);
                         else
                             return instance.add_edge_product(from, label, to, trace);
 
