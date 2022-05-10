@@ -98,7 +98,7 @@ namespace pdaaal::internal {
                                           >;
 
     public:
-        explicit PreStarSaturation(PAutomaton<W> &automaton, const early_termination_fn<W>& early_termination = [](size_t, uint32_t, size_t, edge_anno_t) -> bool { return false; })
+        explicit PreStarSaturation(PAutomaton<W> &automaton, const early_termination_fn2<W>& early_termination)
                 : _automaton(automaton), _early_termination(early_termination), _pda_states(_automaton.pda().states()),
                   _n_pda_states(_pda_states.size()), _n_automaton_states(_automaton.states().size()),
                   _n_pda_labels(_automaton.number_of_labels()), _rel(_n_automaton_states), _delta_prime(_n_automaton_states) {
@@ -110,7 +110,7 @@ namespace pdaaal::internal {
         // http://www.lsv.fr/Publis/PAPERS/PDF/schwoon-phd02.pdf (page 42)
 
         p_automaton_t& _automaton;
-        const early_termination_fn<W>& _early_termination;
+        const early_termination_fn2<W>& _early_termination;
         const std::vector<typename PDA<W>::state_t>& _pda_states;
         const size_t _n_pda_states;
         const size_t _n_automaton_states;
@@ -193,7 +193,7 @@ namespace pdaaal::internal {
                 {
                      _workset.emplace(from, label, to);
                     if constexpr (ET) {
-                        _found = _found || _early_termination(from, label, to, edge_anno::from_trace_info(trace));
+                        _found = _found || _early_termination(from, label, to, edge_anno::from_trace_info(trace), weight_t{});
                     }
                 }
             }
@@ -219,7 +219,9 @@ namespace pdaaal::internal {
             if constexpr (SHORTEST && W::is_weight) {
                 // skip if allready processed shorter path
                 if constexpr (ET) {
-                    _found = _found || _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._weight));
+                    //if(std::is_integral<typename W::type>::value)
+                    //    std::cerr << "Adding trace w weight " << t._weight << std::endl;
+                    _found = _found || _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._weight), t._weight);
                 }
                 if(solver_weight::less(_minpath[t._to], t._weight))
                     return;
