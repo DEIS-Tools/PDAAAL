@@ -69,10 +69,9 @@ namespace pdaaal::internal {
         using solver_weight = min_weight<typename W::type>;
 
         struct weighted_edge_t : public temp_edge_t { // maybe reuse for poststar?
-            weighted_edge_t(size_t from, uint32_t label, size_t to, weight_t&& weight, weight_t&& rule_weight, trace_t trace)
-            : temp_edge_t(from, label, to), _weight(std::move(weight)), _rule_weight(std::move(rule_weight)), _trace(trace) {}
+            weighted_edge_t(size_t from, uint32_t label, size_t to, weight_t&& weight, trace_t trace)
+            : temp_edge_t(from, label, to), _weight(std::move(weight)), _trace(trace) {}
             weight_t _weight;
-            weight_t _rule_weight;
             trace_t _trace;
         };
 
@@ -131,6 +130,18 @@ namespace pdaaal::internal {
             return false;
         }
 
+        void add_pop(size_t state) {
+            if(state >= _n_pda_states)
+                return;
+            size_t rule_id = 0;
+            for (const auto& [rule, labels] : _pda_states[state]._rules) {
+                if (rule._operation == POP) {
+                    insert_edge_bulk(state, labels, rule._to, p_automaton_t::new_pre_trace(rule_id), get_weight(rule));
+                }
+                ++rule_id;
+            }
+        }
+
         void initialize() {
             if constexpr (SHORTEST && W::is_weight)
             {
@@ -138,6 +149,8 @@ namespace pdaaal::internal {
                 for(auto& m : _minpath)
                     m = solver_weight::max();
             }
+            /*if constexpr (std::is_integral<typename W::type>::value)
+                _automaton.to_dot(std::cout);*/
 
             // workset := ->_0  (line 1)
             for (const auto& from : _automaton.states()) {
@@ -148,7 +161,9 @@ namespace pdaaal::internal {
                             // anything inside the automaton is reachable with weight zero.
                             _minpath[from->_id] = solver_weight::zero();
                             _minpath[to] = solver_weight::zero();
-                            _workset.emplace(from->_id, label, to, solver_weight::zero(), solver_weight::zero(), trace_t());
+                            //std::cerr << "INITF[" << from->_id << "] = 0" << std::endl;
+                            //std::cerr << "INITT[" << to << "] = 0" << std::endl;
+                            _workset.emplace(from->_id, label, to, solver_weight::zero(), trace_t());
                         }
                         else if constexpr (!SHORTEST)
                         {
@@ -159,25 +174,59 @@ namespace pdaaal::internal {
                 }
             }
 
-            // for all <p, y> --> <p', epsilon> : workset U= (p, y, p') (line 2)
-            for (size_t state = 0; state < _n_pda_states; ++state) {
-                size_t rule_id = 0;
-                for (const auto& [rule, labels] : _pda_states[state]._rules) {
-                    if (rule._operation == POP) {
-                        insert_edge_bulk(state, labels, rule._to, p_automaton_t::new_pre_trace(rule_id), get_weight(rule));
+            if constexpr (not (SHORTEST && W::is_weight))
+            {
+                // for all <p, y> --> <p', epsilon> : workset U= (p, y, p') (line 2)
+                for (size_t state = 0; state < _n_pda_states; ++state)
+                    add_pop(state);
+            }
+            else
+            {
+                for(size_t state = 0; state < _n_pda_states; ++state)
+                {
+                    size_t rule_id = 0;
+                    for (const auto& [rule, labels] : _pda_states[state]._rules) {
+                        if (rule._operation == POP) {
+                            if(_minpath[rule._to] != solver_weight::max())
+                                insert_edge_bulk(state, labels, rule._to, p_automaton_t::new_pre_trace(rule_id), get_weight(rule));
+                        }
+                        ++rule_id;
                     }
-                    ++rule_id;
                 }
             }
+            /*if constexpr (std::is_integral<typename W::type>::value)
+                _automaton.to_dot(std::cout);*/
         }
 
-        void insert_edge(size_t from, uint32_t label, size_t to, trace_t trace, [[maybe_unused]] weight_t weight) {
+        void insert_edge(size_t from, uint32_t label, size_t to, trace_t trace, [[maybe_unused]] const weight_t& weight) {
+            /*if constexpr (std::is_integral<typename W::type>::value)
+                std::cerr << "A? [" << from << "] -" << label << "-> [" << to << "] = " << weight << std::endl;*/
             if constexpr (SHORTEST && W::is_weight) {
                 auto res = solver_weight::add(weight, _minpath[to]);
                 assert(res != solver_weight::max());
                 if (_automaton.emplace_edge(from, label, to, std::make_pair(trace, res)).second) { // New edge is not already in edges (rel U workset).
-                    _minpath[from] = res;
-                    _workset.emplace(from, label, to, std::move(res), std::move(weight), trace);
+                    auto& target = _minpath[from];
+                    if(target == solver_weight::max() && from < _n_pda_states)
+                    {
+                        target = res;
+                        // we can now add the pop-operations
+                        for(size_t state : _pda_states[from]._pre_states)
+                        {
+                            size_t rule_id = 0;
+                            for (const auto& [rule, labels] : _pda_states[state]._rules) {
+                                if (rule._operation == POP) {
+                                    if(rule._to == from)
+                                        insert_edge_bulk(state, labels, rule._to, p_automaton_t::new_pre_trace(rule_id), res);
+                                }
+                                ++rule_id;
+                            }
+                        }
+                    }
+                    if (solver_weight::less(res, target))
+                        target = res;
+                    _workset.emplace(from, label, to, std::move(res), trace);
+                    /*if constexpr (std::is_integral<typename W::type>::value)
+                        std::cerr << "NE [" << from << "] -" << label << "-> [" << to << "] = " << weight << std::endl;*/
                 } else {
                     // check if we improved on path
                     auto& target = _minpath[from];
@@ -185,7 +234,9 @@ namespace pdaaal::internal {
                     {
                         _automaton.update_edge(from, to, label, std::make_pair(trace, res));
                         target = res;
-                        _workset.emplace(from, label, to, std::move(res), std::move(weight), trace);
+                        _workset.emplace(from, label, to, std::move(res), trace);
+                        /*if constexpr (std::is_integral<typename W::type>::value)
+                            std::cerr << "UE [" << from << "] -" << label << "-> [" << to << "] = " << weight << std::endl;*/
                     }
                 }
             }
@@ -217,19 +268,23 @@ namespace pdaaal::internal {
             // pop t = (q, y, q') from workset (line 4)
             auto t = _workset.top();
             _workset.pop();
+            //std::cerr << "Checking [" << t._from << "] -" << t._label << "-> [" << t._to << "]" << std::endl;
             if constexpr (SHORTEST && W::is_weight) {
                 // skip if allready processed shorter path
                 if constexpr (ET) {
-                    //if(std::is_integral<typename W::type>::value)
-                    //    std::cerr << "Adding trace w weight " << t._weight << std::endl;
+                    /*if constexpr (std::is_integral<typename W::type>::value)
+                        std::cerr << "Adding trace w weight " << t._weight << std::endl;*/
                     _found = _found || _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._weight), t._weight);
+                    //std::cerr << std::boolalpha << "## FOUND ? " << _found << std::endl;
                 }
-                if(solver_weight::less(_minpath[t._to], t._weight))
+                /*if(solver_weight::less(_minpath[t._to], t._weight)) // this is to coarse, but we can sometime re-evaluat
+                {
+                    std::cerr << "SKIP!" << std::endl;
                     return;
+                }*/
             }
             // rel = rel U {t} (line 6)   (membership test on line 5 is done in insert_edge).
             _rel[t._from].emplace_back(t._to, t._label);
-
             // (line 7-8 for \Delta')
             for (const auto& [state, rule_id] : _delta_prime[t._from]) { // Loop over delta_prime (that match with t->from)
                 if (_pda_states[state]._rules[rule_id].second.contains(t._label)) {
@@ -261,6 +316,7 @@ namespace pdaaal::internal {
                         case PUSH: // (line 9)
                             if (rule._op_label == t._label) {
                                 // (line 10)
+                                //std::cerr << "Adding D' [" << t._to << "] <- [" << pre_state << "]" << std::endl;
                                 _delta_prime[t._to].emplace_back(pre_state, rule_id);
                                 for (const auto& [to, label] : _rel[t._to]) { // (line 11-12)
                                     if (labels.contains(label)) {
@@ -274,6 +330,8 @@ namespace pdaaal::internal {
                     }
                 }
             }
+            /*if constexpr (std::is_integral<typename W::type>::value)
+                _automaton.to_dot(std::cout);*/
         }
 
         [[nodiscard]] bool workset_empty() const {
