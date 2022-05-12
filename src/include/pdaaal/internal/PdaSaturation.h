@@ -1,14 +1,14 @@
-/* 
+/*
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -17,7 +17,7 @@
  *  Copyright Morten K. Schou
  */
 
-/* 
+/*
  * File:   PdaSaturation.h
  * Author: Morten K. Schou <morten@h-schou.dk>
  *
@@ -72,7 +72,7 @@ namespace pdaaal::internal {
         explicit PreStarSaturation(PAutomaton<W> &automaton, const early_termination_fn<W>& early_termination = [](size_t, uint32_t, size_t, edge_anno_t) -> bool { return false; })
                 : _automaton(automaton), _early_termination(early_termination), _pda_states(_automaton.pda().states()),
                   _n_pda_states(_pda_states.size()), _n_automaton_states(_automaton.states().size()),
-                  _n_pda_labels(_automaton.number_of_labels()), _rel(_n_automaton_states), _delta_prime(_n_automaton_states) {
+                  _n_pda_labels(_automaton.number_of_labels()), _rel(_n_automaton_states), _delta_prime(_n_automaton_states), _added_pop(_n_pda_states) {
             initialize();
         };
 
@@ -91,6 +91,26 @@ namespace pdaaal::internal {
         std::vector<std::vector<std::pair<size_t,uint32_t>>> _rel;
         std::vector<std::vector<std::pair<size_t, size_t>>> _delta_prime;
         bool _found = false;
+        std::vector<bool> _added_pop;
+
+        void add_pop(size_t state) {
+            if(state >= _n_pda_states)
+                return;
+            if(!_added_pop[state])
+            {
+                _added_pop[state] = true;
+                for(auto pf : _pda_states[state]._pre_states)
+                {
+                    size_t rule_id = 0;
+                    for (const auto& [rule, labels] : _pda_states[pf]._rules) {
+                        if (rule._operation == POP && rule._to == state) {
+                            insert_edge_bulk(state, labels, rule._to, p_automaton_t::new_pre_trace(rule_id));
+                        }
+                        ++rule_id;
+                    }
+                }
+            }
+        }
 
         void initialize() {
             // workset := ->_0  (line 1)
@@ -98,21 +118,13 @@ namespace pdaaal::internal {
                 for (const auto& [to, labels] : from->_edges) {
                     for (const auto& [label, _] : labels) {
                         _workset.emplace(from->_id, label, to);
+                        add_pop(from->_id);
+                        add_pop(to);
                     }
-                }
-            }
-
-            // for all <p, y> --> <p', epsilon> : workset U= (p, y, p') (line 2)
-            for (size_t state = 0; state < _n_pda_states; ++state) {
-                size_t rule_id = 0;
-                for (const auto& [rule, labels] : _pda_states[state]._rules) {
-                    if (rule._operation == POP) {
-                        insert_edge_bulk(state, labels, rule._to, p_automaton_t::new_pre_trace(rule_id));
-                    }
-                    ++rule_id;
                 }
             }
         }
+
         void insert_edge(size_t from, uint32_t label, size_t to, trace_t trace) {
             if (_automaton.emplace_edge(from, label, to, edge_anno::from_trace_info(trace)).second) { // New edge is not already in edges (rel U workset).
                 _workset.emplace(from, label, to);
@@ -120,7 +132,8 @@ namespace pdaaal::internal {
                     _found = _found || _early_termination(from, label, to, edge_anno::from_trace_info(trace));
                 }
             }
-        };
+        }
+
         void insert_edge_bulk(size_t from, const labels_t& labels, size_t to, trace_t trace) {
             if (labels.wildcard()) {
                 for (uint32_t i = 0; i < _n_pda_labels; i++) {
@@ -131,7 +144,8 @@ namespace pdaaal::internal {
                     insert_edge(from, label, to, trace);
                 }
             }
-        };
+        }
+
 
     public:
         void step() {
@@ -158,6 +172,7 @@ namespace pdaaal::internal {
                     ++lb;
                     switch (rule._operation) {
                         case POP:
+                            insert_edge_bulk(pre_state, labels, rule._to, p_automaton_t::new_pre_trace(rule_id));
                             break;
                         case SWAP: // (line 7-8 for \Delta)
                             if (rule._op_label == t._label) {
