@@ -146,6 +146,8 @@ namespace pdaaal {
                             case Trace_Type::Shortest:
                                 if constexpr(pda_t::has_weight) {
                                     result = Solver::pre_star_accepts<Trace_Type::Shortest>(instance);
+                                    //instance. template product_automaton_to_dot(std::cerr);
+                                    //std::cerr << std::endl;
                                     if (result) {
                                         typename pda_t::weight_type weight;
                                         std::tie(trace, weight) = Solver::get_trace<Trace_Type::Shortest>(instance);
