@@ -128,6 +128,8 @@ namespace pdaaal::internal {
         void insert_edge(size_t from, uint32_t label, size_t to, trace_t trace) {
             if (_automaton.emplace_edge(from, label, to, edge_anno::from_trace_info(trace)).second) { // New edge is not already in edges (rel U workset).
                 _workset.emplace(from, label, to);
+                // rel = rel U {t} (line 6)
+                _rel[from].emplace_back(to, label);
                 if constexpr (ET) {
                     _found = _found || _early_termination(from, label, to, edge_anno::from_trace_info(trace));
                 }
@@ -152,8 +154,6 @@ namespace pdaaal::internal {
             // pop t = (q, y, q') from workset (line 4)
             auto t = _workset.top();
             _workset.pop();
-            // rel = rel U {t} (line 6)   (membership test on line 5 is done in insert_edge).
-            _rel[t._from].emplace_back(t._to, t._label);
 
             // (line 7-8 for \Delta')
             for (const auto& [state, rule_id] : _delta_prime[t._from]) { // Loop over delta_prime (that match with t->from)
@@ -189,7 +189,9 @@ namespace pdaaal::internal {
                             if (rule._op_label == t._label) {
                                 // (line 10)
                                 _delta_prime[t._to].emplace_back(pre_state, rule_id);
-                                for (const auto& [to, label] : _rel[t._to]) { // (line 11-12)
+                                auto& to_rel = _rel[t._to];
+                                for (size_t i = 0; i < to_rel.size(); ++i) { // (line 11-12)
+                                    const auto& [to, label] = to_rel[i];
                                     if (labels.contains(label)) {
                                         insert_edge(pre_state, label, to, p_automaton_t::new_pre_trace(rule_id, t._to));
                                     }
