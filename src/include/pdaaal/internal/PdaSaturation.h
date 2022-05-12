@@ -104,7 +104,7 @@ namespace pdaaal::internal {
                     size_t rule_id = 0;
                     for (const auto& [rule, labels] : _pda_states[pf]._rules) {
                         if (rule._operation == POP && rule._to == state) {
-                            insert_edge_bulk(state, labels, rule._to, p_automaton_t::new_pre_trace(rule_id));
+                            insert_edge_bulk(pf, labels, state, p_automaton_t::new_pre_trace(rule_id));
                         }
                         ++rule_id;
                     }
@@ -172,7 +172,8 @@ namespace pdaaal::internal {
                     ++lb;
                     switch (rule._operation) {
                         case POP:
-                            insert_edge_bulk(pre_state, labels, rule._to, p_automaton_t::new_pre_trace(rule_id));
+                            if(!_added_pop[t._from])
+                                insert_edge_bulk(pre_state, labels, t._from, p_automaton_t::new_pre_trace(rule_id));
                             break;
                         case SWAP: // (line 7-8 for \Delta)
                             if (rule._op_label == t._label) {
@@ -200,6 +201,7 @@ namespace pdaaal::internal {
                     }
                 }
             }
+            _added_pop[t._from] = true;
         }
         [[nodiscard]] bool workset_empty() const {
             return _workset.empty();
