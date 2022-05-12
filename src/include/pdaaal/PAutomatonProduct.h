@@ -251,7 +251,7 @@ namespace pdaaal {
                         auto w_opt = _product.make_back_edge_shortest(product_from, label, product_to, trace.second);
                         assert(!fresh || w_opt); // fresh must imply weight change.
                         if constexpr(ET) {
-                            if (!internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight())) {
+                            if (_product.has_accepting_state() && !internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight())) {
                                 return true; // Early termination
                             }
                         }
@@ -293,7 +293,7 @@ namespace pdaaal {
                                 auto w_opt = _product.make_back_edge_shortest(top, epsilon, product_to, it->second.second);
                                 assert(!fresh || w_opt); // fresh must imply weight change.
                                 if constexpr(ET) {
-                                    if (!internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight())) {
+                                    if (_product.has_accepting_state() && !internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight())) {
                                         return true; // Early termination
                                     }
                                 }
@@ -331,7 +331,7 @@ namespace pdaaal {
                                 auto w_opt = _product.make_back_edge_shortest(top, min_label_it->first, to_id, min_label_it->second.second);
                                 assert(!fresh || w_opt); // fresh must imply weight change.
                                 if constexpr(ET) {
-                                    if (!internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight())) {
+                                    if (_product.has_accepting_state() && !internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight())) {
                                         return true; // Early termination
                                     }
                                 }
@@ -353,7 +353,7 @@ namespace pdaaal {
                 }
             }
             if constexpr(W::is_weight && trace_type == Trace_Type::Shortest) {
-                return !internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight());
+                return _product.has_accepting_state() && !internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight());
             } else {
                 return _product.has_accepting_state();
             }
