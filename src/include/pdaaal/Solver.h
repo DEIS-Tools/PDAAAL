@@ -136,7 +136,12 @@ namespace pdaaal {
             return instance.initialize_product() ||
                    pre_star<trace_type,W,true>(instance.automaton(), [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const auto& et_param) -> bool {
                         if constexpr (is_weighted<W> && trace_type == Trace_Type::Shortest)
-                            return instance.template add_edge_product<true,trace_type>(from, label, to, trace, et_param);
+                        {
+                            auto res = instance.template add_edge_product<true,trace_type>(from, label, to, trace, et_param);
+                            if constexpr (std::is_integral<typename W::type>::value)
+                                std::cerr << "PROD A ? " << std::boolalpha << instance.product_automaton().min_accepting_weight() << " " << instance.product_automaton().has_accepting_state() << std::endl;
+                            return res;
+                        }
                         else
                             return instance.add_edge_product(from, label, to, trace);
 
@@ -151,11 +156,17 @@ namespace pdaaal {
             internal::PreStarSaturation<W,ET,trace_type == Trace_Type::Shortest> saturation(automaton, early_termination);
             while(!saturation.workset_empty()) {
                 if constexpr (ET) {
-                    if (saturation.found()) return true;
+                    if (saturation.found())
+                    {
+                        return true;
+                    }
                 }
                 saturation.step();
             }
-            return saturation.found();
+            if(saturation.found())
+                return true;
+            else
+                return false;
         }
 
         template <Trace_Type trace_type = Trace_Type::Any, typename pda_t, typename automaton_t, typename W>

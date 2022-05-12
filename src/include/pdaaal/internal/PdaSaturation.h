@@ -142,19 +142,6 @@ namespace pdaaal::internal {
             return false;
         }
 
-        void add_pop(size_t state, [[maybe_unused]] const edge_t& e) {
-            if(state >= _n_pda_states)
-                return;
-            size_t rule_id = 0;
-            for (const auto& [rule, labels] : _pda_states[state]._rules) {
-                if (rule._operation == POP) {
-                    insert_edge_bulk(state, labels, rule._to, p_automaton_t::new_pre_trace(rule_id), sum_weight(rule, e));
-                }
-                ++rule_id;
-            }
-            _popped[state] = true;
-        }
-
         void initialize() {
             _popped.resize(_n_pda_states, false);
             if constexpr (SHORTEST && W::is_weight)
@@ -188,33 +175,6 @@ namespace pdaaal::internal {
                     }
                 }
             }
-
-            /*if constexpr (not (SHORTEST && W::is_weight))
-            {
-                // for all <p, y> --> <p', epsilon> : workset U= (p, y, p') (line 2)
-                for (size_t state = 0; state < _n_pda_states; ++state)
-                    add_pop(state);
-            }
-            else
-            {
-                for(size_t state = 0; state < _n_pda_states; ++state)
-                {
-                    size_t rule_id = 0;
-                    for (const auto& [rule, labels] : _pda_states[state]._rules) {
-                        if (rule._operation == POP) {
-                            //if(_minpath[rule._to] == solver_weight::zero())
-                            {
-                                _pops.emplace(state, rule_id);
-                                //std::cerr << "IPOP [" << state << "] --> [" << rule._to << "]" << std::endl;
-                                insert_edge_bulk(state, labels, rule._to, p_automaton_t::new_pre_trace(rule_id), get_weight(rule));
-                            }
-                        }
-                        ++rule_id;
-                    }
-                }
-            }*/
-            /*if constexpr (std::is_integral<typename W::type>::value)
-                _automaton.to_dot(std::cout);*/
         }
 
                 std::set<size_t> needed{
@@ -333,9 +293,9 @@ std::set<size_t> needed_labels{
                 assert(t._weight != solver_weight::max());
                 assert(_mmap.count(std::make_pair(t._from, t._label)) > 0);
                 if constexpr (ET) {
-                    _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._weight), t._weight);
+                    auto res = _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._weight), t._weight);
                     if(_workset.empty())
-                        _found = _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._weight), t._weight) || _found;
+                        _found = res || _found;
                 }
                 //if(solver_weight::less(_mmap[std::make_pair(t._from, t._label)], t._weight))
                 //    return;
@@ -364,8 +324,8 @@ std::set<size_t> needed_labels{
                     ++lb;
                     switch (rule._operation) {
                         case POP:
-                            if(!_popped[pre_state])
-                                add_pop(pre_state, t);
+                            // check if weight is lower here, maybe?
+                            insert_edge_bulk(pre_state, labels, t._from, p_automaton_t::new_pre_trace(rule_id), sum_weight(rule, t));
                             break;
                         case SWAP: // (line 7-8 for \Delta)
                             if (rule._op_label == t._label) {
@@ -384,7 +344,7 @@ std::set<size_t> needed_labels{
                                 _delta_prime[t._to].emplace_back(pre_state, rule_id);
                                 for (const auto& [to, label] : _rel[t._to]) { // (line 11-12)
                                     if (labels.contains(label)) {
-                                        insert_edge(pre_state, label, to, p_automaton_t::new_pre_trace(rule_id, t._to), sum_weight(rule, t));
+                                        insert_edge(pre_state, label, to, p_automaton_t::new_pre_trace(rule_id, t._to), sum_weight(rule, t)); //<-- not t._weight
                                     }
                                 }
                             }
@@ -394,6 +354,10 @@ std::set<size_t> needed_labels{
                     }
                 }
             }
+
+            if constexpr (ET && SHORTEST && W::is_weight)
+                if(workset_empty())
+                    _found = _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._weight), solver_weight::max());
         }
 
         [[nodiscard]] bool workset_empty() const {
