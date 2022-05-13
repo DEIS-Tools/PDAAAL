@@ -137,7 +137,7 @@ namespace pdaaal {
             return _product;
         }
         template<Trace_Type trace_type = Trace_Type::None>
-        void automaton_to_dot(std::ostream &out) {
+        void automaton_to_dot(std::ostream &out) const {
             automaton_to_dot<trace_type>(out, automaton());
         }
         template<Trace_Type trace_type = Trace_Type::None>
