@@ -220,7 +220,7 @@ namespace pdaaal::internal {
             else {
                 if (_automaton.emplace_edge(from, label, to, edge_anno::from_trace_info(trace)).second)
                 {
-                    _rel[from].emplace_back(to, label); // Allow fast iteration over _edges matching specific from.
+                    _workset.emplace(from, label, to);
                     if constexpr (ET) {
                         _found = _found || _early_termination(from, label, to, edge_anno::from_trace_info(trace), weight_t{});
                     }
