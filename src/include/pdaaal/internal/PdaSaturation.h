@@ -152,8 +152,6 @@ namespace pdaaal::internal {
                             // anything inside the automaton is reachable with weight zero.
                             _minpath[from->_id] = solver_weight::zero();
                             _minpath[to] = solver_weight::zero();
-                            //std::cerr << "INITF[" << from->_id << "] = 0" << std::endl;
-                            //std::cerr << "INITT[" << to << "] = 0" << std::endl;
                             _workset.emplace(from->_id, label, to, solver_weight::zero(), trace_t());
                         }
                         else if constexpr (!SHORTEST)
@@ -170,8 +168,6 @@ namespace pdaaal::internal {
         void insert_edge(size_t from, uint32_t label, size_t to, trace_t trace, [[maybe_unused]] weight_t weight) {
 
             if constexpr (SHORTEST && W::is_weight) {
-                if(weight == solver_weight::max())
-                    std::cerr << "ADDING MAX" << std::endl;
                 auto res = solver_weight::add(weight, _minpath[to]);
                 assert(res != solver_weight::max());
                 assert(weight != solver_weight::max());
@@ -184,7 +180,6 @@ namespace pdaaal::internal {
                 {
                     if(solver_weight::less(res, _minpath[from]))
                     {
-                        std::cerr << "READD! [" << from << "] -> [" << to << "]"  << std::endl;
                         _minpath[from] = res;
                         _workset.emplace(from, label, to, std::move(res), trace);
                     }
@@ -222,10 +217,8 @@ namespace pdaaal::internal {
 
             [[maybe_unused]] const auto& rw = _automaton.get_edge(t._from, t._label, t._to);
 
-            // std::cerr << "C[" << t._from << "] -" << t._label << "-> [" << t._to << "]" << std::endl;
-
             if constexpr (SHORTEST && W::is_weight) {
-                // skip if allready processed shorter path
+                // skip if allready processed shorter path ? 
                 assert(t._weight != solver_weight::max());
                 if constexpr (ET) {
                     _found = _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._weight), t._weight) || _found;
