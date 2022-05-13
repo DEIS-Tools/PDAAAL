@@ -341,6 +341,7 @@ namespace pdaaal::internal {
                     }
                 }
             }
+            _popped[t._from] = true;
 
             if constexpr (ET && SHORTEST && W::is_weight)
             {
