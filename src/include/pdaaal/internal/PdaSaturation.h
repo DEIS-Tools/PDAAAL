@@ -171,24 +171,34 @@ namespace pdaaal::internal {
                 auto res = solver_weight::add(weight, _minpath[to]);
                 assert(res != solver_weight::max());
                 assert(weight != solver_weight::max());
-                if (_automaton.emplace_edge(from, label, to, std::make_pair(std::move(trace), std::move(weight))).second) { // New edge is not already in edges (rel U workset).
-                    _workset.emplace(from, label, to, std::move(res), trace);
+
+                auto [it, fresh] = _automaton.emplace_edge(from, label, to, std::make_pair(trace, weight));
+                if (fresh) { // New edge is not already in edges (rel U workset).
                     if(solver_weight::less(res, _minpath[from]))
                         _minpath[from] = res;
+                    _workset.emplace(from, label, to, std::move(res), trace);
+
                 }
                 else
                 {
+                    bool added = false;
                     if(solver_weight::less(res, _minpath[from]))
                     {
+                        // we need to bump it up on the queue
                         _minpath[from] = res;
                         _workset.emplace(from, label, to, std::move(res), trace);
+                    }
+                    if(solver_weight::less(weight, it->second.second))
+                    {
+                        // update the weight (but no need to re-add to queue)
+                        it->second.second = std::move(weight);
                     }
                 }
             }
             else {
                 if (_automaton.emplace_edge(from, label, to, edge_anno::from_trace_info(trace)).second)
                 {
-                     _workset.emplace(from, label, to);
+                    _rel[from].emplace_back(to, label); // Allow fast iteration over _edges matching specific from.
                     if constexpr (ET) {
                         _found = _found || _early_termination(from, label, to, edge_anno::from_trace_info(trace), weight_t{});
                     }
@@ -208,6 +218,14 @@ namespace pdaaal::internal {
             }
         }
 
+        weight_t get_pautomata_edge_weight(auto from, auto label, auto to)
+        {
+            if constexpr (ET && W::is_weight)
+                return  _automaton.get_edge(from, label, to)->second;
+            return weight_t{};
+        }
+
+
     public:
 
         void step() {
@@ -215,10 +233,10 @@ namespace pdaaal::internal {
             auto t = _workset.top();
             _workset.pop();
 
-            [[maybe_unused]] const auto& rw = _automaton.get_edge(t._from, t._label, t._to);
+            [[maybe_unused]] const auto w = get_pautomata_edge_weight(t._from, t._label, t._to);
 
             if constexpr (SHORTEST && W::is_weight) {
-                // skip if allready processed shorter path ? 
+                // skip if allready processed shorter path ?
                 assert(t._weight != solver_weight::max());
                 if constexpr (ET) {
                     _found = _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._weight), t._weight) || _found;
@@ -232,7 +250,7 @@ namespace pdaaal::internal {
                 if (labels.contains(t._label)) {
                     if constexpr (W::is_weight && SHORTEST)
                     {
-                        auto nw = solver_weight::add(solver_weight::add(rule._weight, _automaton.get_edge(rule._to, rule._op_label, t._from)->second), rw->second);
+                        auto nw = solver_weight::add(solver_weight::add(rule._weight, _automaton.get_edge(rule._to, rule._op_label, t._from)->second), w);
                         insert_edge(state, t._label, t._to, p_automaton_t::new_pre_trace(rule_id, t._from), nw);
                     }
                     else {
@@ -264,7 +282,7 @@ namespace pdaaal::internal {
                         case SWAP: // (line 7-8 for \Delta)
                             if (rule._op_label == t._label) {
                                 if constexpr (W::is_weight && SHORTEST)
-                                    insert_edge_bulk(pre_state, labels, t._to, p_automaton_t::new_pre_trace(rule_id), solver_weight::add(rw->second, rule._weight));
+                                    insert_edge_bulk(pre_state, labels, t._to, p_automaton_t::new_pre_trace(rule_id), solver_weight::add(w, rule._weight));
                                 else
                                     insert_edge_bulk(pre_state, labels, t._to, p_automaton_t::new_pre_trace(rule_id), weight_t{});
                             }
@@ -272,7 +290,7 @@ namespace pdaaal::internal {
                         case NOOP: // (line 7-8 for \Delta)
                             if (labels.contains(t._label)) {
                                 if constexpr (W::is_weight && SHORTEST)
-                                    insert_edge(pre_state, t._label, t._to, p_automaton_t::new_pre_trace(rule_id), solver_weight::add(rw->second, rule._weight));
+                                    insert_edge(pre_state, t._label, t._to, p_automaton_t::new_pre_trace(rule_id), solver_weight::add(w, rule._weight));
                                 else
                                     insert_edge(pre_state, t._label, t._to, p_automaton_t::new_pre_trace(rule_id), weight_t{});
                             }
@@ -285,7 +303,7 @@ namespace pdaaal::internal {
                                     if (labels.contains(label)) {
                                         if constexpr (W::is_weight && SHORTEST)
                                         {
-                                            auto nw = solver_weight::add(solver_weight::add(_automaton.get_edge(t._to, label, to)->second, rw->second), rule._weight);
+                                            auto nw = solver_weight::add(solver_weight::add(_automaton.get_edge(t._to, label, to)->second, w), rule._weight);
                                             insert_edge(pre_state, label, to, p_automaton_t::new_pre_trace(rule_id, t._to), nw);
                                         }
                                         else
