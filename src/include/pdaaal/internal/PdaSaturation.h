@@ -687,6 +687,7 @@ namespace pdaaal::internal {
 
         void initialize() {
             for (const auto& from : _automaton.states()) {
+                if (from->_accepting) add_pop(from->_id);
                 for (const auto& [to,labels] : from->_edges) {
                     for (const auto& [label,tw] : labels) {
                         assert(tw == std::make_pair(trace_info::make_default(), W::zero()));
