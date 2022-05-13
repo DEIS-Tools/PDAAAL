@@ -201,11 +201,9 @@ namespace pdaaal::internal {
                     if(solver_weight::less(res, _minpath[from]))
                         _minpath[from] = res;
                     _workset.emplace(from, label, to, std::move(res), trace);
-
                 }
                 else
                 {
-                    bool added = false;
                     if(solver_weight::less(res, _minpath[from]))
                     {
                         // we need to bump it up on the queue
