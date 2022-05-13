@@ -694,8 +694,6 @@ namespace pdaaal::internal {
                         _rel[from->_id].emplace_back(to, label); // Allow fast iteration over _edges matching specific from.
                         parent_t::emplace(from->_id, label, to);
                         ++_count_transitions;
-                        add_pop(from->_id);
-                        add_pop(to);
                     }
                 }
             }
