@@ -99,13 +99,6 @@ namespace pdaaal::internal {
                                                     std::stack<temp_edge_t>
                                           >;
 
-        static inline weight_t sum_weight(const pda_rule_t<W>& rule, const edge_t& edge)
-        {
-            if constexpr(W::is_weight && SHORTEST) return solver_weight::add(get_weight(rule), edge._weight);
-            else return weight_t{};
-        }
-
-
     public:
         explicit PreStarSaturation(PAutomaton<W> &automaton, const early_termination_fn2<W>& early_termination)
                 : _automaton(automaton), _early_termination(early_termination), _pda_states(_automaton.pda().states()),
@@ -131,7 +124,6 @@ namespace pdaaal::internal {
         std::vector<weight_t> _minpath;
         std::set<std::pair<size_t,size_t>> _pops;
         std::vector<bool> _popped;
-        std::map<std::pair<size_t,size_t>,weight_t> _mmap;
 
         bool has_negative_weight() const {
             if constexpr (W::is_signed) {
@@ -150,8 +142,6 @@ namespace pdaaal::internal {
                 for(auto& m : _minpath)
                     m = solver_weight::max();
             }
-            /*if constexpr (std::is_integral<typename W::type>::value)
-                _automaton.to_dot(std::cout);*/
 
             // workset := ->_0  (line 1)
             for (const auto& from : _automaton.states()) {
@@ -162,7 +152,6 @@ namespace pdaaal::internal {
                             // anything inside the automaton is reachable with weight zero.
                             _minpath[from->_id] = solver_weight::zero();
                             _minpath[to] = solver_weight::zero();
-                            _mmap[std::make_pair(from->_id, label)] = solver_weight::zero();
                             //std::cerr << "INITF[" << from->_id << "] = 0" << std::endl;
                             //std::cerr << "INITT[" << to << "] = 0" << std::endl;
                             _workset.emplace(from->_id, label, to, solver_weight::zero(), trace_t());
@@ -177,75 +166,29 @@ namespace pdaaal::internal {
             }
         }
 
-                std::set<size_t> needed{
-            30,
-44,
-52,
-314,
-972,
-314,
-48,
-207,
-906,
-2550,
-3118,
-3278,
-3990,
-3990,
-5043,
-3990,
-3649,
-4517};
-
-std::set<size_t> needed_labels{
-18446744073709551614ull,
-50549,
-50644,
-50672,
-50675,
-50680,
-50690,
-50708,
-50713,
-50717,
-50721
-};
-
 
         void insert_edge(size_t from, uint32_t label, size_t to, trace_t trace, [[maybe_unused]] weight_t weight) {
-            if(from < _n_pda_states && to < _n_pda_states && (needed.count(from) + needed.count(to) != 2))
-                return;
 
-            /*if(needed_labels.count(label) == 0 && from < _n_pda_states && to < _n_pda_states)
-                return;*/
-            /*if constexpr (std::is_integral<typename W::type>::value)
-                std::cerr << "A? [" << from << "] -" << label << "-> [" << to << "] = " << weight << std::endl;*/
             if constexpr (SHORTEST && W::is_weight) {
                 if(weight == solver_weight::max())
                     std::cerr << "ADDING MAX" << std::endl;
+                auto res = solver_weight::add(weight, _minpath[to]);
+                assert(res != solver_weight::max());
                 assert(weight != solver_weight::max());
-                if (_automaton.emplace_edge(from, label, to, std::make_pair(trace, weight)).second) { // New edge is not already in edges (rel U workset).
-                    if(_mmap.count(std::make_pair(from, label)) == 0)
-                        _mmap[std::make_pair(from, label)] = weight;
-                    else if(solver_weight::less(weight, _mmap[std::make_pair(from, label)]))
-                        _mmap[std::make_pair(from, label)] = weight;
-                    _workset.emplace(from, label, to, std::move(weight), trace);
-                    /*if constexpr (std::is_integral<typename W::type>::value)
-                        std::cerr << "NE [" << from << "] -" << label << "-> [" << to << "] = " << weight << std::endl;*/
-                } else {
-                    // check if we improved on path
-                    if(solver_weight::less(weight, _mmap[std::make_pair(from, label)]))
+                if (_automaton.emplace_edge(from, label, to, std::make_pair(std::move(trace), std::move(weight))).second) { // New edge is not already in edges (rel U workset).
+                    _workset.emplace(from, label, to, std::move(res), trace);
+                    if(solver_weight::less(res, _minpath[from]))
+                        _minpath[from] = res;
+                }
+                else
+                {
+                    if(solver_weight::less(res, _minpath[from]))
                     {
-                        _mmap[std::make_pair(from, label)] = weight;
-                        if(weight == solver_weight::max())
-                            std::cerr << "ADDING MAX U" << std::endl;
-                        _automaton.update_edge(from, to, label, std::make_pair(trace, weight));
-                        _workset.emplace(from, label, to, std::move(weight), trace);
-                        /*if constexpr (std::is_integral<typename W::type>::value)
-                            std::cerr << "UE [" << from << "] -" << label << "-> [" << to << "] = " << weight << std::endl;*/
+                        std::cerr << "READD! [" << from << "] -> [" << to << "]"  << std::endl;
+                        _minpath[from] = res;
+                        _workset.emplace(from, label, to, std::move(res), trace);
                     }
                 }
-                _early_termination(from, label, to, std::make_pair(trace, weight), weight);
             }
             else {
                 if (_automaton.emplace_edge(from, label, to, edge_anno::from_trace_info(trace)).second)
@@ -277,42 +220,34 @@ std::set<size_t> needed_labels{
             auto t = _workset.top();
             _workset.pop();
 
+            [[maybe_unused]] const auto& rw = _automaton.get_edge(t._from, t._label, t._to);
 
-
-            std::cerr << "C[" << t._from << "] -" << t._label << "-> [" << t._to << "]" << std::endl;
-
-            /*if constexpr (std::is_integral<typename W::type>::value && SHORTEST && W::is_weight)
-            {
-                std::cerr << "\tWith weight " << t._weight << std::endl;
-                std::cerr << "\tFW " << _minpath[t._from] << std::endl;
-                std::cerr << "\tTW " << _minpath[t._to] << std::endl;
-            }*/
+            // std::cerr << "C[" << t._from << "] -" << t._label << "-> [" << t._to << "]" << std::endl;
 
             if constexpr (SHORTEST && W::is_weight) {
                 // skip if allready processed shorter path
                 assert(t._weight != solver_weight::max());
-                assert(_mmap.count(std::make_pair(t._from, t._label)) > 0);
                 if constexpr (ET) {
-                    auto res = _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._weight), t._weight);
-                    if(_workset.empty())
-                        _found = res || _found;
+                    _found = _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._weight), t._weight) || _found;
                 }
-                //if(solver_weight::less(_mmap[std::make_pair(t._from, t._label)], t._weight))
-                //    return;
-                /*if(solver_weight::less(_minpath[t._to], t._weight)) // this is to coarse, but we can sometime re-evaluat
-                {
-                    std::cerr << "SKIP!" << std::endl;
-                    return;
-                }*/
             }
             // rel = rel U {t} (line 6)   (membership test on line 5 is done in insert_edge).
             _rel[t._from].emplace_back(t._to, t._label);
             // (line 7-8 for \Delta')
             for (const auto& [state, rule_id] : _delta_prime[t._from]) { // Loop over delta_prime (that match with t->from)
-                if (_pda_states[state]._rules[rule_id].second.contains(t._label)) {
-                    insert_edge(state, t._label, t._to, p_automaton_t::new_pre_trace(rule_id, t._from), sum_weight(_pda_states[state]._rules[rule_id].first, t));
+                auto& [rule, labels] = _pda_states[state]._rules[rule_id];
+                if (labels.contains(t._label)) {
+                    if constexpr (W::is_weight && SHORTEST)
+                    {
+                        auto nw = solver_weight::add(solver_weight::add(rule._weight, _automaton.get_edge(rule._to, rule._op_label, t._from)->second), rw->second);
+                        insert_edge(state, t._label, t._to, p_automaton_t::new_pre_trace(rule_id, t._from), nw);
+                    }
+                    else {
+                        insert_edge(state, t._label, t._to, p_automaton_t::new_pre_trace(rule_id, t._from), weight_t{});
+                    }
                 }
             }
+
             // Loop over \Delta (filter rules going into q) (line 7 and 9)
             if (t._from >= _n_pda_states) { return; }
             for (auto pre_state : _pda_states[t._from]._pre_states) {
@@ -325,26 +260,43 @@ std::set<size_t> needed_labels{
                     switch (rule._operation) {
                         case POP:
                             // check if weight is lower here, maybe?
-                            insert_edge_bulk(pre_state, labels, t._from, p_automaton_t::new_pre_trace(rule_id), sum_weight(rule, t));
+                            if (!_popped[t._from])
+                            {
+                                if constexpr (W::is_weight && SHORTEST)
+                                    insert_edge_bulk(pre_state, labels, t._from, p_automaton_t::new_pre_trace(rule_id), rule._weight);
+                                else
+                                    insert_edge_bulk(pre_state, labels, t._from, p_automaton_t::new_pre_trace(rule_id), weight_t{});
+                            }
                             break;
                         case SWAP: // (line 7-8 for \Delta)
                             if (rule._op_label == t._label) {
-                                insert_edge_bulk(pre_state, labels, t._to, p_automaton_t::new_pre_trace(rule_id), sum_weight(rule, t));
+                                if constexpr (W::is_weight && SHORTEST)
+                                    insert_edge_bulk(pre_state, labels, t._to, p_automaton_t::new_pre_trace(rule_id), solver_weight::add(rw->second, rule._weight));
+                                else
+                                    insert_edge_bulk(pre_state, labels, t._to, p_automaton_t::new_pre_trace(rule_id), weight_t{});
                             }
                             break;
                         case NOOP: // (line 7-8 for \Delta)
                             if (labels.contains(t._label)) {
-                                insert_edge(pre_state, t._label, t._to, p_automaton_t::new_pre_trace(rule_id), sum_weight(rule, t));
+                                if constexpr (W::is_weight && SHORTEST)
+                                    insert_edge(pre_state, t._label, t._to, p_automaton_t::new_pre_trace(rule_id), solver_weight::add(rw->second, rule._weight));
+                                else
+                                    insert_edge(pre_state, t._label, t._to, p_automaton_t::new_pre_trace(rule_id), weight_t{});
                             }
                             break;
                         case PUSH: // (line 9)
                             if (rule._op_label == t._label) {
                                 // (line 10)
-                                //std::cerr << "Adding D' [" << t._to << "] <- [" << pre_state << "]" << std::endl;
                                 _delta_prime[t._to].emplace_back(pre_state, rule_id);
                                 for (const auto& [to, label] : _rel[t._to]) { // (line 11-12)
                                     if (labels.contains(label)) {
-                                        insert_edge(pre_state, label, to, p_automaton_t::new_pre_trace(rule_id, t._to), sum_weight(rule, t)); //<-- not t._weight
+                                        if constexpr (W::is_weight && SHORTEST)
+                                        {
+                                            auto nw = solver_weight::add(solver_weight::add(_automaton.get_edge(t._to, label, to)->second, rw->second), rule._weight);
+                                            insert_edge(pre_state, label, to, p_automaton_t::new_pre_trace(rule_id, t._to), nw);
+                                        }
+                                        else
+                                            insert_edge(pre_state, label, to, p_automaton_t::new_pre_trace(rule_id, t._to), weight_t{});
                                     }
                                 }
                             }
@@ -356,8 +308,11 @@ std::set<size_t> needed_labels{
             }
 
             if constexpr (ET && SHORTEST && W::is_weight)
+            {
+                // flush the solution in case we got a trace, but the intersection has no trace shorter than the "longest shortest trace" in the pautomata
                 if(workset_empty())
                     _found = _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._weight), solver_weight::max());
+            }
         }
 
         [[nodiscard]] bool workset_empty() const {
