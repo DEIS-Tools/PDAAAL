@@ -134,6 +134,28 @@ namespace pdaaal::internal {
             return false;
         }
 
+        void add_pop(size_t state) {
+            if(state >= _n_pda_states) return;
+            if(_popped[state]) return;
+            for (auto pre_state : _pda_states[state]._pre_states) {
+                const auto& rules = _pda_states[pre_state]._rules;
+                auto lb = rules.lower_bound(pda_rule_t<W>{state});
+                while (lb != rules.end() && lb->first._to == state) {
+                    const auto& [rule, labels] = *lb;
+                    size_t rule_id = lb - rules.begin();
+                    ++lb;
+                    if(rule._operation == POP)
+                    {
+                        if constexpr (W::is_weight && SHORTEST)
+                            insert_edge_bulk(pre_state, labels, state, p_automaton_t::new_pre_trace(rule_id), rule._weight);
+                        else
+                            insert_edge_bulk(pre_state, labels, state, p_automaton_t::new_pre_trace(rule_id), weight_t{});
+                    }
+                }
+            }
+            _popped[state] = true;
+        }
+
         void initialize() {
             _popped.resize(_n_pda_states, false);
             if constexpr (SHORTEST && W::is_weight)
@@ -161,6 +183,8 @@ namespace pdaaal::internal {
                         else throw std::logic_error("Shortest traces for void-weights is not supported.");
                     }
                 }
+                if(from->_accepting)
+                    add_pop(from->_id);
             }
         }
 
