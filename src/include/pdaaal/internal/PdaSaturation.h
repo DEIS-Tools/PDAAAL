@@ -640,14 +640,14 @@ namespace pdaaal::internal {
                 : parent_t(std::pow(automaton.states().size(), 2) * automaton.number_of_labels()),
                   _automaton(automaton), _pda_states(_automaton.pda().states()), _n_automaton_states(_automaton.states().size()),
                   _n_pda_states(_pda_states.size()), _n_pda_labels(_automaton.number_of_labels()),
-                  _rel(_n_automaton_states), _delta_prime(_n_automaton_states) {
+                  _rel(_n_automaton_states), _delta_prime(_n_automaton_states), _added_pop(_n_pda_states) {
             initialize();
         };
         PreStarFixedPointSaturation(p_automaton_t& automaton, size_t round_limit)
                 : parent_t(round_limit),
                   _automaton(automaton), _pda_states(_automaton.pda().states()), _n_automaton_states(_automaton.states().size()),
                   _n_pda_states(_pda_states.size()), _n_pda_labels(_automaton.number_of_labels()),
-                  _rel(_n_automaton_states), _delta_prime(_n_automaton_states) {
+                  _rel(_n_automaton_states), _delta_prime(_n_automaton_states), _added_pop(_n_pda_states) {
             initialize();
         };
     private:
@@ -659,8 +659,31 @@ namespace pdaaal::internal {
 
         std::vector<std::vector<std::pair<size_t,uint32_t>>> _rel; // Fast access to _edges based on _from.
         std::vector<fut::vector_set<std::pair<size_t, size_t>>> _delta_prime;
+        std::vector<bool> _added_pop;
 
         size_t _count_transitions = 0;
+
+        void add_pop(size_t state) {
+            // for all <p, y> --> <p', epsilon> : workset U= (p, y, p') (line 2)
+            // But we do it lazily.
+            if(state >= _n_pda_states) return;
+            if(!_added_pop[state]) {
+                _added_pop[state] = true;
+                for (auto pre_state : _pda_states[state]._pre_states) {
+                    const auto &rules = _pda_states[pre_state]._rules;
+                    auto lb = rules.lower_bound(pda_rule_t<W>{state});
+                    while (lb != rules.end() && lb->first._to == state) {
+                        const auto& [rule, labels] = *lb;
+                        size_t rule_id = lb - rules.begin();
+                        ++lb;
+                        if (rule._operation == POP) {
+                            assert(state == rule._to);
+                            update_edge_bulk(pre_state, labels, state, rule._weight, p_automaton_t::new_pre_trace(rule_id));
+                        }
+                    }
+                }
+            }
+        }
 
         void initialize() {
             for (const auto& from : _automaton.states()) {
@@ -670,17 +693,9 @@ namespace pdaaal::internal {
                         _rel[from->_id].emplace_back(to, label); // Allow fast iteration over _edges matching specific from.
                         parent_t::emplace(from->_id, label, to);
                         ++_count_transitions;
+                        add_pop(from->_id);
+                        add_pop(to);
                     }
-                }
-            }
-            // for all <p, y> --> <p', epsilon> : workset U= (p, y, p') (line 2)
-            for (size_t state = 0; state < _n_pda_states; ++state) {
-                size_t rule_id = 0;
-                for (const auto& [rule,labels] : _pda_states[state]._rules) {
-                    if (rule._operation == POP) {
-                        update_edge_bulk(state, labels, rule._to, rule._weight, p_automaton_t::new_pre_trace(rule_id));
-                    }
-                    ++rule_id;
                 }
             }
             parent_t::set_round_limit(_count_transitions);
@@ -713,6 +728,10 @@ namespace pdaaal::internal {
                     ++lb;
                     switch (rule._operation) {
                         case POP:
+                            if (!_added_pop[t._from]) {
+                                assert(rule._to == t._from);
+                                update_edge_bulk(pre_state, labels, t._from, rule._weight, p_automaton_t::new_pre_trace(rule_id));
+                            }
                             break;
                         case SWAP: // (line 7-8 for \Delta)
                             if (rule._op_label == t._label) {
@@ -744,6 +763,7 @@ namespace pdaaal::internal {
                     }
                 }
             }
+            _added_pop[t._from] = true;
             return true;
         }
     };
