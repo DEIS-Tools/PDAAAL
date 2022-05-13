@@ -248,7 +248,7 @@ namespace pdaaal::internal {
                     return;
                 assert(t._weight != solver_weight::max());
                 if constexpr (ET) {
-                    _found = _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._weight), t._weight) || _found;
+                    _found = _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, w), t._weight) || _found;
                 }
             }
             // rel = rel U {t} (line 6)   (membership test on line 5 is done in insert_edge).
@@ -327,7 +327,7 @@ namespace pdaaal::internal {
             {
                 // flush the solution in case we got a trace, but the intersection has no trace shorter than the "longest shortest trace" in the pautomata
                 if(workset_empty())
-                    _found = _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._weight), solver_weight::max());
+                    _found = _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, w), solver_weight::max());
             }
         }
 
