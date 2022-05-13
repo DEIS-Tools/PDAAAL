@@ -145,7 +145,7 @@ BOOST_AUTO_TEST_CASE(EarlyTerminationPreStar)
 
     std::vector<char> test_stack_reachable{'A'};
     auto result = Solver::pre_star_accepts<Trace_Type::None>(automaton, 0, pda.encode_pre(test_stack_reachable));
-    BOOST_CHECK_EQUAL(result, true);
+    BOOST_REQUIRE_EQUAL(result, true);
 
     auto trace = Solver::get_trace(pda, automaton, 0, test_stack_reachable);
     BOOST_CHECK_EQUAL(trace.size(), 12);
