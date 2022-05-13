@@ -124,6 +124,7 @@ namespace pdaaal::internal {
         std::vector<weight_t> _minpath;
         std::set<std::pair<size_t,size_t>> _pops;
         std::vector<bool> _popped;
+        std::set<temp_edge_t> _seen;
 
         bool has_negative_weight() const {
             if constexpr (W::is_signed) {
@@ -258,7 +259,8 @@ namespace pdaaal::internal {
             [[maybe_unused]] const auto w = get_pautomata_edge_weight(t._from, t._label, t._to);
 
             if constexpr (SHORTEST && W::is_weight) {
-                // skip if allready processed shorter path ?
+                if(!_seen.emplace(t).second)
+                    return;
                 assert(t._weight != solver_weight::max());
                 if constexpr (ET) {
                     _found = _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, t._weight), t._weight) || _found;
