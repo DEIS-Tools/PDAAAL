@@ -34,12 +34,12 @@
 
 namespace pdaaal {
 
-    template <typename _pda_t, typename _automaton_t, typename _W, TraceInfoType _trace_info_type = TraceInfoType::Single>
+    template <typename _pda_t, typename _automaton_t, typename _weight_t, TraceInfoType _trace_info_type = TraceInfoType::Single>
     class PAutomatonProduct {
     public:
         using pda_t = _pda_t;
         using automaton_t = _automaton_t;
-        using W = _W;
+        using W = _weight_t;
         static constexpr auto trace_info_type = _trace_info_type;
     private:
         using product_automaton_t = internal::PAutomaton<W,trace_info_type>; // No explicit abstraction on product automaton - this is covered by _initial and _final.
