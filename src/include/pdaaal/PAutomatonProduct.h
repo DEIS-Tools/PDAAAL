@@ -46,6 +46,8 @@ namespace pdaaal {
         using state_t = typename product_automaton_t::state_t;
         static constexpr auto epsilon = product_automaton_t::epsilon;
         using weight_t = typename W::type;
+        using edge_anno = internal::edge_annotation<W,trace_info_type>;
+        using edge_anno_t = internal::edge_annotation_t<W,trace_info_type>;
         struct queue_elem_comp {
             bool operator()(const auto& lhs, const auto& rhs) const {
                 return internal::solver_weight<W, Trace_Type::Shortest>::less(rhs, lhs); // Used in a max-heap, so swap arguments to make it a min-heap.
@@ -233,25 +235,31 @@ namespace pdaaal {
             auto current_to = current.states()[to].get();
             queue_type<trace_type> waiting;
             for (auto [other_from, product_from] : from_states) { // Iterate through reachable 'from-states'.
-                std::vector<size_t> other_tos;
+                std::vector<std::pair<size_t,edge_anno_t>> other_tos;
                 if (label == epsilon) {
-                    other_tos.emplace_back(other_from);
+                    other_tos.emplace_back(other_from, trace);
                 } else {
                     for (const auto& [other_to,other_labels] : other.states()[other_from]->_edges) {
-                        if (other_labels.contains(label)) {
-                            other_tos.emplace_back(other_to);
+                        auto it = other_labels.find(label);
+                        if (it != other_labels.end()) {
+                            if constexpr(W::is_weight && trace_type == Trace_Type::Shortest && is_dual) {
+                                auto w = internal::solver_weight<W,trace_type>::add(trace.second, it->second.second);
+                                other_tos.emplace_back(other_to, std::make_pair(trace.first, std::move(w)));
+                            } else {
+                                other_tos.emplace_back(other_to, trace);
+                            }
                         }
                     }
                 }
-                for (auto other_to : other_tos) {
+                for (auto&& [other_to,product_trace] : other_tos) {
                     auto [fresh, product_to] = get_product_state<is_dual>(swap_if<!edge_in_first>(current_to, other.states()[other_to].get()));
                     if (label == epsilon) {
-                        _product.add_epsilon_edge(product_from, product_to, trace);
+                        _product.add_epsilon_edge(product_from, product_to, product_trace);
                     } else {
-                        _product.add_edge(product_from, product_to, label, trace);
+                        _product.add_edge(product_from, product_to, label, product_trace);
                     }
                     if constexpr(W::is_weight && trace_type == Trace_Type::Shortest) {
-                        auto w_opt = _product.make_back_edge_shortest(product_from, label, product_to, trace.second);
+                        auto w_opt = _product.make_back_edge_shortest(product_from, label, product_to, product_trace.second);
                         assert(!fresh || w_opt); // fresh must imply weight change.
                         if constexpr(ET) {
                             if (_product.has_accepting_state() && !internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight())) {
@@ -325,10 +333,10 @@ namespace pdaaal {
                             auto first2 = f_labels.begin();
                             auto last2 = f_labels.end();
                             while (first1 != last1 && first2 != last2) {
-                                if (std::tie(first1->first, first1->second.first) < std::tie(first2->first, first2->second.first)) {
+                                if (first1->first < first2->first) {
                                     ++first1;
                                 } else  {
-                                    if (std::tie(first2->first, first2->second.first) == std::tie(first1->first, first1->second.first)) {
+                                    if (first2->first == first1->first) {
                                         auto w = internal::solver_weight<W,trace_type>::add(first1->second.second, first2->second.second);
                                         labels.emplace_back(first1->first, std::make_pair(first1->second.first, std::move(w)));
                                         ++first1; // *first1 and *first2 are equivalent.
