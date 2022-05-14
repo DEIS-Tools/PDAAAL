@@ -96,6 +96,10 @@ namespace pdaaal::internal {
         friend constexpr bool operator!=(const trace_t& l, const trace_t& r) {
             return !(l == r);
         }
+
+        friend constexpr bool operator<(const trace_t& l, const trace_t& r) {
+            return std::tie(l._state, l._rule_id, l._label) < std::tie(r._state, r._rule_id, r._label);
+        }
     };
 
     template <TraceInfoType trace_info_type> struct TraceInfo {};

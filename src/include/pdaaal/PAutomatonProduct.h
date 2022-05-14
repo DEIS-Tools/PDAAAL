@@ -107,12 +107,14 @@ namespace pdaaal {
         }
 
         // This is for the dual_search mode:
+        template<Trace_Type trace_type = Trace_Type::None>
         bool add_initial_edge(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const weight_or_bool_t& et_param = default_weight_or_bool()) {
-            return add_edge<true, true>(from, label, to, trace, _initial, _final, et_param);
+            return add_edge<true, true, true, trace_type>(from, label, to, trace, _initial, _final, et_param);
         }
 
+        template<Trace_Type trace_type = Trace_Type::None>
         bool add_final_edge(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const weight_or_bool_t& et_param = default_weight_or_bool()) {
-            return add_edge<false, true>(from, label, to, trace, _initial, _final, et_param);
+            return add_edge<false, true, true, trace_type>(from, label, to, trace, _initial, _final, et_param);
         }
 
         automaton_t& automaton() {
@@ -213,11 +215,11 @@ namespace pdaaal {
         }
 
     private:
-        template<bool edge_in_first = true, bool needs_back_lookup = false, bool ET = true, Trace_Type trace_type = Trace_Type::None>
+        template<bool edge_in_first = true, bool is_dual = false, bool ET = true, Trace_Type trace_type = Trace_Type::None>
         bool add_edge(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace,
                       const automaton_t& first, const automaton_t& second, // States in first and second automaton corresponds to respectively first and second component of the states in product automaton.
                       [[maybe_unused]] const weight_or_bool_t& et_param) {
-            static_assert(edge_in_first || needs_back_lookup, "If you insert edge in the second automaton, then you must also enable using _id_fast_lookup_back to keep the relevant information.");
+            static_assert(edge_in_first || is_dual, "If you insert edge in the second automaton, then you must also enable using _id_fast_lookup_back to keep the relevant information.");
             const auto& fast_lookup = constexpr_ternary<edge_in_first>(_id_fast_lookup, _id_fast_lookup_back);
             std::vector<std::pair<size_t,size_t>> from_states;
             if (from < fast_lookup.size()) { // Avoid out-of-bounds.
@@ -242,7 +244,7 @@ namespace pdaaal {
                     }
                 }
                 for (auto other_to : other_tos) {
-                    auto [fresh, product_to] = get_product_state<needs_back_lookup>(swap_if<!edge_in_first>(current_to, other.states()[other_to].get()));
+                    auto [fresh, product_to] = get_product_state<is_dual>(swap_if<!edge_in_first>(current_to, other.states()[other_to].get()));
                     if (label == epsilon) {
                         _product.add_epsilon_edge(product_from, product_to, trace);
                     } else {
@@ -274,11 +276,11 @@ namespace pdaaal {
                     }
                 }
             }
-            return construct_reachable<needs_back_lookup,ET,trace_type>(waiting, first, second, et_param);
+            return construct_reachable<is_dual,ET,trace_type>(waiting, first, second, et_param);
         }
 
         // Returns whether an accepting state in the product automaton was reached.
-        template<bool needs_back_lookup = false, bool ET = true, Trace_Type trace_type>
+        template<bool is_dual = false, bool ET = true, Trace_Type trace_type>
         bool construct_reachable(queue_type<trace_type>& waiting, const automaton_t& initial, const automaton_t& final, [[maybe_unused]] const weight_or_bool_t& et_param) {
             while (!waiting.empty()) {
                 size_t top = waiting.back();
@@ -287,7 +289,7 @@ namespace pdaaal {
                 for (bool flip : std::array<bool,2>{true,false}) {
                     for (const auto& [to,labels] : (flip ? initial : final).states()[flip ? i_from : f_from]->_edges) {
                         if (auto it = labels.find(epsilon); it != labels.end()) {
-                            auto [fresh, product_to] = get_product_state<needs_back_lookup>(
+                            auto [fresh, product_to] = get_product_state<is_dual>(
                                     initial.states()[(flip ? to : i_from)].get(), final.states()[(flip ? f_from : to)].get());
                             _product.add_epsilon_edge(top, product_to, it->second);
                             if constexpr(W::is_weight && trace_type == Trace_Type::Shortest) {
@@ -317,9 +319,28 @@ namespace pdaaal {
                 for (const auto& [i_to,i_labels] : initial.states()[i_from]->_edges) {
                     for (const auto& [f_to,f_labels] : final.states()[f_from]->_edges) {
                         std::vector<typename decltype(i_labels)::value_type> labels;
-                        std::set_intersection(i_labels.begin(), i_labels.end(), f_labels.begin(), f_labels.end(), std::back_inserter(labels));
+                        if constexpr (is_dual && W::is_weight) {
+                            auto first1 = i_labels.begin();
+                            auto last1 = i_labels.end();
+                            auto first2 = f_labels.begin();
+                            auto last2 = f_labels.end();
+                            while (first1 != last1 && first2 != last2) {
+                                if (std::tie(first1->first, first1->second.first) < std::tie(first2->first, first2->second.first)) {
+                                    ++first1;
+                                } else  {
+                                    if (std::tie(first2->first, first2->second.first) == std::tie(first1->first, first1->second.first)) {
+                                        auto w = internal::solver_weight<W,trace_type>::add(first1->second.second, first2->second.second);
+                                        labels.emplace_back(first1->first, std::make_pair(first1->second.first, std::move(w)));
+                                        ++first1; // *first1 and *first2 are equivalent.
+                                    }
+                                    ++first2;
+                                }
+                            }
+                        } else {
+                            std::set_intersection(i_labels.begin(), i_labels.end(), f_labels.begin(), f_labels.end(), std::back_inserter(labels));
+                        }
                         if (!labels.empty() && labels.size() > (labels.back() == epsilon ? 1 : 0)) {
-                            auto [fresh, to_id] = get_product_state<needs_back_lookup>(initial.states()[i_to].get(), final.states()[f_to].get());
+                            auto [fresh, to_id] = get_product_state<is_dual>(initial.states()[i_to].get(), final.states()[f_to].get());
                             for (const auto& [label, trace] : labels) {
                                 if (label != epsilon) {
                                     _product.add_edge(top, to_id, label, trace);

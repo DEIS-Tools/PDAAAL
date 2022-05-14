@@ -92,10 +92,10 @@ namespace pdaaal {
             {
                 return dual_short_search<W>(instance.final_automaton(), instance.initial_automaton(),
                     [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const auto& et_param) -> bool {
-                        return instance.add_final_edge(from, label, to, trace, et_param);
+                        return instance.template add_final_edge<trace_type>(from, label, to, trace, et_param);
                     },
                     [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const auto& et_param) -> bool {
-                        return instance.add_initial_edge(from, label, to, trace, et_param);
+                        return instance.template add_initial_edge<trace_type>(from, label, to, trace, et_param);
                     }
                 );
                 return false;
@@ -117,7 +117,7 @@ namespace pdaaal {
         static bool dual_short_search(internal::PAutomaton<W> &pre_star_automaton, internal::PAutomaton<W> &post_star_automaton,
                                 const internal::early_termination_fn2<W>& pre_star_early_termination,
                                 const internal::early_termination_fn2<W>& post_star_early_termination) {
-            internal::PreStarSaturation<W,ET> pre_star(pre_star_automaton, pre_star_early_termination);
+            internal::PreStarSaturation<W,ET,true> pre_star(pre_star_automaton, pre_star_early_termination);
             internal::PostStarShortestSaturation<W,true,ET> post_star(post_star_automaton, post_star_early_termination);
             if constexpr (ET) {
                 if (pre_star.found() || post_star.found()) return true;
