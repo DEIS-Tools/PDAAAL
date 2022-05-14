@@ -264,7 +264,7 @@ namespace pdaaal {
                 // TODO: Implement infinite trace structure.
                 return std::make_pair(return_type{}, weight);
             } else if constexpr (trace_type == Trace_Type::Shortest) {
-                auto [automaton_path, weight] = instance.template find_path<trace_type>();
+                auto [automaton_path, weight] = instance.template find_path<trace_type, false>();
                 return std::make_pair(_get_trace(instance.pda(), instance.automaton(), automaton_path), weight);
             } else {
                 auto automaton_path = instance.template find_path<trace_type>();
@@ -276,9 +276,9 @@ namespace pdaaal {
             if constexpr (trace_type == Trace_Type::Shortest && W::is_weight)
             {
                 using return_type = decltype(_get_trace(instance.pda(), instance.initial_automaton(), std::declval<AutomatonPath<>>()));
-                /*auto [paths, weight] = instance.template find_path<trace_type, true>();
+                auto [paths, weight] = instance.template find_path<trace_type, true>();
                 if (paths.is_null()) {
-                    return std::make_pair(return_type{}, W::type{});
+                    return std::make_pair(return_type{}, typename W::type {});
                 }
                 auto [i_path, f_path] = paths.split();
                 auto trace1 = _get_trace(instance.pda(), instance.initial_automaton(), i_path);
@@ -286,8 +286,7 @@ namespace pdaaal {
                 assert(trace1.back()._pdastate == trace2.front()._pdastate);
                 assert(trace1.back()._stack.size() == trace2.front()._stack.size()); // Should also check == for contents of stack, but T might not implement ==.
                 trace1.insert(trace1.end(), trace2.begin() + 1, trace2.end());
-                return std::make_pair(trace1, weight);*/
-                return std::make_pair(return_type{}, typename W::type {});
+                return std::make_pair(trace1, weight);
             }
             else
             {

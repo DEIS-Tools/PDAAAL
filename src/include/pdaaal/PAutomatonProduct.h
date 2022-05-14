@@ -110,7 +110,7 @@ namespace pdaaal {
         bool add_initial_edge(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const weight_or_bool_t& et_param = default_weight_or_bool()) {
             return add_edge<true, true>(from, label, to, trace, _initial, _final, et_param);
         }
-        
+
         bool add_final_edge(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const weight_or_bool_t& et_param = default_weight_or_bool()) {
             return add_edge<false, true>(from, label, to, trace, _initial, _final, et_param);
         }
@@ -188,7 +188,7 @@ namespace pdaaal {
 
         template <bool state_pair = false>
         std::tuple<AutomatonPath<state_pair>, typename W::type> find_path_shortest() const {
-            return _product.get_path_shortest([this](size_t s){ return get_original<state_pair>(s); });
+            return _product.template get_path_shortest<state_pair>([this](auto s){ return get_original<state_pair>(s); });
         }
 
         template<Trace_Type trace_type = Trace_Type::Any, bool state_pair = false>

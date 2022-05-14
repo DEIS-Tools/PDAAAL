@@ -183,7 +183,7 @@ namespace pdaaal {
                                     result = Solver::dual_search_accepts<Trace_Type::Shortest>(instance);
                                     if (result) {
                                         typename pda_t::weight_type weight;
-                                        /*std::tie(trace, weight) =*/ Solver::get_trace_dual_search<Trace_Type::Shortest>(instance);
+                                        std::tie(trace, weight) = Solver::get_trace_dual_search<Trace_Type::Shortest>(instance);
                                         reachability_time.stop(); // We don't want to include time for output in reachability_time
                                         json_out.entry("weight", weight);
                                     }

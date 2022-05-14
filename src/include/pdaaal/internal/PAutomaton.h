@@ -427,11 +427,14 @@ namespace pdaaal::internal {
             return automaton_path_t();
         }
 
-        [[nodiscard]] auto find_path_shortest() const { return find_path_shortest([](size_t s){ return s; }); }
-        template <typename Fn> [[nodiscard]] auto find_path_shortest(Fn&& state_map) const {
+        template<bool state_pair = false>
+        [[nodiscard]] auto find_path_shortest() const { return find_path_shortest<state_pair>([](size_t s){ return s; }); }
+
+        template <bool state_pair = false, typename Fn>
+        [[nodiscard]] auto find_path_shortest(Fn&& state_map) const {
             using path_state = decltype(std::declval<Fn>()(std::declval<size_t>()));
             static_assert(std::is_convertible_v<Fn, std::function<path_state(size_t)>>);
-            using automaton_path_t = decltype(AutomatonPath(std::declval<path_state>()));
+            using automaton_path_t = decltype(AutomatonPath<state_pair>(std::declval<path_state>()));
 
             if constexpr (is_weighted<W>) { // TODO: Consider unweighted shortest path.
                 // Dijkstra.
@@ -460,7 +463,7 @@ namespace pdaaal::internal {
                     search_queue.pop();
 
                     if (_states[current.state]->_accepting) {
-                        AutomatonPath automaton_path(state_map(current.state));
+                        AutomatonPath<state_pair> automaton_path(state_map(current.state));
                         const queue_elem* p = &current;
                         while (p->back_pointer != nullptr) {
                             auto label = p->label;
@@ -666,14 +669,17 @@ namespace pdaaal::internal {
             }
         }
 
-        [[nodiscard]] auto get_path_shortest() const { return get_path_shortest([](size_t s){ return s; }); }
-        template <typename Fn> [[nodiscard]] auto get_path_shortest(Fn&& state_map) const {
+        template<bool state_pair>
+        [[nodiscard]] auto get_path_shortest() const { return get_path_shortest<state_pair>([](size_t s){ return s; }); }
+
+        template <bool state_pair, typename Fn> [[nodiscard]]
+        auto get_path_shortest(Fn&& state_map) const {
             if constexpr (W::is_weight) {
-                if (_accepting.empty()) return std::make_tuple(AutomatonPath(), solver_weight<W, Trace_Type::Shortest>::max());
+                if (_accepting.empty()) return std::make_tuple(AutomatonPath<state_pair>(), solver_weight<W, Trace_Type::Shortest>::max());
                 auto best_accept_state = *std::min_element(_accepting.begin(), _accepting.end(), [](const auto& a, const auto& b){
                     return solver_weight<W,Trace_Type::Shortest>::less(a->_best_weight, b->_best_weight);
                 });
-                AutomatonPath automaton_path(state_map(best_accept_state->_id));
+                AutomatonPath<state_pair> automaton_path(state_map(best_accept_state->_id));
                 const state_t* p = best_accept_state;
                 while (p->_back_edge_state != std::numeric_limits<size_t>::max()) {
                     auto label = p->_back_edge_label;
