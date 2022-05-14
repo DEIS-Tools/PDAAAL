@@ -124,7 +124,6 @@ namespace pdaaal::internal {
         bool _found = false;
         std::vector<weight_t> _minpath;
         std::vector<bool> _popped;
-        std::unordered_set<temp_edge_t,absl::Hash<temp_edge_t>> _seen;
 
         bool has_negative_weight() const {
             if constexpr (W::is_signed) {
@@ -194,14 +193,9 @@ namespace pdaaal::internal {
                     if(solver_weight::less(res, _minpath[from])) _minpath[from] = res;
                     _workset.emplace(from, label, to, std::move(res), trace);
                 } else {
-                    if(solver_weight::less(res, _minpath[from])) {
-                        // we need to bump it up on the queue
-                        _minpath[from] = res;
-                        _workset.emplace(from, label, to, std::move(res), trace);
-                    }
                     if(solver_weight::less(weight, it->second.second)) {
-                        // update the weight (but no need to re-add to queue)
                         it->second.second = std::move(weight);
+                        _workset.emplace(from, label, to, std::move(res), trace);
                     }
                 }
             } else {
@@ -244,9 +238,11 @@ namespace pdaaal::internal {
             [[maybe_unused]] const auto w = get_pautomata_edge_weight(t._from, t._label, t._to);
 
             if constexpr (SHORTEST && W::is_weight) {
-                if(!_seen.emplace(t).second)
-                    return;
                 assert(t._weight != solver_weight::max());
+                if(!_popped[t._from])
+                    _minpath[t._from] = t._weight;
+                if(solver_weight::less(solver_weight::add(w, _minpath[t._to]), t._weight))
+                    return;
                 if constexpr (ET) {
                     _found = _early_termination(t._from, t._label, t._to, std::make_pair(t._trace, w), t._weight) || _found;
                 }
