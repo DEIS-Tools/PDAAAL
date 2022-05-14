@@ -110,6 +110,7 @@ namespace pdaaal {
         bool add_initial_edge(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const weight_or_bool_t& et_param = default_weight_or_bool()) {
             return add_edge<true, true>(from, label, to, trace, _initial, _final, et_param);
         }
+        
         bool add_final_edge(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const weight_or_bool_t& et_param = default_weight_or_bool()) {
             return add_edge<false, true>(from, label, to, trace, _initial, _final, et_param);
         }

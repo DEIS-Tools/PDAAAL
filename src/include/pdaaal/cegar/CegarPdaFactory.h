@@ -459,7 +459,7 @@ namespace pdaaal {
                 if constexpr (use_pre_star) {
                     result = Solver::pre_star_accepts<Trace_Type::None>(*instance);
                 } else if constexpr (use_dual_star) {
-                    result = Solver::dual_search_accepts(*instance);
+                    result = Solver::dual_search_accepts<Trace_Type::None>(*instance);
                 } else {
                     result = Solver::post_star_accepts(*instance);
                 }

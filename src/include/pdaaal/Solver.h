@@ -81,20 +81,60 @@ namespace pdaaal {
             }
         }
 
-        template <typename pda_t, typename automaton_t, typename W>
+        template <Trace_Type trace_type,typename pda_t, typename automaton_t, typename W>
         static bool dual_search_accepts(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             if (instance.template initialize_product<true>()) {
                 return true;
             }
-            return dual_search<W>(instance.final_automaton(), instance.initial_automaton(),
-                [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const auto&) -> bool {
-                    return instance.add_final_edge(from, label, to, trace);
-                },
-                [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) -> bool {
-                    return instance.add_initial_edge(from, label, to, trace);
-                }
-            );
+            // we could *probably* avoid some dupplication here if the pre/post* algorithms
+            // were refactored into a streamlined structure wrt shortest/not shortest.
+            if constexpr (trace_type == Trace_Type::Shortest && W::is_weight)
+            {
+                return dual_short_search<W>(instance.final_automaton(), instance.initial_automaton(),
+                    [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const auto& et_param) -> bool {
+                        return instance.add_final_edge(from, label, to, trace, et_param);
+                    },
+                    [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const auto& et_param) -> bool {
+                        return instance.add_initial_edge(from, label, to, trace, et_param);
+                    }
+                );
+                return false;
+            }
+            else
+            {
+                return dual_search<W>(instance.final_automaton(), instance.initial_automaton(),
+                    [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const auto&) -> bool {
+                        return instance.add_final_edge(from, label, to, trace);
+                    },
+                    [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace) -> bool {
+                        return instance.add_initial_edge(from, label, to, trace);
+                    }
+                );
+            }
         }
+
+        template <typename W, bool ET=true>
+        static bool dual_short_search(internal::PAutomaton<W> &pre_star_automaton, internal::PAutomaton<W> &post_star_automaton,
+                                const internal::early_termination_fn2<W>& pre_star_early_termination,
+                                const internal::early_termination_fn2<W>& post_star_early_termination) {
+            internal::PreStarSaturation<W,ET> pre_star(pre_star_automaton, pre_star_early_termination);
+            internal::PostStarShortestSaturation<W,true,ET> post_star(post_star_automaton, post_star_early_termination);
+            if constexpr (ET) {
+                if (pre_star.found() || post_star.found()) return true;
+            }
+            while(!pre_star.workset_empty() && !post_star.workset_empty()) {
+                post_star.step();
+                if constexpr (ET) {
+                    if (post_star.found()) return true;
+                }
+                pre_star.step();
+                if constexpr (ET) {
+                    if (pre_star.found()) return true;
+                }
+            }
+            return pre_star.found() || post_star.found();
+        }
+
         template <typename W, bool ET=true>
         static bool dual_search(internal::PAutomaton<W> &pre_star_automaton, internal::PAutomaton<W> &post_star_automaton,
                                 const internal::early_termination_fn2<W>& pre_star_early_termination,
@@ -231,20 +271,39 @@ namespace pdaaal {
                 return _get_trace(instance.pda(), instance.automaton(), automaton_path);
             }
         }
-        template <typename pda_t, typename automaton_t, typename W>
+        template <Trace_Type trace_type = Trace_Type::Any, typename pda_t, typename automaton_t, typename W>
         static auto get_trace_dual_search(const PAutomatonProduct<pda_t,automaton_t,W>& instance) {
-            auto paths = instance.template find_path<Trace_Type::Any, true>();
-            using return_type = decltype(_get_trace(instance.pda(), instance.initial_automaton(), std::declval<AutomatonPath<>>()));
-            if (paths.is_null()) {
-                return return_type{};
+            if constexpr (trace_type == Trace_Type::Shortest && W::is_weight)
+            {
+                using return_type = decltype(_get_trace(instance.pda(), instance.initial_automaton(), std::declval<AutomatonPath<>>()));
+                /*auto [paths, weight] = instance.template find_path<trace_type, true>();
+                if (paths.is_null()) {
+                    return std::make_pair(return_type{}, W::type{});
+                }
+                auto [i_path, f_path] = paths.split();
+                auto trace1 = _get_trace(instance.pda(), instance.initial_automaton(), i_path);
+                auto trace2 = _get_trace(instance.pda(), instance.final_automaton(), f_path);
+                assert(trace1.back()._pdastate == trace2.front()._pdastate);
+                assert(trace1.back()._stack.size() == trace2.front()._stack.size()); // Should also check == for contents of stack, but T might not implement ==.
+                trace1.insert(trace1.end(), trace2.begin() + 1, trace2.end());
+                return std::make_pair(trace1, weight);*/
+                return std::make_pair(return_type{}, typename W::type {});
             }
-            auto [i_path, f_path] = paths.split();
-            auto trace1 = _get_trace(instance.pda(), instance.initial_automaton(), i_path);
-            auto trace2 = _get_trace(instance.pda(), instance.final_automaton(), f_path);
-            assert(trace1.back()._pdastate == trace2.front()._pdastate);
-            assert(trace1.back()._stack.size() == trace2.front()._stack.size()); // Should also check == for contents of stack, but T might not implement ==.
-            trace1.insert(trace1.end(), trace2.begin() + 1, trace2.end());
-            return trace1;
+            else
+            {
+                auto paths = instance.template find_path<trace_type, true>();
+                using return_type = decltype(_get_trace(instance.pda(), instance.initial_automaton(), std::declval<AutomatonPath<>>()));
+                if (paths.is_null()) {
+                    return return_type{};
+                }
+                auto [i_path, f_path] = paths.split();
+                auto trace1 = _get_trace(instance.pda(), instance.initial_automaton(), i_path);
+                auto trace2 = _get_trace(instance.pda(), instance.final_automaton(), f_path);
+                assert(trace1.back()._pdastate == trace2.front()._pdastate);
+                assert(trace1.back()._stack.size() == trace2.front()._stack.size()); // Should also check == for contents of stack, but T might not implement ==.
+                trace1.insert(trace1.end(), trace2.begin() + 1, trace2.end());
+                return trace1;
+            }
         }
         template <Trace_Type trace_type = Trace_Type::Any, bool use_dual=false, typename pda_t, typename automaton_t, typename W>
         static auto get_rule_trace_and_paths(const PAutomatonProduct<pda_t,automaton_t,W>& instance) {

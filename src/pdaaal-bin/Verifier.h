@@ -170,17 +170,27 @@ namespace pdaaal {
                     case 3: {
                         switch (trace_type) {
                             case Trace_Type::None:
-                                result = Solver::dual_search_accepts(instance);
+                                result = Solver::dual_search_accepts<Trace_Type::None>(instance);
                                 break;
                             case Trace_Type::Any:
-                                result = Solver::dual_search_accepts(instance);
+                                result = Solver::dual_search_accepts<Trace_Type::Any>(instance);
                                 if (result) {
                                     trace = Solver::get_trace_dual_search(instance);
                                 }
                                 break;
                             case Trace_Type::Shortest:
-                                assert(false);
-                                throw std::runtime_error("Cannot use shortest trace, not implemented for dual* engine.");
+                                if constexpr(pda_t::has_weight) {
+                                    result = Solver::dual_search_accepts<Trace_Type::Shortest>(instance);
+                                    if (result) {
+                                        typename pda_t::weight_type weight;
+                                        /*std::tie(trace, weight) =*/ Solver::get_trace_dual_search<Trace_Type::Shortest>(instance);
+                                        reachability_time.stop(); // We don't want to include time for output in reachability_time
+                                        json_out.entry("weight", weight);
+                                    }
+                                } else {
+                                    assert(false);
+                                    throw std::runtime_error("Cannot use shortest trace option for unweighted PDA.");
+                                }
                                 break;
                             case Trace_Type::Longest:
                             case Trace_Type::ShortestFixedPoint:
