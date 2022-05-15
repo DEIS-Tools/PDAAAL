@@ -133,6 +133,12 @@ namespace pdaaal {
                 return std::make_pair(*this, *this);
             }
         }
+        void remove_epsilon() {
+            if (!empty() && std::get<1>(front_edge()) == std::numeric_limits<uint32_t>::max()) {
+                assert(std::get<0>(front_edge()) == std::get<2>(front_edge()));
+                pop();
+            }
+        }
 
         friend bool operator==(const AutomatonPath& l, const AutomatonPath& r) {
             return l._end == r._end && l._edges == r._edges;

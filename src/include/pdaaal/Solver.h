@@ -289,6 +289,7 @@ namespace pdaaal {
                     return std::make_pair(return_type{}, typename W::type {});
                 }
                 auto [i_path, f_path] = paths.split();
+                f_path.remove_epsilon(); // post* may add an epsilon-edge as first. this edge is not in pre* automaton (final_automaton), so remove it from f_path.
                 auto trace1 = _get_trace(instance.pda(), instance.initial_automaton(), i_path);
                 auto trace2 = _get_trace(instance.pda(), instance.final_automaton(), f_path);
                 assert(trace1.back()._pdastate == trace2.front()._pdastate);
@@ -304,6 +305,7 @@ namespace pdaaal {
                     return return_type{};
                 }
                 auto [i_path, f_path] = paths.split();
+                f_path.remove_epsilon(); // post* may add an epsilon-edge as first. this edge is not in pre* automaton (final_automaton), so remove it from f_path.
                 auto trace1 = _get_trace(instance.pda(), instance.initial_automaton(), i_path);
                 auto trace2 = _get_trace(instance.pda(), instance.final_automaton(), f_path);
                 assert(trace1.back()._pdastate == trace2.front()._pdastate);
@@ -447,7 +449,7 @@ namespace pdaaal {
             }
             // The paths was retrieved from the product automaton. First number is the state in initial_automaton, second number is state in final_automaton.
             auto [initial_automaton_path, final_automaton_path] = paths.value().split();
-
+            final_automaton_path.remove_epsilon(); // post* may add an epsilon-edge as first. this edge is not in pre* automaton (final_automaton), so remove it from f_path.
             auto [trace, initial_stack, initial_path] = _get_trace_stack_path(initial_automaton, std::move(initial_automaton_path));
             auto [trace2, final_stack, final_path] = _get_trace_stack_path(final_automaton, std::move(final_automaton_path));
             // Concat traces
