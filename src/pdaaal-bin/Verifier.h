@@ -180,14 +180,10 @@ namespace pdaaal {
                                 break;
                             case Trace_Type::Shortest:
                                 if constexpr(pda_t::has_weight) {
-                                    auto instance_copy = instance.copy();
-                                    bool used_pre_star;
-                                    std::tie(result, used_pre_star) = Solver::interleaving_shortest_accepts(instance, instance_copy);
-//                                    result = Solver::dual_search_accepts<Trace_Type::Shortest>(instance);
+                                    result = Solver::dual_search_accepts<Trace_Type::Shortest>(instance);
                                     if (result) {
                                         typename pda_t::weight_type weight;
-                                        std::tie(trace, weight) = Solver::get_trace<Trace_Type::Shortest>(used_pre_star ? instance_copy : instance);
-//                                        std::tie(trace, weight) = Solver::get_trace_dual_search<Trace_Type::Shortest>(instance);
+                                        std::tie(trace, weight) = Solver::get_trace_dual_search<Trace_Type::Shortest>(instance);
                                         reachability_time.stop(); // We don't want to include time for output in reachability_time
                                         json_out.entry("weight", weight);
                                     }
