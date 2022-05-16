@@ -123,20 +123,20 @@ namespace pdaaal {
             // were refactored into a streamlined structure wrt shortest/not shortest.
             if constexpr (trace_type == Trace_Type::Shortest && W::is_weight)
             {
-                typename W::type latest_prestar_queue_weight = W::zero();
-                typename W::type latest_poststar_queue_weight = W::zero();
+                /*typename W::type latest_prestar_queue_weight = W::zero();
+                typename W::type latest_poststar_queue_weight = W::zero();*/
                 return dual_short_search<W>(instance.final_automaton(), instance.initial_automaton(),
-                    [&instance,&latest_prestar_queue_weight,&latest_poststar_queue_weight]
+                    [&instance/*,&latest_prestar_queue_weight,&latest_poststar_queue_weight*/]
                     (size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const auto& et_param) -> bool {
-                        latest_prestar_queue_weight = et_param;
-                        auto w = internal::solver_weight<W,trace_type>::add(latest_poststar_queue_weight, latest_prestar_queue_weight);
-                        return instance.template add_final_edge<trace_type>(from, label, to, trace, std::move(w));
+                        /*latest_prestar_queue_weight = et_param;
+                        auto w = internal::solver_weight<W,trace_type>::add(latest_poststar_queue_weight, latest_prestar_queue_weight);*/
+                        return instance.template add_final_edge<trace_type>(from, label, to, trace, /*std::move(w)*/ et_param);
                     },
-                    [&instance,&latest_prestar_queue_weight,&latest_poststar_queue_weight]
+                    [&instance/*,&latest_prestar_queue_weight,&latest_poststar_queue_weight*/]
                     (size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const auto& et_param) -> bool {
-                        latest_poststar_queue_weight = et_param;
-                        auto w = internal::solver_weight<W,trace_type>::add(latest_poststar_queue_weight, latest_prestar_queue_weight);
-                        return instance.template add_initial_edge<trace_type>(from, label, to, trace, std::move(w));
+                        /*latest_poststar_queue_weight = et_param;
+                        auto w = internal::solver_weight<W,trace_type>::add(latest_poststar_queue_weight, latest_prestar_queue_weight);*/
+                        return instance.template add_initial_edge<trace_type>(from, label, to, trace, /*std::move(w)*/ et_param);
                     }
                 );
                 return false;
