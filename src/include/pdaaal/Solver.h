@@ -81,6 +81,39 @@ namespace pdaaal {
             }
         }
 
+        template <typename pda_t, typename automaton_t, typename W>
+        static std::pair<bool,bool> interleaving_shortest_accepts(PAutomatonProduct<pda_t,automaton_t,W,TraceInfoType::Single>& instance,
+                                                                  PAutomatonProduct<pda_t,automaton_t,W,TraceInfoType::Single>& instance_copy) {
+            instance_copy.enable_pre_star();
+            if (instance_copy.initialize_product()) {
+                return std::make_pair(true,true);
+            }
+            if (instance.initialize_product()) {
+                return std::make_pair(true,false);
+            }
+            internal::PreStarSaturation<W,true,true> pre_star(instance_copy.automaton(),
+                [&instance_copy](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const auto& et_param) -> bool {
+                    return instance_copy.add_final_edge(from, label, to, trace, et_param);
+                });
+            internal::PostStarShortestSaturation<W,true,true> post_star(instance.automaton(),
+                [&instance](size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const auto& et_param) -> bool {
+                    return instance.add_initial_edge(from, label, to, trace, et_param);
+                });
+
+            while(!pre_star.workset_empty() && !post_star.workset_empty()) {
+                post_star.step();
+                if (post_star.found()) return std::make_pair(true,false);
+                pre_star.step();
+                if (pre_star.found()) return std::make_pair(true,true);
+            }
+            if (pre_star.workset_empty()) {
+                return std::make_pair(pre_star.found(), true);
+            } else {
+                assert(post_star.workset_empty());
+                return std::make_pair(post_star.found(), false);
+            }
+        }
+
         template <Trace_Type trace_type,typename pda_t, typename automaton_t, typename W>
         static bool dual_search_accepts(PAutomatonProduct<pda_t,automaton_t,W>& instance) {
             if (instance.template initialize_product<true>()) {
