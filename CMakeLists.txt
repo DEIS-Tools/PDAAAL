@@ -43,7 +43,7 @@ if(PDAAAL_AddressSanitizer)
     add_compile_options(-fno-omit-frame-pointer -fsanitize=address)
 endif(PDAAAL_AddressSanitizer)
 
-find_package(Boost 1.70 CONFIG REQUIRED COMPONENTS headers program_options unit_test_framework)
+find_package(Boost 1.70 REQUIRED COMPONENTS program_options unit_test_framework)
 
 #actual library
 add_subdirectory(src)

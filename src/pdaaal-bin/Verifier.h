@@ -1,14 +1,14 @@
-/* 
+/*
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -17,7 +17,7 @@
  *  Copyright Morten K. Schou
  */
 
-/* 
+/*
  * File:   Verifier.h
  * Author: Morten K. Schou <morten@h-schou.dk>
  *
@@ -135,17 +135,29 @@ namespace pdaaal {
                     case 2: {
                         switch (trace_type) {
                             case Trace_Type::None:
-                                result = Solver::pre_star_accepts(instance);
+                                result = Solver::pre_star_accepts<Trace_Type::None>(instance);
                                 break;
                             case Trace_Type::Any:
-                                result = Solver::pre_star_accepts(instance);
+                                result = Solver::pre_star_accepts<Trace_Type::Any>(instance);
                                 if (result) {
                                     trace = Solver::get_trace(instance);
                                 }
                                 break;
                             case Trace_Type::Shortest:
-                                assert(false);
-                                throw std::runtime_error("Cannot use shortest trace, not implemented for pre* engine.");
+                                if constexpr(pda_t::has_weight) {
+                                    result = Solver::pre_star_accepts<Trace_Type::Shortest>(instance);
+                                    //instance. template product_automaton_to_dot(std::cerr);
+                                    //std::cerr << std::endl;
+                                    if (result) {
+                                        typename pda_t::weight_type weight;
+                                        std::tie(trace, weight) = Solver::get_trace<Trace_Type::Shortest>(instance);
+                                        reachability_time.stop(); // We don't want to include time for output in reachability_time.
+                                        json_out.entry("weight", weight);
+                                    }
+                                } else {
+                                    assert(false);
+                                    throw std::runtime_error("Cannot use shortest trace option for unweighted PDA.");
+                                }
                                 break;
                             case Trace_Type::Longest:
                             case Trace_Type::ShortestFixedPoint:
@@ -158,17 +170,27 @@ namespace pdaaal {
                     case 3: {
                         switch (trace_type) {
                             case Trace_Type::None:
-                                result = Solver::dual_search_accepts(instance);
+                                result = Solver::dual_search_accepts<Trace_Type::None>(instance);
                                 break;
                             case Trace_Type::Any:
-                                result = Solver::dual_search_accepts(instance);
+                                result = Solver::dual_search_accepts<Trace_Type::Any>(instance);
                                 if (result) {
                                     trace = Solver::get_trace_dual_search(instance);
                                 }
                                 break;
                             case Trace_Type::Shortest:
-                                assert(false);
-                                throw std::runtime_error("Cannot use shortest trace, not implemented for dual* engine.");
+                                if constexpr(pda_t::has_weight) {
+                                    result = Solver::dual_search_accepts<Trace_Type::Shortest>(instance);
+                                    if (result) {
+                                        typename pda_t::weight_type weight;
+                                        std::tie(trace, weight) = Solver::get_trace_dual_search<Trace_Type::Shortest>(instance);
+                                        reachability_time.stop(); // We don't want to include time for output in reachability_time
+                                        json_out.entry("weight", weight);
+                                    }
+                                } else {
+                                    assert(false);
+                                    throw std::runtime_error("Cannot use shortest trace option for unweighted PDA.");
+                                }
                                 break;
                             case Trace_Type::Longest:
                             case Trace_Type::ShortestFixedPoint:
