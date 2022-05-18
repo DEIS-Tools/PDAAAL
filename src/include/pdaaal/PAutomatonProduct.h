@@ -1,14 +1,14 @@
-/* 
+/*
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -17,7 +17,7 @@
  *  Copyright Morten K. Schou
  */
 
-/* 
+/*
  * File:   PAutomatonProduct.h
  * Author: Morten K. Schou <morten@h-schou.dk>
  *
@@ -34,12 +34,20 @@
 
 namespace pdaaal {
 
-    template <typename pda_t, typename automaton_t, typename W, TraceInfoType trace_info_type = TraceInfoType::Single>
+    template <typename _pda_t, typename _automaton_t, typename _weight_t, TraceInfoType _trace_info_type = TraceInfoType::Single>
     class PAutomatonProduct {
+    public:
+        using pda_t = _pda_t;
+        using automaton_t = _automaton_t;
+        using W = _weight_t;
+        static constexpr auto trace_info_type = _trace_info_type;
+    private:
         using product_automaton_t = internal::PAutomaton<W,trace_info_type>; // No explicit abstraction on product automaton - this is covered by _initial and _final.
         using state_t = typename product_automaton_t::state_t;
         static constexpr auto epsilon = product_automaton_t::epsilon;
         using weight_t = typename W::type;
+        using edge_anno = internal::edge_annotation<W,trace_info_type>;
+        using edge_anno_t = internal::edge_annotation_t<W,trace_info_type>;
         struct queue_elem_comp {
             bool operator()(const auto& lhs, const auto& rhs) const {
                 return internal::solver_weight<W, Trace_Type::Shortest>::less(rhs, lhs); // Used in a max-heap, so swap arguments to make it a min-heap.
@@ -101,11 +109,14 @@ namespace pdaaal {
         }
 
         // This is for the dual_search mode:
+        template<Trace_Type trace_type = Trace_Type::None>
         bool add_initial_edge(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const weight_or_bool_t& et_param = default_weight_or_bool()) {
-            return add_edge<true, true>(from, label, to, trace, _initial, _final, et_param);
+            return add_edge<true, true, true, trace_type>(from, label, to, trace, _initial, _final, et_param);
         }
+
+        template<Trace_Type trace_type = Trace_Type::None>
         bool add_final_edge(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace, const weight_or_bool_t& et_param = default_weight_or_bool()) {
-            return add_edge<false, true>(from, label, to, trace, _initial, _final, et_param);
+            return add_edge<false, true, true, trace_type>(from, label, to, trace, _initial, _final, et_param);
         }
 
         automaton_t& automaton() {
@@ -131,15 +142,15 @@ namespace pdaaal {
             return _product;
         }
         template<Trace_Type trace_type = Trace_Type::None>
-        void automaton_to_dot(std::ostream &out) {
+        void automaton_to_dot(std::ostream &out) const {
             automaton_to_dot<trace_type>(out, automaton());
         }
         template<Trace_Type trace_type = Trace_Type::None>
-        void product_automaton_to_dot(std::ostream &out) {
+        void product_automaton_to_dot(std::ostream &out) const {
             automaton_to_dot<trace_type>(out, product_automaton());
         }
         template<Trace_Type trace_type = Trace_Type::None, typename aut_t>
-        void automaton_to_dot(std::ostream &out, const aut_t& automaton) {
+        void automaton_to_dot(std::ostream &out, const aut_t& automaton) const {
             automaton.template to_dot<trace_type>(out,
                 [this](std::ostream& s, const uint32_t& label){ s << pda().get_symbol(label); },
                 [this,pda_size=pda().states().size()](std::ostream& s, const size_t& state_id){
@@ -181,7 +192,7 @@ namespace pdaaal {
 
         template <bool state_pair = false>
         std::tuple<AutomatonPath<state_pair>, typename W::type> find_path_shortest() const {
-            return _product.get_path_shortest([this](size_t s){ return get_original<state_pair>(s); });
+            return _product.template get_path_shortest<state_pair>([this](auto s){ return get_original<state_pair>(s); });
         }
 
         template<Trace_Type trace_type = Trace_Type::Any, bool state_pair = false>
@@ -206,11 +217,11 @@ namespace pdaaal {
         }
 
     private:
-        template<bool edge_in_first = true, bool needs_back_lookup = false, bool ET = true, Trace_Type trace_type = Trace_Type::None>
+        template<bool edge_in_first = true, bool is_dual = false, bool ET = true, Trace_Type trace_type = Trace_Type::None>
         bool add_edge(size_t from, uint32_t label, size_t to, internal::edge_annotation_t<W> trace,
                       const automaton_t& first, const automaton_t& second, // States in first and second automaton corresponds to respectively first and second component of the states in product automaton.
                       [[maybe_unused]] const weight_or_bool_t& et_param) {
-            static_assert(edge_in_first || needs_back_lookup, "If you insert edge in the second automaton, then you must also enable using _id_fast_lookup_back to keep the relevant information.");
+            static_assert(edge_in_first || is_dual, "If you insert edge in the second automaton, then you must also enable using _id_fast_lookup_back to keep the relevant information.");
             const auto& fast_lookup = constexpr_ternary<edge_in_first>(_id_fast_lookup, _id_fast_lookup_back);
             std::vector<std::pair<size_t,size_t>> from_states;
             if (from < fast_lookup.size()) { // Avoid out-of-bounds.
@@ -224,28 +235,34 @@ namespace pdaaal {
             auto current_to = current.states()[to].get();
             queue_type<trace_type> waiting;
             for (auto [other_from, product_from] : from_states) { // Iterate through reachable 'from-states'.
-                std::vector<size_t> other_tos;
+                std::vector<std::pair<size_t,edge_anno_t>> other_tos;
                 if (label == epsilon) {
-                    other_tos.emplace_back(other_from);
+                    other_tos.emplace_back(other_from, trace);
                 } else {
                     for (const auto& [other_to,other_labels] : other.states()[other_from]->_edges) {
-                        if (other_labels.contains(label)) {
-                            other_tos.emplace_back(other_to);
+                        auto it = other_labels.find(label);
+                        if (it != other_labels.end()) {
+                            if constexpr(W::is_weight && trace_type == Trace_Type::Shortest && is_dual) {
+                                auto w = internal::solver_weight<W,trace_type>::add(trace.second, it->second.second);
+                                other_tos.emplace_back(other_to, std::make_pair(trace.first, std::move(w)));
+                            } else {
+                                other_tos.emplace_back(other_to, trace);
+                            }
                         }
                     }
                 }
-                for (auto other_to : other_tos) {
-                    auto [fresh, product_to] = get_product_state<needs_back_lookup>(swap_if<!edge_in_first>(current_to, other.states()[other_to].get()));
+                for (auto&& [other_to,product_trace] : other_tos) {
+                    auto [fresh, product_to] = get_product_state<is_dual>(swap_if<!edge_in_first>(current_to, other.states()[other_to].get()));
                     if (label == epsilon) {
-                        _product.add_epsilon_edge(product_from, product_to, trace);
+                        _product.add_epsilon_edge(product_from, product_to, product_trace);
                     } else {
-                        _product.add_edge(product_from, product_to, label, trace);
+                        _product.add_edge(product_from, product_to, label, product_trace);
                     }
                     if constexpr(W::is_weight && trace_type == Trace_Type::Shortest) {
-                        auto w_opt = _product.make_back_edge_shortest(product_from, label, product_to, trace.second);
+                        auto w_opt = _product.make_back_edge_shortest(product_from, label, product_to, product_trace.second);
                         assert(!fresh || w_opt); // fresh must imply weight change.
                         if constexpr(ET) {
-                            if (!internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight())) {
+                            if (_product.has_accepting_state() && !internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight())) {
                                 return true; // Early termination
                             }
                         }
@@ -267,11 +284,11 @@ namespace pdaaal {
                     }
                 }
             }
-            return construct_reachable<needs_back_lookup,ET,trace_type>(waiting, first, second, et_param);
+            return construct_reachable<is_dual,ET,trace_type>(waiting, first, second, et_param);
         }
 
         // Returns whether an accepting state in the product automaton was reached.
-        template<bool needs_back_lookup = false, bool ET = true, Trace_Type trace_type>
+        template<bool is_dual = false, bool ET = true, Trace_Type trace_type>
         bool construct_reachable(queue_type<trace_type>& waiting, const automaton_t& initial, const automaton_t& final, [[maybe_unused]] const weight_or_bool_t& et_param) {
             while (!waiting.empty()) {
                 size_t top = waiting.back();
@@ -280,14 +297,14 @@ namespace pdaaal {
                 for (bool flip : std::array<bool,2>{true,false}) {
                     for (const auto& [to,labels] : (flip ? initial : final).states()[flip ? i_from : f_from]->_edges) {
                         if (auto it = labels.find(epsilon); it != labels.end()) {
-                            auto [fresh, product_to] = get_product_state<needs_back_lookup>(
+                            auto [fresh, product_to] = get_product_state<is_dual>(
                                     initial.states()[(flip ? to : i_from)].get(), final.states()[(flip ? f_from : to)].get());
                             _product.add_epsilon_edge(top, product_to, it->second);
                             if constexpr(W::is_weight && trace_type == Trace_Type::Shortest) {
                                 auto w_opt = _product.make_back_edge_shortest(top, epsilon, product_to, it->second.second);
                                 assert(!fresh || w_opt); // fresh must imply weight change.
                                 if constexpr(ET) {
-                                    if (!internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight())) {
+                                    if (_product.has_accepting_state() && !internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight())) {
                                         return true; // Early termination
                                     }
                                 }
@@ -310,9 +327,28 @@ namespace pdaaal {
                 for (const auto& [i_to,i_labels] : initial.states()[i_from]->_edges) {
                     for (const auto& [f_to,f_labels] : final.states()[f_from]->_edges) {
                         std::vector<typename decltype(i_labels)::value_type> labels;
-                        std::set_intersection(i_labels.begin(), i_labels.end(), f_labels.begin(), f_labels.end(), std::back_inserter(labels));
+                        if constexpr (is_dual && W::is_weight) {
+                            auto first1 = i_labels.begin();
+                            auto last1 = i_labels.end();
+                            auto first2 = f_labels.begin();
+                            auto last2 = f_labels.end();
+                            while (first1 != last1 && first2 != last2) {
+                                if (first1->first < first2->first) {
+                                    ++first1;
+                                } else  {
+                                    if (first2->first == first1->first) {
+                                        auto w = internal::solver_weight<W,trace_type>::add(first1->second.second, first2->second.second);
+                                        labels.emplace_back(first1->first, std::make_pair(first1->second.first, std::move(w)));
+                                        ++first1; // *first1 and *first2 are equivalent.
+                                    }
+                                    ++first2;
+                                }
+                            }
+                        } else {
+                            std::set_intersection(i_labels.begin(), i_labels.end(), f_labels.begin(), f_labels.end(), std::back_inserter(labels));
+                        }
                         if (!labels.empty() && labels.size() > (labels.back() == epsilon ? 1 : 0)) {
-                            auto [fresh, to_id] = get_product_state<needs_back_lookup>(initial.states()[i_to].get(), final.states()[f_to].get());
+                            auto [fresh, to_id] = get_product_state<is_dual>(initial.states()[i_to].get(), final.states()[f_to].get());
                             for (const auto& [label, trace] : labels) {
                                 if (label != epsilon) {
                                     _product.add_edge(top, to_id, label, trace);
@@ -325,7 +361,7 @@ namespace pdaaal {
                                 auto w_opt = _product.make_back_edge_shortest(top, min_label_it->first, to_id, min_label_it->second.second);
                                 assert(!fresh || w_opt); // fresh must imply weight change.
                                 if constexpr(ET) {
-                                    if (!internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight())) {
+                                    if (_product.has_accepting_state() && !internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight())) {
                                         return true; // Early termination
                                     }
                                 }
@@ -347,7 +383,7 @@ namespace pdaaal {
                 }
             }
             if constexpr(W::is_weight && trace_type == Trace_Type::Shortest) {
-                return !internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight());
+                return _product.has_accepting_state() && !internal::solver_weight<W,trace_type>::less(et_param, _product.min_accepting_weight());
             } else {
                 return _product.has_accepting_state();
             }
