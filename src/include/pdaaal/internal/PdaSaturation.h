@@ -687,7 +687,6 @@ namespace pdaaal::internal {
 
         void initialize() {
             for (const auto& from : _automaton.states()) {
-                if (from->_accepting) add_pop(from->_id);
                 for (const auto& [to,labels] : from->_edges) {
                     for (const auto& [label,tw] : labels) {
                         assert(tw == std::make_pair(trace_info::make_default(), W::zero()));
@@ -696,6 +695,10 @@ namespace pdaaal::internal {
                         ++_count_transitions;
                     }
                 }
+            }
+            // We need to add_pop after going through the original automaton.
+            for (const auto& from : _automaton.states()) { // TODO: Make _automaton._accepting available to save iterations.
+                if (from->_accepting) add_pop(from->_id);
             }
             parent_t::set_round_limit(_count_transitions);
         }
