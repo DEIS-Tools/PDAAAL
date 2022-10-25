@@ -2,7 +2,7 @@
 PushDown Automata - AALborg
 
 ## Dependencies
-Install dependencies (tested on Ubuntu 21.10): [TODO: Actually test this]
+Install dependencies:
 ````shell
 sudo apt install build-essentials cmake
 ````
